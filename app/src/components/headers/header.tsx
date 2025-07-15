@@ -1,8 +1,21 @@
 import React from "react";
 import { Ionicons } from "@expo/vector-icons";
-import { View, StyleSheet, Text } from "react-native";
+import { View, StyleSheet, Text, Pressable } from "react-native";
+import { useRouter } from "expo-router";
+import { usePermissionsStore } from "@/presentation/store/usePermissions";
 
 const PrincipalHeader = () => {
+  const router = useRouter();
+  const {locationStatus} = usePermissionsStore();
+
+  const handleLocationPress = () => {
+    if (locationStatus === "GRANTED"){
+      router.replace('/map');
+    } else if (locationStatus !== "CHECKING") {
+      router.replace('/permissions');    
+    }
+  }
+
   return (
     <View style={styles.header}>
       <View style={styles.iconRow}>
@@ -11,9 +24,13 @@ const PrincipalHeader = () => {
 
       <View style={styles.locationBox}>
         <Ionicons name='location-outline' size={20} color='#6528FF' />
+
+        <Pressable onPress={handleLocationPress}>
+
         <Text numberOfLines={1} style={styles.locationText}>
           Calle 1 con av. 23
         </Text>
+        </Pressable>
         <Ionicons name='chevron-down' size={18} color='#5D5D5D' />
       </View>
 

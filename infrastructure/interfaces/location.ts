@@ -1,5 +1,5 @@
 export enum PermissionStatus {
-  CHECKING = 'checking',
+  CHECKING = 'CHECKING',
   GRANTED = 'GRANTED',
   DENIED = 'DENIED',
   BLOCKED = 'BLOCKED',

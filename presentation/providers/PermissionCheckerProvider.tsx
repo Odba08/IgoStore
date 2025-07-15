@@ -7,14 +7,14 @@ import { router } from 'expo-router'
 const PermissionCheckerProvider = ({children}:PropsWithChildren) => {
 const {locationStatus, checkLocationPermission} = usePermissionsStore()
 
-useEffect(() => {
+/* useEffect(() => {
     if (locationStatus === PermissionStatus.GRANTED) {
-        router.replace('/map')
+        router.replace('/')
    } else if (locationStatus !== PermissionStatus.CHECKING) {
         router.replace('/permissions')
     }
 }, [locationStatus])
-
+ */
 useEffect(() => {
     checkLocationPermission()
 }, [])
