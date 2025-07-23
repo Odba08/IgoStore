@@ -1,4 +1,4 @@
-import { View, Text, AppState } from 'react-native'
+import {  AppState } from 'react-native'
 import React, { PropsWithChildren, useEffect } from 'react'
 import { usePermissionsStore } from '../store/usePermissions'
 import { PermissionStatus } from '@/infrastructure/interfaces/location'

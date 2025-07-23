@@ -28,14 +28,6 @@ export default function Index() {
   return (
     <>
 
-  {/*   <Stack.Screen
-      options={{
-        headerShown: false,
-        contentStyle: { backgroundColor: "#ffffff" },
-      }}
-    /> */}
-
-
     <PrincipalHeader />
 
       <StatusBar style='dark' />

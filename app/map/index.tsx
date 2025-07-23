@@ -1,24 +1,21 @@
-import { View, Text, StyleSheet} from 'react-native'
+import { View} from 'react-native'
 import React from 'react'
+import CustomMap from '@/presentation/components/maps/CustomMap';
 
 const MapScreens
  = () => {
   return (
-    <View style ={styles.container}>
-      <View style={styles.map} />
+    <View>
+       
+       <CustomMap
+        initialLocation={{
+          latitud:45.41256,
+          longitud:-75.698931
+        }}
+       />
     </View>
   )
 }
 
 export default MapScreens
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  map: {
-    width: '100%',
-    height: '100%',
-    backgroundColor: '#E5E5E5',
-  }
-})
