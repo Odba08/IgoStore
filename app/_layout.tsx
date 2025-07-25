@@ -1,8 +1,10 @@
 import PermissionCheckerProvider from "@/presentation/providers/PermissionCheckerProvider";
 import { Stack } from "expo-router";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 
 export default function RootLayout() {
   return (
+  <GestureHandlerRootView>
     <PermissionCheckerProvider>
     <Stack
       screenOptions={{
@@ -18,6 +20,7 @@ export default function RootLayout() {
       <Stack.Screen name="map" options={{ headerShown: false }} />
     </Stack>
      </PermissionCheckerProvider>
+  </GestureHandlerRootView>
   )
   
 }

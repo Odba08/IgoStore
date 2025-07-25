@@ -11,8 +11,8 @@ try {
   })
 
   return {
-    latitud: coords.latitude,
-    longitud: coords.longitude
+    latitude: coords.latitude,
+    longitude: coords.longitude
   }
   
 } catch (error) {
@@ -33,8 +33,8 @@ export const watchCurrentPosition = (
       distanceInterval: 10
     }, ({coords}) => {
       locationCallback({
-        latitud: coords.latitude,
-        longitud: coords.longitude
+        latitude: coords.latitude,
+        longitude: coords.longitude
       })
     }
 
