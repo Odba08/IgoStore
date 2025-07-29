@@ -1,8 +1,8 @@
 import { LatLng } from '@/infrastructure/interfaces/lat-lng';
 import { useLocationStore } from '@/presentation/store/useLocationStore';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {View, ViewProps, StyleSheet} from 'react-native'
-import MapView from 'react-native-maps';
+import MapView, { Polyline } from 'react-native-maps';
 import FAB from '../shared/FAB';
 
 interface Props extends ViewProps{
@@ -13,7 +13,9 @@ interface Props extends ViewProps{
 
 const CustomMap = ({initialLocation, showUserLocation = true, ...rest }:Props) => {
   const mapRef= useRef<MapView>(null);
-  const {watchLocation,clearWatchLocation,lastKnowLocation}= useLocationStore();
+  const [isFollowingUser, setFollowingUser ] = useState(true)
+
+  const {watchLocation,clearWatchLocation,lastKnowLocation, getLocation, userLocationList}= useLocationStore();
 
    useEffect(()=>{
       watchLocation();
@@ -23,9 +25,9 @@ const CustomMap = ({initialLocation, showUserLocation = true, ...rest }:Props) =
     },[]);
 
     useEffect(()=>{
-      if(lastKnowLocation)
+      if(lastKnowLocation && isFollowingUser ) 
      moveCameraToLocation(lastKnowLocation)
-    },[lastKnowLocation]);
+    },[lastKnowLocation, isFollowingUser]);
 
     const moveCameraToLocation = (latLng: LatLng) =>{
       if(!mapRef.current) return;
@@ -34,11 +36,24 @@ const CustomMap = ({initialLocation, showUserLocation = true, ...rest }:Props) =
       })
     }
 
+    const moveToCurrentLocation = async()  => {
+      if(!lastKnowLocation){
+        moveCameraToLocation(initialLocation)
+      } else {
+        moveCameraToLocation(lastKnowLocation);
+      }
+
+      const location = await getLocation();
+      if (!location ) return;
+
+      moveCameraToLocation(location);
+    }
       
 
     return (
     <View {...rest}>
       <MapView 
+      onTouchStart={() => setFollowingUser(false)}
       ref={mapRef}
       showsUserLocation = {showUserLocation}
       style={styles.map} 
@@ -48,13 +63,28 @@ const CustomMap = ({initialLocation, showUserLocation = true, ...rest }:Props) =
         latitudeDelta: 0.01,
         longitudeDelta: 0.01
       }}
+      > 
+      <Polyline 
+      coordinates={ userLocationList}
+      strokeColor={'purple'}
+      strokeWidth={5}
       />
+      
+      </MapView>
 
       <FAB 
-      iconName='at-circle-outline'
-      onPress={()=> {}}
+      iconName='compass-outline'
+      onPress={moveToCurrentLocation}
       style={{
         bottom: 20,
+        right: 20
+      }} />
+
+      <FAB 
+      iconName={isFollowingUser ? 'walk-outline' : 'accessibility-outline'}
+      onPress={() => setFollowingUser(!isFollowingUser)}
+      style={{
+        bottom: 80,
         right: 20
       }} />
     </View>

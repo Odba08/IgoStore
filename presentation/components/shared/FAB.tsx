@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import { View, StyleSheet, Pressable, ViewStyle, StyleProp, TouchableOpacity} from "react-native";
+import { View, StyleSheet, ViewStyle, StyleProp, TouchableOpacity} from "react-native";
 
 interface Props {
   iconName: keyof typeof Ionicons.glyphMap
