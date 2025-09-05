@@ -1,8 +1,12 @@
 import PermissionCheckerProvider from "@/presentation/providers/PermissionCheckerProvider";
 import { Stack } from "expo-router";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { bussines } from "./core/actions/bussines/bussines.actions";
 
 export default function RootLayout() {
+
+  bussines();
+
   return (
   <GestureHandlerRootView>
     <PermissionCheckerProvider>

@@ -8,7 +8,6 @@ import FAB from '../shared/FAB';
 interface Props extends ViewProps{
   initialLocation: LatLng;
   showUserLocation?: boolean;
-
 }
 
 const CustomMap = ({initialLocation, showUserLocation = true, ...rest }:Props) => {
@@ -60,8 +59,8 @@ const CustomMap = ({initialLocation, showUserLocation = true, ...rest }:Props) =
       initialRegion = {{
         latitude: initialLocation.latitude,
         longitude: initialLocation.longitude,
-        latitudeDelta: 0.01,
-        longitudeDelta: 0.01
+        latitudeDelta: 10.6545,
+        longitudeDelta: -71.6533
       }}
       > 
       <Polyline 
