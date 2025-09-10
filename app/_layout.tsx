@@ -1,14 +1,17 @@
 import PermissionCheckerProvider from "@/presentation/providers/PermissionCheckerProvider";
 import { Stack } from "expo-router";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import { bussines } from "./core/actions/bussines/bussines.actions";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+
+const queryClient = new QueryClient();
 
 export default function RootLayout() {
 
-  bussines();
+
 
   return (
   <GestureHandlerRootView>
+    <QueryClientProvider client={queryClient}> 
     <PermissionCheckerProvider>
     <Stack
       screenOptions={{
@@ -24,6 +27,7 @@ export default function RootLayout() {
       <Stack.Screen name="map" options={{ headerShown: false }} />
     </Stack>
      </PermissionCheckerProvider>
+     </QueryClientProvider>
   </GestureHandlerRootView>
   )
   

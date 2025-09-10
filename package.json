@@ -17,6 +17,7 @@
     "@react-navigation/native": "^7.1.6",
     "@rneui/base": "^4.0.0-rc.8",
     "@rneui/themed": "^4.0.0-rc.8",
+    "@tanstack/react-query": "^5.87.1",
     "axios": "^1.11.0",
     "expo": "~53.0.11",
     "expo-blur": "~14.1.5",
