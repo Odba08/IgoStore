@@ -10,9 +10,9 @@ const PrincipalHeader = () => {
 
   const handleLocationPress = () => {
     if (locationStatus === "GRANTED"){
-      router.replace('/map');
+      router.replace('./map');
     } else if (locationStatus !== "CHECKING") {
-      router.replace('/permissions');    
+      router.replace('./permissions');    
     }
   }
 

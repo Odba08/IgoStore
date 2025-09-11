@@ -23,8 +23,6 @@ const Sliderscroll = () => {
         </TouchableOpacity>
       </View>
 
-      
-
       <TouchableOpacity onPress={() => router.push("/src/features/products/information")}>
         <Image source={require("../../../../assets/Icons/rectangle.png")} style={styles.Image} />
         <View style={styles.overlay}></View>

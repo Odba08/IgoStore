@@ -33,7 +33,6 @@ const SliderCircle = () => {
       </TouchableOpacity>
       <TouchableOpacity>
         <Image source={require("../../../../assets/Icons/circle.png")} style={style.image} />
-        <Image source={require("../../../../assets/Icons/circle.png")} style={style.image} />
       </TouchableOpacity>
       <TouchableOpacity>
         <Image source={require("../../../../assets/Icons/circle.png")} style={style.image} />

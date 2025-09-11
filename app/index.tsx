@@ -1,10 +1,11 @@
 import { StatusBar } from "expo-status-bar";
-import { ActivityIndicator, ScrollView, Text, TextInput, View } from "react-native";
+import { ScrollView, Text, TextInput, View } from "react-native";
 import { useBusinesses } from "@/presentation/hooks/Bussiness";
 import PrincipalHeader from "./src/components/headers/header";
 import SliderCircle from "./src/components/sliders/slider-circle";
 import SliderProduct from "./src/components/sliders/slider-product";
 import Sliderscroll from "./src/components/sliders/sliderscroll";
+import LoadingScreen from "./src/components/loading";
 
 export default function Index() {
 
@@ -25,14 +26,14 @@ export default function Index() {
   ];
 
 
-  if (loading) {
-    return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-        <ActivityIndicator size='large' color='#0000ff' />
-        <Text>Cargando negocios...</Text>
-      </View>
-    );
-  }
+ if (loading) {
+  return (
+    <LoadingScreen 
+      imageSource={require("../assets/images/adaptive-icon.png")} 
+      spinnerColor="#FFDB58" 
+    />
+  );
+}
 
   if (error) {
     return (
