@@ -1,9 +1,11 @@
 import { LatLng } from '@/infrastructure/interfaces/lat-lng';
 import { useLocationStore } from '@/presentation/store/useLocationStore';
 import { useEffect, useRef, useState } from 'react';
-import {View, ViewProps, StyleSheet} from 'react-native'
+import {View, ViewProps, StyleSheet, TouchableOpacity} from 'react-native'
 import MapView, { Polyline } from 'react-native-maps';
 import FAB from '../shared/FAB';
+import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 
 interface Props extends ViewProps{
   initialLocation: LatLng;
@@ -63,6 +65,8 @@ const CustomMap = ({initialLocation, showUserLocation = true, ...rest }:Props) =
         longitudeDelta: -71.6533
       }}
       > 
+
+      
       <Polyline 
       coordinates={ userLocationList}
       strokeColor={'purple'}
@@ -70,6 +74,13 @@ const CustomMap = ({initialLocation, showUserLocation = true, ...rest }:Props) =
       />
       
       </MapView>
+
+      <TouchableOpacity 
+        onPress={() => router.back()} 
+        style={styles.backButton}
+      >
+        <Ionicons name='chevron-back-outline' size={28} color='#000' />
+      </TouchableOpacity>
 
       <FAB 
       iconName='compass-outline'
@@ -100,5 +111,17 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
     backgroundColor: '#E5E5E5',
+  },backButton: {
+    position: 'absolute', 
+    top: 50, 
+    left: 20,
+    backgroundColor: 'white',
+    borderRadius: 30,
+    padding: 10,
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
   }
 })

@@ -1,34 +1,18 @@
 import React from "react";
-import { LinearGradient } from "expo-linear-gradient";
-import { View, Image, TouchableOpacity, ScrollView, StyleSheet, Text } from "react-native";
-import { useRouter } from "expo-router";
+import { View, Image, TouchableOpacity, ScrollView, StyleSheet } from "react-native";
 
 const Sliderscroll = () => {
-  const router = useRouter();
+ 
   return (
     <ScrollView horizontal={true} showsHorizontalScrollIndicator={false} style={{ flex: 0.5 }}>
       <Image source={require("../../../../assets/Icons/rectangle.png")} style={styles.Image} />
-      <View style={styles.overlay}>
-        <TouchableOpacity style={styles.buttonContainer}>
-          <LinearGradient
-            colors={["#FFD580", "#FFCC00"]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={styles.gradient}
-          >
-            <TouchableOpacity onPress={() => router.push("/src/features/products/products")}>
-              <Text style={styles.text}>Ver más</Text>
-            </TouchableOpacity>
-          </LinearGradient>
-        </TouchableOpacity>
-      </View>
-
-      <TouchableOpacity onPress={() => router.push("/src/features/products/information")}>
+    
+      <TouchableOpacity >
         <Image source={require("../../../../assets/Icons/rectangle.png")} style={styles.Image} />
         <View style={styles.overlay}></View>
       </TouchableOpacity>
 
-      <TouchableOpacity onPress={() => router.push("/src/features/products/tabcontent")}>
+      <TouchableOpacity >
         <Image source={require("../../../../assets/Icons/rectangle.png")} style={styles.Image} />
 
         <View style={styles.overlay}></View>

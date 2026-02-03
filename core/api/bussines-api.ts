@@ -7,3 +7,5 @@ export const getBussines = axios.create({
 });
 
 export const getBusinesses = () => getBussines.get('/business');
+
+export const getBusinessByIdApi = (id: string) => getBussines.get(`/business/${id}`);

@@ -1,0 +1,1 @@
+export {default} from '@/app/src/features/map/index';

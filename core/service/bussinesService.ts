@@ -1,21 +1,50 @@
 // services/businessService.ts
 import { Business } from "@/infrastructure/interfaces/bussines-response";
-import { getBusinesses } from "../api/bussines-api";
+import { getBusinesses, getBusinessByIdApi } from "../api/bussines-api"; 
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL;
 
 export class BusinessService {
+  
   static async getBusinessesWithImages(): Promise<Business[]> {
     try {
       const { data } = await getBusinesses();
-      return this.transformBusinessImages(data);
+      return this.transformList(data);
     } catch (error) {
-      console.error("Error in BusinessService:", error);
+      console.error("Error in BusinessService (All):", error);
       throw error;
     }
   }
 
-  private static transformBusinessImages(businesses: Business[]): Business[] {
+  static async getBusinessById(id: string): Promise<Business> {
+    try {
+      const { data } = await getBusinessByIdApi(id);
+      
+      return {
+        ...data,
+        images: data.images?.map((image: any) => ({
+          ...image,
+          url: `${API_URL}/api/files/bussiness/${image.url}`,
+        })) ?? [],
+        
+        products: data.products?.map((product: any) => ({
+            ...product,
+            images: product.images?.map((image: any) => ({
+                ...image,
+       
+                url: `${API_URL}/api/files/products/${image.url}`, 
+            })) ?? []
+        })) ?? []
+      };
+
+    } catch (error) {
+      console.error("Error in BusinessService (Single):", error);
+      throw error;
+    }
+  }
+
+  // Helper para listas
+  private static transformList(businesses: Business[]): Business[] {
     return businesses.map((business) => ({
       ...business,
       images: business.images.map((image) => ({

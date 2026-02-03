@@ -23,12 +23,13 @@ const PrincipalHeader = () => {
       </View>
 
       <View style={styles.locationBox}>
+        
         <Ionicons name='location-outline' size={20} color='#6528FF' />
 
         <Pressable onPress={handleLocationPress}>
 
         <Text numberOfLines={1} style={styles.locationText}>
-          Calle 1 con av. 23
+          Calle 1 con av. 24
         </Text>
         </Pressable>
         <Ionicons name='chevron-down' size={18} color='#5D5D5D' />

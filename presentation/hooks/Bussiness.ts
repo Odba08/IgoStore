@@ -12,3 +12,15 @@ export const useBusinesses = () => {
   })
 
 }
+
+export const useBusiness = (id: string) => {
+  return useQuery<Business, Error>({
+    queryKey: ['business', id], 
+    queryFn: async () => {
+      const businesses = await BusinessService.getBusinessById(id);
+      return Array.isArray(businesses) ? businesses[0] : businesses;
+    }, 
+    enabled: !!id,// Seguro: solo dispara si existe un ID (evita errores de "undefined")
+    staleTime: 5 * 60 * 1000,
+  });
+}
