@@ -16,12 +16,12 @@ export default function RootLayout() {
 <Stack
   screenOptions={{
     headerShown: false,
-    contentStyle: { backgroundColor: "#ffffff" },
+    contentStyle: { backgroundColor: "#f9faeeff" },
   }}
-  // Forzamos que la ruta inicial sea 'index'
-  initialRouteName="index" 
+
+initialRouteName="index" 
 >
-  {/* Movemos el Index al primer lugar */}
+
   <Stack.Screen name="index" options={{ headerShown: false }} />
   
   <Stack.Screen name="loading" options={{ animation: "slide_from_right", headerShown: false }} />

@@ -1,32 +1,17 @@
 import { StatusBar } from "expo-status-bar";
-import { ScrollView, Text, TextInput, View, Image, FlatList, TouchableOpacity } from "react-native";
+import { ScrollView, Text, View, FlatList, TouchableOpacity } from "react-native";
 import { useBusinesses } from "@/presentation/hooks/Bussiness";
 import PrincipalHeader from "./src/components/headers/header";
-import SliderProduct from "./src/components/sliders/slider-product";
-import Sliderscroll from "./src/components/sliders/sliderscroll";
 import LoadingScreen from "./src/components/loading";
 import { BusinessCard } from "./src/components/businessCard/businessCard";
 import { useRouter } from "expo-router";
+import { CategoryList } from "./src/components/categoryList/categoryList";
+import { PromoSlider } from "./src/components/home/promoSlider/PromoSlider";
 
 export default function Index() {
   const router = useRouter();
 
   const { data: businesses, isLoading: loading, error } = useBusinesses();
-
-  const images = [
-    require("../assets/Icons/opciones/burger.png"),
-    require("../assets/Icons/opciones/dog.png"),
-    require("../assets/Icons/opciones/drink.png"),
-    require("../assets/Icons/opciones/farm.png"),
-  ];
-
-  const image2 = [
-    require("../assets/Icons/opciones/green.png"),
-    require("../assets/Icons/opciones/keys.png"),
-    require("../assets/Icons/opciones/rider.png"),
-    require("../assets/Icons/opciones/cat.png"),
-  ];
-
 
  if (loading) {
   return (
@@ -51,7 +36,7 @@ export default function Index() {
       <StatusBar style='dark' />
 
       <ScrollView>
-        <TextInput
+        {/* <TextInput
           style={{
             flex: 1,
             justifyContent: "center",
@@ -69,13 +54,9 @@ export default function Index() {
             elevation: 5,
           }}
           placeholder='Busca con IGO'
-        />
+        /> */}
 
-        <Sliderscroll />
-
-       {/*  <Text style={{ fontSize: 16, fontWeight: "bold", marginBottom: 10, padding: 10 }}>
-          Tiendas destacadas ({businesses?.length ?? 0})
-        </Text> */}
+        <PromoSlider />
 
         <View style={{ marginTop: 20 }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 15, marginBottom: 15 }}>
@@ -99,22 +80,18 @@ export default function Index() {
             />
         </View>
 
-       {/*  <SliderCircle /> */}
-
         <View
           style={{
             borderWidth: 0.8,
             backgroundColor: "#e9e1e1",
-            margin: 15,
+            margin: 12,
             borderColor: "#e9e1e1",
             marginVertical: 25,
             padding: 0.8,
           }}
         />
 
-        <SliderProduct images={images} />
-        <SliderProduct images={image2} />
-
+          <CategoryList />
 
       {/*   <View style={{ padding: 15 }}>
           <Text style={{ fontWeight: "bold", marginBottom: 10 }}>Datos de API:</Text>
