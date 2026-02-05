@@ -1,5 +1,5 @@
 export interface ProductImage {
-  id?: string;
+  id?: string; // El ID es opcional porque a veces solo viene la URL
   url: string;
 }
 
@@ -9,17 +9,16 @@ export interface BusinessShort {
 }
 
 export interface Producto {
-  id: string; // Faltaba el ID
+  id: string;
   title: string;
   price: number;
   description: string;
   slug: string;
   stock: number;
-  sizes: string[];    
-  gender: string;     
-  tags: string[];     
-  // CORRECCIÓN 1: Las imágenes son objetos, no strings planos
+  
+  options: string[]; 
+  categoryId: string; 
+    
   images: ProductImage[]; 
-  // CORRECCIÓN 2: Agregamos la referencia al negocio
   business: BusinessShort; 
 }

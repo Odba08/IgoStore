@@ -81,11 +81,11 @@ export default function ProductDetailScreen() {
             <View style={styles.divider} />
 
             {/* 2. SELECTOR DE TALLAS (Si existen) */}
-            {product.sizes && product.sizes.length > 0 && (
+            {product.options && product.options.length > 0 && (
                 <View style={styles.section}>
                     <Text style={styles.sectionTitle}>Selecciona Talla:</Text>
                     <View style={styles.sizesGrid}>
-                        {product.sizes.map((size: string) => (
+                        {product.options.map((size: string) => (
                             <TouchableOpacity 
                                 key={size}
                                 style={[
@@ -143,7 +143,7 @@ export default function ProductDetailScreen() {
             style={[styles.addToCartButton, product.stock === 0 && styles.disabledButton]}
             disabled={product.stock === 0}
             onPress={() => {
-                if (!selectedSize && product.sizes?.length > 0) {
+                if (!selectedSize && product.options?.length > 0) {
                     Alert.alert("Atención", "Por favor selecciona una talla.");
                     return;
                 }

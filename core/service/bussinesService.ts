@@ -1,4 +1,3 @@
-// services/businessService.ts
 import { Business } from "@/infrastructure/interfaces/bussines-response";
 import { getBusinesses, getBusinessByIdApi } from "../api/bussines-api"; 
 
@@ -22,6 +21,9 @@ export class BusinessService {
       
       return {
         ...data,
+        // VITAL: Mapeamos la categoría para que el producto sepa dónde está
+        categoryId: data.category?.id || data.categoryId, 
+        
         images: data.images?.map((image: any) => ({
           ...image,
           url: `${API_URL}/api/files/bussiness/${image.url}`,
@@ -31,7 +33,6 @@ export class BusinessService {
             ...product,
             images: product.images?.map((image: any) => ({
                 ...image,
-       
                 url: `${API_URL}/api/files/products/${image.url}`, 
             })) ?? []
         })) ?? []
@@ -44,13 +45,15 @@ export class BusinessService {
   }
 
   // Helper para listas
-  private static transformList(businesses: Business[]): Business[] {
+  private static transformList(businesses: any[]): Business[] {
     return businesses.map((business) => ({
       ...business,
-      images: business.images.map((image) => ({
+      categoryId: business.category?.id || business.categoryId, 
+
+      images: business.images?.map((image: any) => ({
         ...image,
         url: `${API_URL}/api/files/bussiness/${image.url}`,
-      })),
+      })) ?? [],
     }));
   }
 }

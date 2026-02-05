@@ -7,3 +7,5 @@ export const getProduct = axios.create({
 });
 
 export const getProductByIdApi = (id: string) => getProduct.get(`/products/${id}`);
+
+export const getProductsApi = () => getProduct.get('/products');
