@@ -8,9 +8,10 @@ import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 
 // TUS IMPORTS (Asegúrate que las rutas sean correctas)
-import { useBusinesses } from '@/presentation/hooks/Bussiness'; // o useBusinesses hook
-import { Business } from '@/infrastructure/interfaces/bussines-response';
+
 import { useFavoritesStore } from '@/presentation/store/useFavoriteStore'; 
+import { useBusinesses } from '@/presentation/hooks/useBusiness';
+import { Business } from '@/core/entities/bussines.entity';
 
 export default function CategoryScreen() {
   const router = useRouter();

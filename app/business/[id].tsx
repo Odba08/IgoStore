@@ -5,8 +5,9 @@ import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 
 // HOOKS
-import { useBusiness } from '@/presentation/hooks/Bussiness';
+
 import { useMenuCategories } from '@/presentation/hooks/useMenuCategories';
+import { useBusiness } from '@/presentation/hooks/useBusiness';
 
 export default function BusinessDetailScreen() {
   const { id } = useLocalSearchParams();
