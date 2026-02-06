@@ -122,7 +122,7 @@ export default function Index() {
 
              <View style={{ marginTop: 20 }}>
                 <View style={styles.headerRow}>
-                    <Text style={styles.sectionTitle}>Tiendas destacadas ({businesses?.length ?? 0})</Text>
+                    <Text style={styles.sectionTitle}>Tiendas destacadas{/*  ({businesses?.length ?? 0}) */}</Text>
                     <TouchableOpacity onPress={() => router.push("/src/features/products/products")}>
                        <Text style={{ color: '#EDB422', fontWeight: 'bold' }}>Ver más</Text>
                     </TouchableOpacity>
@@ -130,7 +130,7 @@ export default function Index() {
 
                 <FlatList
                     horizontal
-                    data={businesses}
+                    data={businesses?.slice(0, 4)}
                     keyExtractor={(item) => item.id}
                     renderItem={({ item }) => <BusinessCard business={item} />}
                     contentContainerStyle={{ paddingHorizontal: 15 }}

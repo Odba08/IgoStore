@@ -1,21 +1,30 @@
 import React, { useState } from 'react';
 import { 
   View, Text, Image, StyleSheet, ScrollView, 
-  TouchableOpacity, ActivityIndicator, Alert 
+  TouchableOpacity, ActivityIndicator, Alert, Dimensions 
 } from 'react-native';
-import { useLocalSearchParams, Stack } from 'expo-router';
-import { useProduct } from '../../presentation/hooks/useProducts'; // Asegúrate que la ruta sea correcta
+import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
+import { useProduct } from '@/presentation/hooks/useProducts';
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 
 export default function ProductDetailScreen() {
   const { id } = useLocalSearchParams(); 
-  // Estados para la interacción del usuario
+  const router = useRouter();
+  
+  // Estados
   const [quantity, setQuantity] = useState(1);
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
 
-  // Cargamos el producto individual
   const { data: product, isLoading } = useProduct(id as string);
+
+  // --- HELPER DE IMÁGENES ---
+  const getProductImage = (image: any) => {
+    if (!image) return require('../../assets/images/adaptive-icon.png');
+    if (image.url.startsWith('http')) return { uri: image.url };
+    const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.1.XX:3000/api'; 
+    return { uri: `${API_URL}/files/product/${image.url}` };
+  };
 
   if (isLoading) {
     return (
@@ -27,60 +36,90 @@ export default function ProductDetailScreen() {
 
   if (!product) return null;
 
-  // Lógica de Cantidad
+  // --- LÓGICA DE PRECIOS Y OFERTAS CORREGIDA ---
+  
+  // 1. Determinar el precio final unitario (Validamos que discountPrice exista)
+  const finalUnitTestPrice = (product.isPromo && product.discountPrice)
+    ? product.discountPrice 
+    : product.price;
+
+  // 2. Calcular porcentaje de ahorro
+  const discountPercent = (product.isPromo && product.discountPrice)
+    ? Math.round(((product.price - product.discountPrice) / product.price) * 100)
+    : 0;
+
+  // 3. Calcular Total para el botón
+  const totalPrice = finalUnitTestPrice * quantity;
+
+  // --- LÓGICA DE STOCK ---
   const handleIncrement = () => {
     if (quantity < product.stock) setQuantity(prev => prev + 1);
-    else Alert.alert("Stock máximo", "No puedes agregar más unidades de las disponibles.");
+    else Alert.alert("Stock límite", `Solo quedan ${product.stock} unidades.`);
   };
 
   const handleDecrement = () => {
     if (quantity > 1) setQuantity(prev => prev - 1);
   };
 
-  // Imagen Principal (Defensivo: si no hay imagen, usa placeholder)
-  const mainImage = product.images?.[0]?.url 
-    ? { uri: product.images[0].url }
-    : require('../../assets/images/adaptive-icon.png');
-
-  // Cálculo del total en tiempo real
-  const totalPrice = product.price * quantity;
+  const mainImage = getProductImage(product.images?.[0]);
 
   return (
-    <View style={styles.container}>
+   <View style={styles.container}>
       <StatusBar style="dark" />
       
-      {/* HEADER: Título y Botón Atrás */}
-      <Stack.Screen 
-        options={{ 
-            headerTitle: '', // Dejamos limpio para que luzca la imagen
-            headerTransparent: true,
-            headerTintColor: 'black',
-            headerBackTitle: 'Volver',
-        }} 
-      />
+      {/* 1. OCULTAMOS EL HEADER NATIVO */}
+      <Stack.Screen options={{ headerShown: false }} />
 
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      {/* 2. AGREGAMOS EL BOTÓN FLOTANTE MANUALMENTE */}
+      <TouchableOpacity 
+        style={styles.backButton} 
+        onPress={() => router.back()}
+      >
+        <Ionicons name="arrow-back" size={24} color="black" />
+      </TouchableOpacity>
         
-        {/* 1. IMAGEN DEL PRODUCTO (Carrusel simple si hay más, por ahora principal) */}
+
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        
+        {/* 1. IMAGEN GRANDE */}
         <View style={styles.imageContainer}>
              <Image source={mainImage} style={styles.productImage} resizeMode="contain" />
         </View>
 
         <View style={styles.detailsContainer}>
-            {/* Título y Precio Unitario */}
-            <View style={styles.headerRow}>
+            
+            {/* 2. HEADER: TÍTULO Y PRECIOS */}
+            <View style={{ marginBottom: 15 }}>
+                <Text style={styles.sellerName}>
+                    Vendido por {product.business.name}
+                </Text>
+                
                 <Text style={styles.title}>{product.title}</Text>
-                <Text style={styles.price}>${product.price}</Text>
-            </View>
 
-            {/* Negocio Vendedor (Link de regreso visual) */}
-            <Text style={styles.sellerName}>
-                Vendido por: <Text style={{fontWeight:'bold'}}>{product.business.name}</Text>
-            </Text>
+                {/* BLOQUE DE PRECIO INTELIGENTE */}
+                <View style={styles.priceContainer}>
+                    {product.isPromo && product.discountPrice ? (
+                        <View style={{flexDirection: 'row', alignItems: 'center'}}>
+                            {/* Precio Nuevo Grande */}
+                            <Text style={styles.price}>${product.discountPrice}</Text>
+                            
+                            {/* Precio Viejo Tachado */}
+                            <Text style={styles.oldPrice}>${product.price}</Text>
+                            
+                            {/* Badge de Descuento */}
+                            <View style={styles.discountBadge}>
+                                <Text style={styles.discountText}>-{discountPercent}%</Text>
+                            </View>
+                        </View>
+                    ) : (
+                        <Text style={styles.price}>${product.price}</Text>
+                    )}
+                </View>
+            </View>
 
             <View style={styles.divider} />
 
-            {/* 2. SELECTOR DE TALLAS (Si existen) */}
+            {/* 3. SELECTOR DE TALLAS */}
             {product.options && product.options.length > 0 && (
                 <View style={styles.section}>
                     <Text style={styles.sectionTitle}>Selecciona Talla:</Text>
@@ -106,53 +145,61 @@ export default function ProductDetailScreen() {
                 </View>
             )}
 
-            {/* 3. DESCRIPCIÓN */}
+            {/* 4. DESCRIPCIÓN */}
             <View style={styles.section}>
                 <Text style={styles.sectionTitle}>Descripción</Text>
                 <Text style={styles.descriptionText}>
-                    {product.description || "Sin descripción disponible."}
+                    {product.description || "El vendedor no ha añadido una descripción detallada para este producto."}
                 </Text>
             </View>
 
-            {/* Stock Info */}
-            <Text style={styles.stockInfo}>
-                {product.stock > 0 ? `🟢 Disponible (${product.stock} unidades)` : "🔴 Agotado"}
-            </Text>
+            {/* TAGS (Extra) */}
+            {product.tags && product.tags.length > 0 && (
+                 <View style={{flexDirection: 'row', flexWrap: 'wrap', marginTop: 10}}>
+                    {/* AQUÍ ESTÁ EL CAMBIO: agregamos (tag, index) */}
+                    {product.tags.map((tag, index) => (
+                        <Text key={`${tag}-${index}`} style={styles.tag}>#{tag}</Text>
+                    ))}
+                 </View>
+            )}
 
         </View>
       </ScrollView>
 
-      {/* 4. FOOTER FIJO (Sticky Bottom) - La zona de conversión */}
+      {/* 5. FOOTER DE COMPRA */}
       <View style={styles.footer}>
           
-          {/* Selector de Cantidad */}
+          {/* Controles de Cantidad */}
           <View style={styles.quantityControl}>
               <TouchableOpacity onPress={handleDecrement} style={styles.qtyButton}>
-                  <Ionicons name="remove" size={24} color="black" />
+                  <Ionicons name="remove" size={20} color="black" />
               </TouchableOpacity>
               
               <Text style={styles.qtyText}>{quantity}</Text>
               
               <TouchableOpacity onPress={handleIncrement} style={styles.qtyButton}>
-                  <Ionicons name="add" size={24} color="black" />
+                  <Ionicons name="add" size={20} color="black" />
               </TouchableOpacity>
           </View>
 
-          {/* Botón de Agregar al Carrito */}
+          {/* Botón de Acción */}
           <TouchableOpacity 
-            style={[styles.addToCartButton, product.stock === 0 && styles.disabledButton]}
+            style={[
+                styles.addToCartButton, 
+                product.stock === 0 && styles.disabledButton
+            ]}
             disabled={product.stock === 0}
             onPress={() => {
                 if (!selectedSize && product.options?.length > 0) {
-                    Alert.alert("Atención", "Por favor selecciona una talla.");
+                    Alert.alert("Falta Talla", "Por favor selecciona una talla para continuar.");
                     return;
                 }
-                Alert.alert("Éxito", `Agregaste ${quantity} items al carrito.`);
-                // AQUÍ VA TU LÓGICA DE ZUSTAND/CONTEXT PARA EL CARRITO
+                Alert.alert("🛒 Carrito", `Agregaste ${quantity}x ${product.title}`);
+                // AQUÍ AGREGAS AL STORE DE ZUSTAND
             }}
           >
               <Text style={styles.addToCartText}>
-                  Agregar • ${totalPrice.toFixed(2)}
+                  {product.stock === 0 ? "Agotado" : `Agregar • $${totalPrice.toFixed(2)}`}
               </Text>
           </TouchableOpacity>
       </View>
@@ -163,76 +210,84 @@ export default function ProductDetailScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: 'white' },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  scrollContent: { paddingBottom: 120 }, // Espacio para que el footer no tape contenido
+  scrollContent: { paddingBottom: 140 }, 
+
+  roundButton: {
+    width: 40, height: 40, backgroundColor: 'white', 
+    borderRadius: 20, justifyContent: 'center', alignItems: 'center',
+    marginLeft: 10, shadowColor: "#000", shadowOpacity: 0.1, elevation: 5
+  },
   
-  // Imagen
   imageContainer: { 
-    width: '100%', 
-    height: 350, 
-    backgroundColor: '#F9F9F9',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderBottomRightRadius: 30,
-    borderBottomLeftRadius: 30,
-    overflow: 'hidden'
+    width: '100%', height: 380, backgroundColor: '#F5F5F5',
+    justifyContent: 'center', alignItems: 'center',
+    borderBottomRightRadius: 30, borderBottomLeftRadius: 30, overflow: 'hidden'
   },
-  productImage: { width: '80%', height: '80%' },
+  productImage: { width: '85%', height: '85%' },
 
-  // Detalles
-  detailsContainer: { padding: 20 },
-  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 5 },
-  title: { fontSize: 26, fontWeight: 'bold', color: '#333', flex: 1, marginRight: 10 },
-  price: { fontSize: 24, fontWeight: 'bold', color: '#00A86B' },
-  sellerName: { fontSize: 14, color: '#888', marginBottom: 15 },
-  divider: { height: 1, backgroundColor: '#EEE', marginVertical: 15 },
-
-  // Secciones
-  section: { marginBottom: 20 },
-  sectionTitle: { fontSize: 16, fontWeight: 'bold', marginBottom: 10, color: '#333' },
+  detailsContainer: { padding: 20, paddingTop: 25 },
+  sellerName: { fontSize: 13, color: '#888', marginBottom: 5, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
+  title: { fontSize: 24, fontWeight: '800', color: '#1a1a1a', marginBottom: 8, lineHeight: 30 },
   
-  // Tallas
+  priceContainer: { marginTop: 5 },
+  price: { fontSize: 28, fontWeight: '900', color: '#1a1a1a' },
+  oldPrice: { fontSize: 16, color: '#999', textDecorationLine: 'line-through', marginLeft: 10, marginBottom: 5 },
+  discountBadge: { backgroundColor: '#FF3B30', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, marginLeft: 10, marginBottom: 5 },
+  discountText: { color: 'white', fontWeight: 'bold', fontSize: 12 },
+
+  divider: { height: 1, backgroundColor: '#F0F0F0', marginVertical: 20 },
+
+  section: { marginBottom: 20 },
+  sectionTitle: { fontSize: 16, fontWeight: 'bold', marginBottom: 12, color: '#333' },
+  
   sizesGrid: { flexDirection: 'row', flexWrap: 'wrap' },
-  sizeChip: { 
-    paddingHorizontal: 16, paddingVertical: 8, 
-    borderRadius: 8, borderWidth: 1, borderColor: '#DDD', 
-    marginRight: 10, marginBottom: 10, backgroundColor: 'white'
-  },
-  sizeChipSelected: { 
-    backgroundColor: '#333', borderColor: '#333' 
-  },
-  sizeText: { fontSize: 14, color: '#333' },
+  sizeChip: { paddingHorizontal: 18, paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: '#E0E0E0', marginRight: 10, marginBottom: 10, backgroundColor: 'white' },
+  sizeChipSelected: { backgroundColor: '#1a1a1a', borderColor: '#1a1a1a' },
+  sizeText: { fontSize: 14, color: '#333', fontWeight: '500' },
   sizeTextSelected: { color: 'white', fontWeight: 'bold' },
 
-  descriptionText: { fontSize: 15, color: '#666', lineHeight: 22 },
-  stockInfo: { fontSize: 12, color: '#666', marginTop: 10 },
+  descriptionText: { fontSize: 15, color: '#555', lineHeight: 24 },
+  
+  tag: { color: '#007AFF', backgroundColor: '#F0F8FF', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 4, marginRight: 8, fontSize: 12, overflow: 'hidden', marginTop: 5 },
 
-  // Footer
   footer: {
     position: 'absolute', bottom: 0, left: 0, right: 0,
-    backgroundColor: 'white',
-    padding: 20, paddingBottom: 35, // Para iPhone X+
+    backgroundColor: 'white', paddingHorizontal: 20, paddingTop: 15, paddingBottom: 35,
     flexDirection: 'row', alignItems: 'center',
     borderTopWidth: 1, borderTopColor: '#F0F0F0',
-    shadowColor: "#000", shadowOffset: { width: 0, height: -3 }, 
-    shadowOpacity: 0.1, elevation: 10
+    shadowColor: "#000", shadowOffset: { width: 0, height: -5 }, shadowOpacity: 0.05, elevation: 20
   },
   
-  // Cantidad
   quantityControl: {
-    flexDirection: 'row', alignItems: 'center',
-    backgroundColor: '#F5F5F5', borderRadius: 12,
-    paddingHorizontal: 10, paddingVertical: 5,
-    marginRight: 15
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    backgroundColor: '#F5F5F5', borderRadius: 15,
+    paddingHorizontal: 5, height: 50, width: 110, marginRight: 15
   },
-  qtyButton: { padding: 10 },
-  qtyText: { fontSize: 18, fontWeight: 'bold', paddingHorizontal: 10 },
+  qtyButton: { width: 35, height: '100%', justifyContent: 'center', alignItems: 'center' },
+  qtyText: { fontSize: 18, fontWeight: 'bold' },
 
-  // Botón Principal
   addToCartButton: {
-    flex: 1, backgroundColor: '#FFDB58',
-    paddingVertical: 16, borderRadius: 16,
-    alignItems: 'center', justifyContent: 'center'
+    flex: 1, backgroundColor: '#FFDB58', height: 50, borderRadius: 15,
+    alignItems: 'center', justifyContent: 'center',
+    shadowColor: "#FFDB58", shadowOffset: {width: 0, height: 4}, shadowOpacity: 0.3, elevation: 5
   },
-  disabledButton: { backgroundColor: '#CCC' },
-  addToCartText: { fontSize: 16, fontWeight: 'bold', color: 'black' }
+  disabledButton: { backgroundColor: '#E0E0E0', shadowOpacity: 0 },
+  addToCartText: { fontSize: 16, fontWeight: 'bold', color: '#1a1a1a' },
+  backButton: {
+    position: 'absolute', // Flota sobre todo
+    top: 50,              // Bájalo para que no choque con la hora/batería
+    left: 20,
+    zIndex: 10,           // Asegura que esté encima de la imagen
+    backgroundColor: 'white',
+    width: 40, 
+    height: 40,
+    borderRadius: 20,     // Círculo perfecto
+    justifyContent: 'center',
+    alignItems: 'center',
+    // Sombra para que se vea sobre fotos claras
+    shadowColor: "#000", 
+    shadowOffset: { width: 0, height: 2 }, 
+    shadowOpacity: 0.2, 
+    elevation: 5
+  },
 });
