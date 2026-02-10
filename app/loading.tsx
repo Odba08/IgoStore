@@ -1,1 +1,2 @@
-export {default} from '@/app/src/components/loading/index'
+// Esto conecta la URL /loading con tu pantalla de carga
+export { default } from "@/presentation/components/loading/index";

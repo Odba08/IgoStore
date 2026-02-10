@@ -1,15 +1,17 @@
 import { StatusBar } from "expo-status-bar";
 import { ScrollView, Text, View, FlatList, TouchableOpacity, TextInput, StyleSheet, Image, ActivityIndicator } from "react-native";
-import { useBusinesses } from "@/presentation/hooks/Bussiness";
-import PrincipalHeader from "./src/components/headers/header";
-import LoadingScreen from "./src/components/loading";
-import { BusinessCard } from "./src/components/businessCard/businessCard";
+
 import { useRouter } from "expo-router";
-import { CategoryList } from "./src/components/categoryList/categoryList";
-import { PromoSlider } from "./src/components/home/promoSlider/PromoSlider";
+
 import { useAllProducts } from "@/presentation/hooks/useProducts";
 import { Ionicons } from "@expo/vector-icons";
 import { useMemo, useState } from "react";
+import { useBusinesses } from "@/presentation/hooks/useBusiness";
+import LoadingScreen from "@/presentation/components/loading";
+import PrincipalHeader from "@/presentation/components/headers/header";
+import { CategoryList } from "@/presentation/components/categoryList/categoryList";
+import { PromoSlider } from "@/presentation/components/promoSlider/PromoSlider";
+import { BusinessCard } from "@/presentation/components/businessCard/businessCard";
 
 export default function Index() {
   const router = useRouter();
@@ -123,7 +125,7 @@ export default function Index() {
              <View style={{ marginTop: 20 }}>
                 <View style={styles.headerRow}>
                     <Text style={styles.sectionTitle}>Tiendas destacadas{/*  ({businesses?.length ?? 0}) */}</Text>
-                    <TouchableOpacity onPress={() => router.push("/src/features/products/products")}>
+                    <TouchableOpacity onPress={() => router.push("/products")}>
                        <Text style={{ color: '#EDB422', fontWeight: 'bold' }}>Ver más</Text>
                     </TouchableOpacity>
                 </View>

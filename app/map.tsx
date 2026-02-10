@@ -1,1 +1,1 @@
-export {default} from '@/app/src/features/map/index';
+export { default } from "@/presentation/components/map/index";

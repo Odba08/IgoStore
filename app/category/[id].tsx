@@ -8,12 +8,15 @@ import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 
 // TUS IMPORTS (Asegúrate que las rutas sean correctas)
-import { useBusinesses } from '@/presentation/hooks/Bussiness'; // o useBusinesses hook
-import { Business } from '@/infrastructure/interfaces/bussines-response';
+
 import { useFavoritesStore } from '@/presentation/store/useFavoriteStore'; 
+import { useBusinesses } from '@/presentation/hooks/useBusiness';
+import { Business } from '@/core/entities/bussines.entity';
+import { useCartStore } from '@/presentation/store/useCartStore';
 
 export default function CategoryScreen() {
   const router = useRouter();
+   const totalItems = useCartStore(state => state.items.reduce((total, item) => total + item.quantity, 0));
   
   // 1. RECIBIMOS LOS PARÁMETROS DE LA URL (ID y Nombre de la categoría)
   const { id, name } = useLocalSearchParams(); 
@@ -102,9 +105,19 @@ export default function CategoryScreen() {
         
         <Text style={styles.headerTitle}>{categoryName || 'Categoría'}</Text>
 
-        <TouchableOpacity style={styles.iconBtn}>
-           <Ionicons name='filter-outline' size={24} color='#000' />
+        <TouchableOpacity style={styles.iconBtn}
+         onPress={() => router.push('/cart/cart')}
+        >
+           <Ionicons name='cart-outline' size={24} color='#000' />
+             {totalItems > 0 && (
+               <View style={styles.badge}>
+                 <Text style={styles.badgeText}>
+                   {totalItems > 99 ? '99+' : totalItems}
+                 </Text>
+               </View>
+             )}
         </TouchableOpacity>
+
       </View>
 
       {/* BUSCADOR */}
@@ -162,7 +175,7 @@ const styles = StyleSheet.create({
   },
   headerTitle: { fontSize: 18, fontWeight: 'bold', color: '#1a1a1a', textTransform: 'capitalize' },
   iconBtn: {
-    backgroundColor: 'white', padding: 10, borderRadius: 12,
+    backgroundColor: 'white', padding: 10, borderRadius: 25,
     shadowColor: '#000', shadowOpacity: 0.1, elevation: 3
   },
 
@@ -194,4 +207,23 @@ const styles = StyleSheet.create({
   // Empty State
   emptyContainer: { alignItems: 'center', marginTop: 50 },
   emptyText: { textAlign: 'center', marginTop: 10, color: '#888', fontSize: 16 },
+   badge: {
+    position: 'absolute',
+    top: -6,
+    right: -6,
+    backgroundColor: '#FF3B30', // Rojo alerta estándar de iOS
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 4,
+    borderWidth: 1.5,
+    borderColor: '#FFF', // Borde blanco para separarlo del icono oscuro
+  },
+  badgeText: {
+    color: '#FFF',
+    fontSize: 10,
+    fontWeight: 'bold',
+  },
 });
