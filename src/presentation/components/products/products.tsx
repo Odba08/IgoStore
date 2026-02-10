@@ -12,10 +12,11 @@ import { useBusinesses } from '@/presentation/hooks/useBusiness';
 
 import { useFavoritesStore } from '@/presentation/store/useFavoriteStore';
 import { Business } from '@/core/entities/bussines.entity';
+import { useCartStore } from '@/presentation/store/useCartStore';
 
 export default function Productos() {
   const router = useRouter();
-  
+   const totalItems = useCartStore(state => state.items.reduce((total, item) => total + item.quantity, 0));
   // 1. DATA
   const { data: businesses, isLoading } = useBusinesses();
   
@@ -127,8 +128,16 @@ export default function Productos() {
           <Ionicons name='chevron-down' size={16} color='#5D5D5D' />
         </View>
 
-        <TouchableOpacity style={styles.iconBtn}>
+        <TouchableOpacity style={styles.iconBtn}
+        onPress={() => router.push('./cart/cart')}>
            <Ionicons name='cart-outline' size={24} color='#000' />
+            {totalItems > 0 && (
+               <View style={styles.badge}>
+                 <Text style={styles.badgeText}>
+                   {totalItems > 99 ? '99+' : totalItems}
+                 </Text>
+               </View>
+             )}
         </TouchableOpacity>
       </View>
 
@@ -205,7 +214,7 @@ const styles = StyleSheet.create({
   },
   locationText: { marginHorizontal: 5, fontSize: 14, fontWeight: "600", color: "#333" },
   iconBtn: {
-    backgroundColor: 'white', padding: 10, borderRadius: 12,
+    backgroundColor: 'white', padding: 10, borderRadius: 25,
     shadowColor: '#000', shadowOpacity: 0.1, elevation: 3
   },
   searchContainer: {
@@ -244,6 +253,25 @@ const styles = StyleSheet.create({
     position: 'absolute', bottom: 15, left: 10, right: 10,
     color: 'white', fontWeight: 'bold', fontSize: 16, 
     textShadowColor: 'rgba(0,0,0,0.8)', textShadowRadius: 4
+  },
+  badge: {
+    position: 'absolute',
+    top: -6,
+    right: -6,
+    backgroundColor: '#FF3B30', // Rojo alerta estándar de iOS
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 4,
+    borderWidth: 1.5,
+    borderColor: '#FFF', // Borde blanco para separarlo del icono oscuro
+  },
+  badgeText: {
+    color: '#FFF',
+    fontSize: 10,
+    fontWeight: 'bold',
   },
   removeFavButton: {
     position: 'absolute', top: 10, right: 10,

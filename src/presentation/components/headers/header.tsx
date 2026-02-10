@@ -1,12 +1,15 @@
 import React from "react";
 import { Ionicons } from "@expo/vector-icons";
-import { View, StyleSheet, Text, Pressable } from "react-native";
+import { View, StyleSheet, Text, Pressable, TouchableOpacity } from "react-native";
 import { useRouter } from "expo-router";
 import { usePermissionsStore } from "@/presentation/store/usePermissions";
+import { useCartStore } from "@/presentation/store/useCartStore";
 
 const PrincipalHeader = () => {
   const router = useRouter();
   const {locationStatus} = usePermissionsStore();
+
+  const totalItems = useCartStore(state => state.items.reduce((total, item) => total + item.quantity, 0));
 
   const handleLocationPress = () => {
     if (locationStatus === "GRANTED"){
@@ -18,9 +21,11 @@ const PrincipalHeader = () => {
 
   return (
     <View style={styles.header}>
-      <View style={styles.iconRow}>
+      <TouchableOpacity style={styles.iconRow}
+        onPress={() => router.push('./profile/profile') }
+      >
         <Ionicons name='person-outline' size={25} color='#000' style={styles.icon} />
-      </View>
+      </TouchableOpacity>
 
       <View style={styles.locationBox}>
         
@@ -35,9 +40,18 @@ const PrincipalHeader = () => {
         <Ionicons name='chevron-down' size={18} color='#5D5D5D' />
       </View>
 
-      <View style={styles.iconRow}>
+      <TouchableOpacity style={styles.iconRow}
+        onPress={() => router.push('./cart/cart')}
+      >
         <Ionicons name='cart-outline' size={30} color='#000' style={styles.icon} />
-      </View>
+        {totalItems > 0 && (
+    <View style={styles.badge}>
+      <Text style={styles.badgeText}>
+        {totalItems > 99 ? '99+' : totalItems}
+      </Text>
+    </View>
+  )}
+      </TouchableOpacity>
     </View>
   );
 };
@@ -70,6 +84,25 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
   },
+  badge: {
+    position: 'absolute',
+    top: -6,
+    right: -6,
+    backgroundColor: '#FF3B30', // Rojo alerta estándar de iOS
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 4,
+    borderWidth: 1.5,
+    borderColor: '#FFF', // Borde blanco para separarlo del icono oscuro
+  },
+  badgeText: {
+    color: '#FFF',
+    fontSize: 10,
+    fontWeight: 'bold',
+  },
   icon: {
   borderRadius: 50,
   backgroundColor: 'white',
@@ -81,11 +114,13 @@ const styles = StyleSheet.create({
     width: 0,
     height: 2,
   },
-  shadowOpacity: 0.25,
+  shadowOpacity: 0.25, 
   shadowRadius: 3.84,
   // Sombra para Android
   elevation: 5,
+  
 }
+
 });
 
 export default PrincipalHeader;

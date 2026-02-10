@@ -1,16 +1,20 @@
 import React, { useState } from 'react';
 import { 
   View, Text, Image, StyleSheet, ScrollView, 
-  TouchableOpacity, ActivityIndicator, Alert, Dimensions 
+  TouchableOpacity, ActivityIndicator, Alert, 
 } from 'react-native';
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
 import { useProduct } from '@/presentation/hooks/useProducts';
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
+import { useCartStore } from '@/presentation/store/useCartStore';
 
 export default function ProductDetailScreen() {
   const { id } = useLocalSearchParams(); 
   const router = useRouter();
+  
+  // 🧠 CONEXIÓN A LA BÓVEDA
+  const addItem = useCartStore((state) => state.addItem);
   
   // Estados
   const [quantity, setQuantity] = useState(1);
@@ -36,19 +40,15 @@ export default function ProductDetailScreen() {
 
   if (!product) return null;
 
-  // --- LÓGICA DE PRECIOS Y OFERTAS CORREGIDA ---
-  
-  // 1. Determinar el precio final unitario (Validamos que discountPrice exista)
+  // --- LÓGICA DE PRECIOS Y OFERTAS ---
   const finalUnitTestPrice = (product.isPromo && product.discountPrice)
     ? product.discountPrice 
     : product.price;
 
-  // 2. Calcular porcentaje de ahorro
   const discountPercent = (product.isPromo && product.discountPrice)
     ? Math.round(((product.price - product.discountPrice) / product.price) * 100)
     : 0;
 
-  // 3. Calcular Total para el botón
   const totalPrice = finalUnitTestPrice * quantity;
 
   // --- LÓGICA DE STOCK ---
@@ -67,10 +67,8 @@ export default function ProductDetailScreen() {
    <View style={styles.container}>
       <StatusBar style="dark" />
       
-      {/* 1. OCULTAMOS EL HEADER NATIVO */}
       <Stack.Screen options={{ headerShown: false }} />
 
-      {/* 2. AGREGAMOS EL BOTÓN FLOTANTE MANUALMENTE */}
       <TouchableOpacity 
         style={styles.backButton} 
         onPress={() => router.back()}
@@ -78,17 +76,14 @@ export default function ProductDetailScreen() {
         <Ionicons name="arrow-back" size={24} color="black" />
       </TouchableOpacity>
         
-
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         
-        {/* 1. IMAGEN GRANDE */}
         <View style={styles.imageContainer}>
              <Image source={mainImage} style={styles.productImage} resizeMode="contain" />
         </View>
 
         <View style={styles.detailsContainer}>
             
-            {/* 2. HEADER: TÍTULO Y PRECIOS */}
             <View style={{ marginBottom: 15 }}>
                 <Text style={styles.sellerName}>
                     Vendido por {product.business.name}
@@ -96,17 +91,11 @@ export default function ProductDetailScreen() {
                 
                 <Text style={styles.title}>{product.title}</Text>
 
-                {/* BLOQUE DE PRECIO INTELIGENTE */}
                 <View style={styles.priceContainer}>
                     {product.isPromo && product.discountPrice ? (
                         <View style={{flexDirection: 'row', alignItems: 'center'}}>
-                            {/* Precio Nuevo Grande */}
                             <Text style={styles.price}>${product.discountPrice}</Text>
-                            
-                            {/* Precio Viejo Tachado */}
                             <Text style={styles.oldPrice}>${product.price}</Text>
-                            
-                            {/* Badge de Descuento */}
                             <View style={styles.discountBadge}>
                                 <Text style={styles.discountText}>-{discountPercent}%</Text>
                             </View>
@@ -119,7 +108,6 @@ export default function ProductDetailScreen() {
 
             <View style={styles.divider} />
 
-            {/* 3. SELECTOR DE TALLAS */}
             {product.options && product.options.length > 0 && (
                 <View style={styles.section}>
                     <Text style={styles.sectionTitle}>Selecciona Talla:</Text>
@@ -145,7 +133,6 @@ export default function ProductDetailScreen() {
                 </View>
             )}
 
-            {/* 4. DESCRIPCIÓN */}
             <View style={styles.section}>
                 <Text style={styles.sectionTitle}>Descripción</Text>
                 <Text style={styles.descriptionText}>
@@ -153,10 +140,8 @@ export default function ProductDetailScreen() {
                 </Text>
             </View>
 
-            {/* TAGS (Extra) */}
             {product.tags && product.tags.length > 0 && (
                  <View style={{flexDirection: 'row', flexWrap: 'wrap', marginTop: 10}}>
-                    {/* AQUÍ ESTÁ EL CAMBIO: agregamos (tag, index) */}
                     {product.tags.map((tag, index) => (
                         <Text key={`${tag}-${index}`} style={styles.tag}>#{tag}</Text>
                     ))}
@@ -166,10 +151,8 @@ export default function ProductDetailScreen() {
         </View>
       </ScrollView>
 
-      {/* 5. FOOTER DE COMPRA */}
       <View style={styles.footer}>
           
-          {/* Controles de Cantidad */}
           <View style={styles.quantityControl}>
               <TouchableOpacity onPress={handleDecrement} style={styles.qtyButton}>
                   <Ionicons name="remove" size={20} color="black" />
@@ -182,7 +165,7 @@ export default function ProductDetailScreen() {
               </TouchableOpacity>
           </View>
 
-          {/* Botón de Acción */}
+          {/* ⚡ LA INYECCIÓN DE DATOS (EL CEREBRO EN ACCIÓN) */}
           <TouchableOpacity 
             style={[
                 styles.addToCartButton, 
@@ -190,12 +173,29 @@ export default function ProductDetailScreen() {
             ]}
             disabled={product.stock === 0}
             onPress={() => {
+                // 1. Validar Talla (Si aplica)
                 if (!selectedSize && product.options?.length > 0) {
                     Alert.alert("Falta Talla", "Por favor selecciona una talla para continuar.");
                     return;
                 }
-                Alert.alert("🛒 Carrito", `Agregaste ${quantity}x ${product.title}`);
-                // AQUÍ AGREGAS AL STORE DE ZUSTAND
+
+                // 2. Construir Identificador Único
+                const cartItemId = selectedSize ? `${product.id}-${selectedSize}` : product.id;
+                const cartItemTitle = selectedSize ? `${product.title} (${selectedSize})` : product.title;
+                const imageUrl = product.images?.[0]?.url || ''; 
+
+                // 3. Ejecutar Acción en Zustand
+                addItem({
+                    id: cartItemId,
+                    title: cartItemTitle,
+                    price: finalUnitTestPrice,
+                    image: imageUrl,
+                    quantity: quantity
+                });
+
+                // 4. Feedback y Salida
+                Alert.alert("🛒 Carrito", `Agregaste ${quantity}x ${cartItemTitle}`);
+                router.back(); 
             }}
           >
               <Text style={styles.addToCartText}>
@@ -274,17 +274,16 @@ const styles = StyleSheet.create({
   disabledButton: { backgroundColor: '#E0E0E0', shadowOpacity: 0 },
   addToCartText: { fontSize: 16, fontWeight: 'bold', color: '#1a1a1a' },
   backButton: {
-    position: 'absolute', // Flota sobre todo
-    top: 50,              // Bájalo para que no choque con la hora/batería
+    position: 'absolute', 
+    top: 50,              
     left: 20,
-    zIndex: 10,           // Asegura que esté encima de la imagen
+    zIndex: 10,           
     backgroundColor: 'white',
     width: 40, 
     height: 40,
-    borderRadius: 20,     // Círculo perfecto
+    borderRadius: 20,     
     justifyContent: 'center',
     alignItems: 'center',
-    // Sombra para que se vea sobre fotos claras
     shadowColor: "#000", 
     shadowOffset: { width: 0, height: 2 }, 
     shadowOpacity: 0.2, 

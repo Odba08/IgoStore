@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react'; // <--- ASEGÚRATE DE TENER useMemo
-import { View, Text, Image, StyleSheet, ActivityIndicator, TouchableOpacity, ScrollView, FlatList, TextInput } from 'react-native';
+import { View, Text, Image, StyleSheet, ActivityIndicator, TouchableOpacity, ScrollView, FlatList, TextInput, Alert } from 'react-native';
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
@@ -8,12 +8,14 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { useMenuCategories } from '@/presentation/hooks/useMenuCategories';
 import { useBusiness } from '@/presentation/hooks/useBusiness';
+import { useCartStore } from '@/presentation/store/useCartStore';
 
 export default function BusinessDetailScreen() {
   const { id } = useLocalSearchParams();
   const businessId = Array.isArray(id) ? id[0] : id;
   const router = useRouter();
-
+  const addItem = useCartStore((state) => state.addItem);
+  
   // 1. DATA
   const { data: business, isLoading: loadingBusiness } = useBusiness(businessId);
   const { categories, isLoading: loadingCategories } = useMenuCategories(businessId);
@@ -196,9 +198,32 @@ export default function BusinessDetailScreen() {
                         )}
                     </View>
 
-                    <TouchableOpacity style={styles.addButton}>
-                        <Ionicons name="add" size={20} color="white" />
-                    </TouchableOpacity>
+                    <TouchableOpacity 
+    style={styles.addButton}
+    onPress={() => {
+        // 1. Calculamos el precio real (con o sin descuento)
+        const itemFinalPrice = (item.isPromo && item.discountPrice) 
+            ? item.discountPrice 
+            : item.price;
+        
+        // 2. Extraemos la imagen segura
+        const itemImage = item.images?.[0]?.url || '';
+
+        // 3. Inyectamos en Zustand
+        addItem({
+            id: item.id, // Aquí no hay talla, usamos el ID directo
+            title: item.title,
+            price: itemFinalPrice,
+            image: itemImage,
+            quantity: 1 // Por defecto, el botón rápido agrega 1
+        });
+
+        // Opcional: Feedback visual discreto (puedes usar un Toast más adelante)
+         Alert.alert("🛒 Carrito", `${item.title} añadido al carrito`, [{ text: "OK" }]);
+    }}
+>
+    <Ionicons name="add" size={20} color="white" />
+</TouchableOpacity>
                 </TouchableOpacity>
             );
         }}

@@ -14,21 +14,21 @@ const PROMOS = [
     title: '50% OFF',
     subtitle: 'En tu primera orden',
     color: '#ce3333ff', 
-    image: require('../../../../../assets/banners/1.jpg'), // Usa tus imágenes
+    image: require('../../../../assets/banners/1.jpg'), // Usa tus imágenes
   },
   {
     id: '2',
     title: 'Envío GRATIS',
     subtitle: 'Todo el fin de semana',
     color: '#4e50cdff', 
-    image: require('../../../../../assets/banners/2.jpg'),
+    image: require('../../../../assets/banners/2.jpg'),
   },
   {
     id: '3',
     title: '2x1 Burgers',
     subtitle: 'Solo por hoy',
     color: '#ff7a3dff', 
-    image: require('../../../../../assets/banners/3.webp'),
+    image: require('../../../../assets/banners/3.webp'),
   },
 ];
 

@@ -10,7 +10,7 @@ import { useBusinesses } from "@/presentation/hooks/useBusiness";
 import LoadingScreen from "@/presentation/components/loading";
 import PrincipalHeader from "@/presentation/components/headers/header";
 import { CategoryList } from "@/presentation/components/categoryList/categoryList";
-import { PromoSlider } from "@/presentation/components/home/promoSlider/PromoSlider";
+import { PromoSlider } from "@/presentation/components/promoSlider/PromoSlider";
 import { BusinessCard } from "@/presentation/components/businessCard/businessCard";
 
 export default function Index() {
