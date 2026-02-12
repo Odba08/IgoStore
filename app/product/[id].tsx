@@ -173,30 +173,37 @@ export default function ProductDetailScreen() {
             ]}
             disabled={product.stock === 0}
             onPress={() => {
-                // 1. Validar Talla (Si aplica)
-                if (!selectedSize && product.options?.length > 0) {
-                    Alert.alert("Falta Talla", "Por favor selecciona una talla para continuar.");
-                    return;
-                }
+            // 1. Validar Talla (Si aplica)
+            if (!selectedSize && product.options?.length > 0) {
+                Alert.alert("Falta Talla", "Por favor selecciona una talla para continuar.");
+                return;
+            }
 
-                // 2. Construir Identificador Único
-                const cartItemId = selectedSize ? `${product.id}-${selectedSize}` : product.id;
-                const cartItemTitle = selectedSize ? `${product.title} (${selectedSize})` : product.title;
-                const imageUrl = product.images?.[0]?.url || ''; 
+            // 2. EL CANDADO: Revisamos el carrito ANTES de hacer nada
+            const currentCart = useCartStore.getState().items;
+            if (currentCart.length > 0 && currentCart[0].business_id !== product.business.id) {
+                Alert.alert("Acción no permitida", "No puedes mezclar productos de diferentes negocios. Vacía tu carrito primero.");
+                return; // Abortamos la función aquí. No se ejecuta addItem ni router.back()
+            }
 
-                // 3. Ejecutar Acción en Zustand
-                addItem({
-                    id: cartItemId,
-                    title: cartItemTitle,
-                    price: finalUnitTestPrice,
-                    image: imageUrl,
-                    quantity: quantity
-                });
+            // 3. SI PASA EL CANDADO, CONSTRUIMOS EL PRODUCTO Y AGREGAMOS
+            const cartItemId = selectedSize ? `${product.id}-${selectedSize}` : product.id;
+            const cartItemTitle = selectedSize ? `${product.title} (${selectedSize})` : product.title;
+            const imageUrl = product.images?.[0]?.url || ''; 
 
-                // 4. Feedback y Salida
-                Alert.alert("🛒 Carrito", `Agregaste ${quantity}x ${cartItemTitle}`);
-                router.back(); 
-            }}
+            addItem({
+                id: cartItemId,
+                title: cartItemTitle,
+                price: finalUnitTestPrice,
+                image: imageUrl,
+                quantity: quantity,
+                business_id: product.business.id
+            });
+
+            // 4. ÉXITO (Como ya sabemos que pasó el candado, mostramos éxito seguro)
+            Alert.alert("🛒 Carrito", `Agregaste ${quantity}x ${cartItemTitle}`);
+            router.back(); 
+        }}
           >
               <Text style={styles.addToCartText}>
                   {product.stock === 0 ? "Agotado" : `Agregar • $${totalPrice.toFixed(2)}`}

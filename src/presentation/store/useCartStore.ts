@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Alert } from 'react-native'; // <-- Importación necesaria para el bloqueo
 
 interface CartItem {
   id: string;
@@ -8,6 +9,7 @@ interface CartItem {
   price: number;
   image: string;
   quantity: number;
+  business_id: string; // <-- 1. CRÍTICO: El carrito ahora exige saber la tienda
 }
 
 interface CartState {
@@ -15,16 +17,28 @@ interface CartState {
   addItem: (item: CartItem) => void;
   removeItem: (id: string) => void;
   updateQuantity: (id: string, quantity: number) => void;
-  clearCart: () => void; // 1. Definimos el nuevo contrato
+  clearCart: () => void;
 }
 
-// 2. Envolvemos el creador con persist()
 export const useCartStore = create<CartState>()(
   persist(
     (set) => ({
       items: [],
 
       addItem: (item) => set((state) => {
+        if (state.items.length > 0) {
+          const currentBusinessId = state.items[0].business_id;
+          
+          if (currentBusinessId !== item.business_id) {
+            Alert.alert(
+              "Acción no permitida",
+              "Solo puedes pedir de una tienda a la vez. Vacía tu carrito actual si deseas comprar en este negocio."
+            );
+            return state; // Aborta la inserción, devuelve el estado intacto
+          }
+        }
+
+        // --- 3. LÓGICA DE INSERCIÓN ORIGINAL ---
         const existingItem = state.items.find((i) => i.id === item.id);
         if (existingItem) {
           return { items: state.items.map((i) => i.id === item.id ? { ...i, quantity: i.quantity + item.quantity} : i) };
@@ -47,12 +61,11 @@ export const useCartStore = create<CartState>()(
         };
       }),
 
-      // 3. Implementación de la limpieza (Devuelve el array a su estado original)
       clearCart: () => set({ items: [] }), 
     }),
     {
-      name: 'cart-storage', // Nombre del archivo encriptado en el teléfono
-      storage: createJSONStorage(() => AsyncStorage), // Motor de almacenamiento
+      name: 'cart-storage',
+      storage: createJSONStorage(() => AsyncStorage),
     }
   )
 );

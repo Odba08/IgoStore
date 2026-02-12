@@ -201,26 +201,33 @@ export default function BusinessDetailScreen() {
                     <TouchableOpacity 
     style={styles.addButton}
     onPress={() => {
-        // 1. Calculamos el precio real (con o sin descuento)
-        const itemFinalPrice = (item.isPromo && item.discountPrice) 
-            ? item.discountPrice 
-            : item.price;
-        
-        // 2. Extraemos la imagen segura
-        const itemImage = item.images?.[0]?.url || '';
+      // 1. EL CANDADO ANTES DE EJECUTAR
+      const currentCart = useCartStore.getState().items;
+      if (currentCart.length > 0 && currentCart[0].business_id !== item.business.id) {
+          Alert.alert("Acción no permitida", "No puedes mezclar productos de diferentes negocios. Vacía tu carrito primero.");
+          return; // Abortamos la ejecución
+      }
 
-        // 3. Inyectamos en Zustand
-        addItem({
-            id: item.id, // Aquí no hay talla, usamos el ID directo
-            title: item.title,
-            price: itemFinalPrice,
-            image: itemImage,
-            quantity: 1 // Por defecto, el botón rápido agrega 1
-        });
+      // 2. SI PASA EL CANDADO, CALCULAMOS PRECIOS
+      const itemFinalPrice = (item.isPromo && item.discountPrice) 
+          ? item.discountPrice 
+          : item.price;
+      
+      const itemImage = item.images?.[0]?.url || '';
 
-        // Opcional: Feedback visual discreto (puedes usar un Toast más adelante)
-         Alert.alert("🛒 Carrito", `${item.title} añadido al carrito`, [{ text: "OK" }]);
-    }}
+      // 3. AGREGAMOS
+      addItem({
+          id: item.id, 
+          title: item.title,
+          price: itemFinalPrice,
+          image: itemImage,
+          quantity: 1,
+          business_id: item.business.id
+      });
+
+      // 4. ÉXITO
+      Alert.alert("🛒 Carrito", `${item.title} añadido al carrito`);
+  }}
 >
     <Ionicons name="add" size={20} color="white" />
 </TouchableOpacity>
