@@ -34,7 +34,7 @@ const PrincipalHeader = () => {
         <Pressable onPress={handleLocationPress}>
 
         <Text numberOfLines={1} style={styles.locationText}>
-          Calle 1 con av. 24
+          Busca tu negocio
         </Text>
         </Pressable>
         <Ionicons name='chevron-down' size={18} color='#5D5D5D' />
