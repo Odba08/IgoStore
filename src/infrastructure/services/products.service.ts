@@ -37,7 +37,7 @@ export class ProductService {
       }));
     } catch (error) {
       console.error("Error fetching products:", error);
-      return [];
+      throw error;
     }
   }
 }
