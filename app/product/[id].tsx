@@ -222,7 +222,7 @@ export default function ProductDetailScreen() {
               </TouchableOpacity>
           </View>
 
-          {/* ⚡ LA INYECCIÓN DE DATOS (EL CEREBRO EN ACCIÓN) */}
+          {/* ⚡ LA INYECCIÓN DE DATOS REPARADA Y BLINDADA */}
           <TouchableOpacity 
             style={[
                 styles.addToCartButton, 
@@ -245,18 +245,20 @@ export default function ProductDetailScreen() {
             }
 
             // 2. EL CANDADO: Revisamos el carrito ANTES de hacer nada
-           const currentCart = useCartStore.getState().items;
-
+            const currentCart = useCartStore.getState().items;
+            
+            // ⚡ EXTRACCIÓN SEGURA DEL ID DEL NEGOCIO (Evita el "must be a UUID" de NestJS)
+              const currentProductBusinessId = (product as any).businessId || product.business?.id;
               // 🛡️ VALIDACIÓN INALTERABLE: Compara de forma estricta los IDs de negocio
-              if (currentCart.length > 0 && currentCart[0].businessId !== product.business?.id) {
+              if (currentCart.length > 0 && currentCart[0].businessId !== currentProductBusinessId) {
                   Alert.alert(
                     "Acción no permitida", 
                     "No puedes mezclar productos de diferentes negocios. Vacía tu carrito primero."
                   );
                   return; 
               }
+              
             // 3. SI PASA EL CANDADO, CONSTRUIMOS EL PRODUCTO Y AGREGAMOS
-            // Aquí deberías aplanar las selectedOptions para pasarlas al carrito, pero por ahora guardaremos un string simple
             const optionsString = Object.values(selectedOptions)
               .flat()
               .map(o => o.name)
@@ -272,10 +274,11 @@ export default function ProductDetailScreen() {
                 price: finalUnitTestPrice,
                 image: imageUrl,
                 quantity: quantity,
-                businessId: product.business?.id,
+                // ⚡ INYECCIÓN GARANTIZADA HACIA ZUSTAND
+                businessId: currentProductBusinessId,
             });
 
-            // 4. ÉXITO (Como ya sabemos que pasó el candado, mostramos éxito seguro)
+            // 4. ÉXITO
             Alert.alert("🛒 Carrito", `Agregaste ${quantity}x ${product.title}`);
             router.back(); 
         }}

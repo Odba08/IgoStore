@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { 
   View, Text, StyleSheet, ScrollView, TouchableOpacity, 
-  Image, Linking, Alert, TextInput, ActivityIndicator // ✅ CORRECCIÓN 1: Importación añadida
+  Image, Alert, TextInput 
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -9,163 +9,41 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useCartStore } from '../../src/presentation/store/useCartStore';
 import { useLocationStore } from '../../src/presentation/store/useLocationStore';
-import { usePermissionsStore } from '../../src/presentation/store/usePermissions'; 
-import { PermissionStatus } from '../../src/core/entities/location.entity';
-
-// --- COMPONENTE DE MAPA ---
-import { DeliveryMap } from '../../src/presentation/components/maps/DeliveryMap';
 
 const CartScreen = () => {
   const router = useRouter();
 
-  // STORES
-  const { items, clearCart, removeItem } = useCartStore();
+  const { items, removeItem } = useCartStore();
   const updateQuantity = useCartStore((state) => state.updateQuantity);
   
-  // LECTURA REACTIVA SIMÉTRICA: Escuchamos ambos puntos cardinales del Store Global
   const pickupLocation = useLocationStore((state: any) => state.pickupLocation);
   const deliveryLocation = useLocationStore((state: any) => state.deliveryLocation);
 
-  // ESTADOS LOGÍSTICOS LOCALES
   const [personalData, setPersonalData] = useState('');
   const [addressNotes, setAddressNotes] = useState('');
-  const [isCalculating, setIsCalculating] = useState(false);
-  const [deliveryQuote, setDeliveryQuote] = useState<any>(null);
 
-  // Invalidación automática de cotizaciones previas si el usuario altera el origen o el destino
-  useEffect(() => {
-    setDeliveryQuote(null);
-  }, [pickupLocation, deliveryLocation]);
-
-  // MATEMÁTICA VISUAL
   const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
 
-  // --- 1. FUNCIÓN FINAL (Despacho Estructurado hacia WhatsApp) ---
-  const handleFinalOrder = () => {
-    if (!deliveryQuote) return;
-
-    // Coordenadas definitivas del flujo seleccionado o fallbacks del backend
-    const latA = pickupLocation?.latitude || deliveryQuote.businessLat;
-    const lngA = pickupLocation?.longitude || deliveryQuote.businessLong;
-    const latB = deliveryLocation?.latitude || deliveryQuote.userLat;
-    const lngB = deliveryLocation?.longitude || deliveryQuote.userLong;
-
-    // Protocolo de enlaces universales de Google Maps para navegación por GPS de un toque
-    const mapsUrlTienda = `https://www.google.com/maps/search/?api=1&query=${latA},${lngA}`;
-    const mapsUrlCliente = `https://www.google.com/maps/search/?api=1&query=${latB},${lngB}`;
-
-    let message = `*🍔 NUEVO PEDIDO - IGO STORE* 🛒\n`;
-    message += `---------------------------------------\n`;
-    message += `*🆔 Orden ID:* #${deliveryQuote.orderId.slice(0, 8).toUpperCase()}\n\n`;
-
-    message += `*📦 DETALLE DEL PEDIDO:*\n`;
-    items.forEach((item) => {
-        const cleanTitle = item.title.split(' (')[0];
-        const options = item.title.includes('(') ? item.title.substring(item.title.indexOf('(')) : '';
-        
-        message += `▪️ ${item.quantity}x ${cleanTitle}\n`;
-        if (options) message += `    _${options}_\n`;
-        message += `    Precio Unit: $${item.price.toFixed(2)} -> Sub: $${(item.price * item.quantity).toFixed(2)}\n`;
-    });
-
-    message += `\n👤 *CLIENTE:* ${personalData.trim()}\n`;
-    message += `📝 *PUNTO DE REFERENCIA:* ${addressNotes.trim() || 'Sin notas adicionales'}\n\n`;
-    
-    message += `*🏢 PUNTO A (RECOGIDA):*\n`;
-    message += `🏠 Origen: ${pickupLocation?.address || 'Sede del Negocio'}\n`;
-    message += `📍 GPS Origen: ${mapsUrlTienda}\n\n`;
-
-    message += `*📍 PUNTO B (ENTREGA):*\n`;
-    message += `🏠 Destino: ${deliveryLocation?.address || 'Dirección del Cliente'}\n`;
-    message += `🗺️ GPS Destino: ${mapsUrlCliente}\n`;
-    message += `---------------------------------------\n`;
-    
-    const deliveryFee = deliveryQuote.totalToPay - subtotal;
-    
-    message += `💰 *SUBTOTAL PEDIDO:* $${subtotal.toFixed(2)}\n`;
-    message += `🛵 *TARIFA DELIVERY (${deliveryQuote.distance}):* $${deliveryFee.toFixed(2)}\n`;
-    message += `⭐️ *TOTAL NETO A PAGAR:* $${deliveryQuote.totalToPay.toFixed(2)}\n\n`;
-    message += `_Hola, acabo de registrar mi pedido. Quedo atento a la confirmación de la ruta del motorizado._`;
-
-    const phoneNumber = "573014215155";
-    const url = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message.trim())}`;
-
-    Linking.openURL(url).catch(() => Alert.alert("Error", "No pudimos abrir WhatsApp de forma automatizada."));
-
-    // Limpieza integral de la mesa de trabajo global
-    clearCart();
-    setPersonalData('');
-    setAddressNotes('');
-    setDeliveryQuote(null);
-    useLocationStore.setState({ pickupLocation: null, deliveryLocation: null } as any); 
-    router.replace('/'); 
-  };
-
-  // --- 2. FUNCIÓN DE COTIZACIÓN VIAL (Consumo del Backend Blindado) ---
-  const handleQuote = async () => {
+  const handleNavigateToRouteCalculation = () => {
     if (items.length === 0) return;
     
     if (!deliveryLocation) {
-      Alert.alert("Falta Destino", "Por favor selecciona el punto de entrega en el mapa (Punto B).");
+      Alert.alert("Falta Ubicación", "Por favor selecciona el punto de entrega en el mapa (Punto B) antes de proceder.");
       return;
     }
     if (personalData.trim().length === 0) {
-      Alert.alert("Falta Información", "Por favor ingresa tu nombre de contacto.");
+      Alert.alert("Campos Vacíos", "Por favor ingresa tu nombre y teléfono para procesar el despacho.");
       return;
     }
-    
-    setIsCalculating(true);
 
-    try {
-      // ✅ CORRECCIÓN 2: Cambiado business_id por businessId acorde a tu interface CartItem
-      const businessId = items[0].businessId; 
-      const BASE = process.env.EXPO_PUBLIC_API_URL || 'http://10.200.38.48:3000';
-      const API_URL = BASE.endsWith('/api') ? BASE : `${BASE}/api`;
-      
-      const orderPayload = {
-        businessId: businessId,
-        userIdTemp: personalData,
-        deliveryLat: deliveryLocation.latitude,
-        deliveryLong: deliveryLocation.longitude,
-        deliveryAddress: `${deliveryLocation.address} | Ref: ${addressNotes}`.trim(),
-        items: items.map(item => {
-          const baseProductId = item.id.substring(0, 36);
-          const optionsText = item.title.includes('(') 
-            ? item.title.substring(item.title.indexOf('(') + 1, item.title.lastIndexOf(')')) 
-            : 'Sin adicionales';
-
-          return {
-            productId: baseProductId,
-            quantity: item.quantity,
-            selectedOptionsText: optionsText,
-            finalUnitPrice: item.price        
-          };
-        })
-      };
-
-      const response = await fetch(`${API_URL}/orders`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(orderPayload)
-      });
-
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.message || 'Error en el servidor de órdenes');
-
-      setDeliveryQuote({
-        ...data,
-        userLat: deliveryLocation.latitude,
-        userLong: deliveryLocation.longitude,
-        businessLat: pickupLocation?.latitude || data.business?.latitude || data.businessLocation?.latitude || 10.644, 
-        businessLong: pickupLocation?.longitude || data.business?.longitude || data.businessLocation?.longitude || -71.640 
-      });
-
-    } catch (error: any) {
-      console.error(error);
-      Alert.alert("Error de Cotización", error.message || "Fallo en el cálculo vial de OSRM.");
-    } finally {
-      setIsCalculating(false);
-    }
+    router.push({
+      pathname: '/map',
+      params: {
+        mode: 'route',
+        personalData: personalData,
+        addressNotes: addressNotes
+      }
+    });
   };
 
   return (
@@ -215,54 +93,62 @@ const CartScreen = () => {
 
         {items.length > 0 && (
           <>
-            {/* 🏢 ADUANA DE CONTROL DE ORIGEN: PUNTO A (Cierre de etiquetas reparado) */}
-            <View style={styles.inputContainer}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                <Text style={[styles.inputTitle, { color: '#6200EE' }]}>🏢 Punto de Recogida (Origen)</Text>
-                <TouchableOpacity style={styles.mapLink} onPress={() => router.push({ pathname: '/map', params: { mode: 'pickup' } })}>
-                  <Text style={[styles.mapLinkText, { color: '#6200EE' }]}>Elegir Tienda</Text>
-                </TouchableOpacity>
+            {/* ⚡ BLOQUE LOGÍSTICO UNIFICADO (Puntos A y B en la misma tarjeta) */}
+            <View style={styles.logisticsCard}>
+              <Text style={styles.cardSectionTitle}>Detalles de la Ruta</Text>
+              
+              <View style={styles.logisticsRow}>
+                <View style={styles.logisticsHeader}>
+                  <Text style={[styles.inputTitle, { color: '#6200EE', flex: 1, marginRight: 10 }]} numberOfLines={1}>
+                    🏢 Origen (Recogida)
+                  </Text>
+                  <TouchableOpacity style={styles.mapLink} onPress={() => router.push({ pathname: '/map', params: { mode: 'pickup' } })}>
+                    <Text style={[styles.mapLinkText, { color: '#6200EE' }]}>Editar Mapa</Text>
+                  </TouchableOpacity>
+                </View>
+                <View style={[styles.addressBox, { borderColor: '#E9E3FF', backgroundColor: '#F4F0FF' }]}>
+                  <Ionicons name="business" size={20} color="#6200EE" style={{ marginRight: 8 }} />
+                  <Text style={styles.addressBoxText} numberOfLines={2}>
+                    {pickupLocation ? pickupLocation.address : 'Selecciona dónde recogemos el pedido...'}
+                  </Text>
+                </View>
               </View>
-              <View style={[styles.addressBox, { borderColor: '#E9E3FF' }]}>
-                <Ionicons name="business" size={20} color="#6200EE" style={{ marginRight: 8 }} />
-                <Text style={styles.addressBoxText} numberOfLines={2}>
-                  {pickupLocation ? pickupLocation.address : 'Sede base (Asignada automáticamente por el producto)'}
-                </Text>
+
+              <View style={styles.divider} />
+
+              <View style={styles.logisticsRow}>
+                <View style={styles.logisticsHeader}>
+                  <Text style={[styles.inputTitle, { color: '#EDB422', flex: 1, marginRight: 10 }]} numberOfLines={1}>
+                    📍 Destino (Entrega)
+                  </Text>
+                  <TouchableOpacity style={styles.mapLink} onPress={() => router.push({ pathname: '/map', params: { mode: 'delivery' } })}>
+                    <Text style={styles.mapLinkText}>Fijar Destino</Text>
+                  </TouchableOpacity>
+                </View>
+                <View style={[styles.addressBox, { borderColor: '#FDF7E8', backgroundColor: '#FDF7E8' }]}>
+                  <Ionicons name="location-sharp" size={20} color="#EDB422" style={{ marginRight: 8 }} />
+                  <Text style={styles.addressBoxText} numberOfLines={2}>
+                    {deliveryLocation ? deliveryLocation.address : 'Selecciona a dónde lo enviamos...'}
+                  </Text>
+                </View>
               </View>
             </View>
 
-            {/* 📍 ADUANA DE CONTROL DE DESTINO: PUNTO B */}
-            <View style={styles.inputContainer}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                <Text style={[styles.inputTitle, { color: '#EDB422' }]}>📍 Dirección de Entrega (Destino)</Text>
-                <TouchableOpacity style={styles.mapLink} onPress={() => router.push({ pathname: '/map', params: { mode: 'delivery' } })}>
-                  <Text style={styles.mapLinkText}>Cambiar Destino</Text>
-                </TouchableOpacity>
-              </View>
-              <View style={styles.addressBox}>
-                <Ionicons name="location-sharp" size={20} color="#EDB422" style={{ marginRight: 8 }} />
-                <Text style={styles.addressBoxText} numberOfLines={2}>
-                  {deliveryLocation ? deliveryLocation.address : 'Selecciona tu casa o punto de parada en el mapa...'}
-                </Text>
-              </View>
-            </View>
-
-            <View style={styles.inputContainer}>
-              <Text style={styles.inputTitle}>Tus Datos de Contacto</Text>
+            {/* ⚡ BLOQUE DE CONTACTO UNIFICADO */}
+            <View style={styles.contactCard}>
+              <Text style={styles.cardSectionTitle}>Información del Cliente</Text>
+              
               <TextInput
-                style={[styles.textInput, { minHeight: 50 }]}
-                placeholder="Nombre completo del cliente"
+                style={[styles.textInput, { minHeight: 50, marginBottom: 12 }]}
+                placeholder="Nombre y teléfono de contacto"
                 placeholderTextColor="#999"
                 value={personalData}
                 onChangeText={setPersonalData}
               />
-            </View>
-
-            <View style={styles.inputContainer}>
-              <Text style={styles.inputTitle}>Punto de Referencia</Text>
+              
               <TextInput
-                style={styles.textInput}
-                placeholder="Ej: Portón negro, al lado del abasto..."
+                style={[styles.textInput, { minHeight: 60 }]}
+                placeholder="Punto de referencia o notas para el motorizado (Ej: Portón negro...)"
                 placeholderTextColor="#999"
                 multiline={true}
                 numberOfLines={2}
@@ -271,43 +157,14 @@ const CartScreen = () => {
               />
             </View>
 
-            {/* MAPA OPERATIVO: Renderiza la polilínea OSRM exacta */}
-            {deliveryQuote && (
-                <View style={{ marginBottom: 15 }}>
-                    <Text style={styles.inputTitle}>Ruta Optimizada por OSRM</Text>
-                    <DeliveryMap 
-                      origin={{ latitude: deliveryQuote.userLat, longitude: deliveryQuote.userLong }}
-                      destination={{ latitude: deliveryQuote.businessLat, longitude: deliveryQuote.businessLong }}
-                      distanceKm={deliveryQuote.distance} 
-                      routePolyline={deliveryQuote.routePolyline} 
-                    />
-                </View>
-            )}
-
+            {/* RESUMEN DE ARTÍCULOS */}
             <View style={styles.summaryContainer}>
-              <Text style={styles.summaryTitle}>Resumen Financiero</Text>
+              <Text style={styles.summaryTitle}>Resumen Parcial</Text>
               <View style={styles.summaryRow}>
                 <Text style={styles.summaryLabel}>Subtotal de Productos</Text>
                 <Text style={styles.summaryValue}>${subtotal.toFixed(2)}</Text>
               </View>
-              
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Costo de Envío Vial</Text>
-                {deliveryQuote ? (
-                    <Text style={styles.summaryValue}>
-                        ${(deliveryQuote.totalToPay - subtotal).toFixed(2)}
-                    </Text>
-                ) : (
-                    <Text style={[styles.summaryValue, { color: '#FF9500', fontWeight: 'bold' }]}>Requiere Cotización</Text>
-                )}
-              </View>
-
-              <View style={[styles.summaryRow, styles.totalRow]}>
-                <Text style={styles.totalLabel}>Total Neto</Text>
-                <Text style={styles.totalValue}>
-                    ${deliveryQuote ? deliveryQuote.totalToPay.toFixed(2) : `${subtotal.toFixed(2)}`}
-                </Text>
-              </View>
+              <Text style={styles.infoFooterTexto}>*La tarifa de envío se calculará mediante coordenadas viales en la siguiente pantalla.</Text>
             </View>
           </>
         )}
@@ -315,19 +172,13 @@ const CartScreen = () => {
 
       <View style={styles.footer}>
         <TouchableOpacity 
-          style={[styles.checkoutBtn, (items.length === 0 || isCalculating) && { backgroundColor: '#E0E0E0' }]} 
-          onPress={deliveryQuote ? handleFinalOrder : handleQuote}
-          disabled={items.length === 0 || isCalculating}
+          style={[styles.checkoutBtn, items.length === 0 && { backgroundColor: '#E0E0E0' }]} 
+          onPress={handleNavigateToRouteCalculation}
+          disabled={items.length === 0}
         >
-          {isCalculating ? (
-             <ActivityIndicator color="#1A1A1A" />
-          ) : (
-             <Text style={styles.checkoutBtnText}>
-               {items.length === 0 
-                  ? "Añade productos para continuar" 
-                  : (deliveryQuote ? "Enviar Orden Estructurada a WhatsApp" : "Calcular Ruta y Cotizar Envío")}
-             </Text>
-          )}
+          <Text style={styles.checkoutBtnText}>
+            {items.length === 0 ? "Añade productos para continuar" : "Calcular Ruta Vial e Ir al Mapa"}
+          </Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -339,36 +190,49 @@ const styles = StyleSheet.create({
   customHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 15, paddingVertical: 15, backgroundColor: '#FFF', borderBottomWidth: 1, borderBottomColor: '#F0F0F0' },
   backButton: { width: 40, height: 40, justifyContent: 'center', alignItems: 'flex-start' },
   headerTitle: { fontSize: 18, fontWeight: 'bold', color: '#1A1A1A' },
-  scrollContent: { padding: 20, paddingBottom: 130, backgroundColor: '#F2F4F7', flexGrow: 1 },
-  cartItem: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', padding: 15, borderRadius: 15, marginBottom: 15, shadowColor: '#000', shadowOpacity: 0.05, elevation: 2 },
-  itemImage: { width: 60, height: 60, borderRadius: 10, backgroundColor: '#EEE' },
+  scrollContent: { padding: 15, paddingBottom: 130, backgroundColor: '#F8FAFC', flexGrow: 1 },
+  
+  cartItem: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', padding: 15, borderRadius: 16, marginBottom: 15, shadowColor: '#000', shadowOpacity: 0.04, elevation: 2 },
+  itemImage: { width: 65, height: 65, borderRadius: 12, backgroundColor: '#F1F5F9' },
   itemDetails: { flex: 1, marginLeft: 15, justifyContent: 'center' },
-  itemTitle: { fontSize: 15, fontWeight: 'bold', color: '#1A1A1A', marginBottom: 2 },
-  itemOptions: { fontSize: 12, color: '#666', fontStyle: 'italic', marginBottom: 4 },
-  itemPrice: { fontSize: 14, fontWeight: '700', color: '#27AE60' },
+  itemTitle: { fontSize: 15, fontWeight: 'bold', color: '#1E293B', marginBottom: 4 },
+  itemOptions: { fontSize: 12, color: '#64748B', fontStyle: 'italic', marginBottom: 6 },
+  itemPrice: { fontSize: 15, fontWeight: '800', color: '#10B981' },
+  
   actionContainer: { flexDirection: 'row', alignItems: 'center' },
-  quantityControls: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F5F5F5', borderRadius: 20, paddingHorizontal: 5, paddingVertical: 5 },
-  controlBtn: { backgroundColor: '#FFF', borderRadius: 15, padding: 5, shadowColor: '#000', shadowOpacity: 0.1, elevation: 1 },
-  quantityText: { marginHorizontal: 12, fontSize: 15, fontWeight: 'bold' },
-  deleteBtn: { marginLeft: 12, padding: 6, backgroundColor: '#FFE5E5', borderRadius: 8 },
-  inputContainer: { backgroundColor: '#FFF', padding: 18, borderRadius: 15, marginBottom: 15, shadowColor: '#000', shadowOpacity: 0.05, elevation: 2 },
-  inputTitle: { fontSize: 15, fontWeight: 'bold', color: '#1A1A1A' },
-  mapLink: { paddingVertical: 2 },
-  mapLinkText: { fontSize: 14, color: '#EDB422', fontWeight: 'bold' },
-  addressBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F8FAFC', padding: 12, borderRadius: 10, marginTop: 8, borderWidth: 1, borderColor: '#E2E8F0' },
-  addressBoxText: { flex: 1, fontSize: 14, color: '#334155', fontWeight: '500' },
-  textInput: { backgroundColor: '#F9F9F9', borderRadius: 10, padding: 12, fontSize: 15, color: '#333', minHeight: 50, textAlignVertical: 'top', borderWidth: 1, borderColor: '#EEE', marginTop: 8 },
-  summaryContainer: { backgroundColor: '#FFF', padding: 20, borderRadius: 15, shadowColor: '#000', shadowOpacity: 0.05, elevation: 2 },
-  summaryTitle: { fontSize: 16, fontWeight: 'bold', marginBottom: 15, color: '#1A1A1A' },
-  summaryRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 },
-  summaryLabel: { fontSize: 14, color: '#666' },
-  summaryValue: { fontSize: 14, fontWeight: '600', color: '#1A1A1A' },
-  totalRow: { borderTopWidth: 1, borderTopColor: '#EEE', paddingTop: 15, marginTop: 5 },
-  totalLabel: { fontSize: 16, fontWeight: 'bold', color: '#1A1A1A' },
-  totalValue: { fontSize: 17, fontWeight: 'bold', color: '#27AE60' },
-  footer: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: '#FFF', paddingHorizontal: 20, paddingTop: 15, paddingBottom: 30, borderTopWidth: 1, borderTopColor: '#EEE' },
-  checkoutBtn: { backgroundColor: '#FFDB58', paddingVertical: 15, borderRadius: 12, alignItems: 'center' },
-  checkoutBtnText: { fontSize: 15, fontWeight: 'bold', color: '#1A1A1A' },
+  quantityControls: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F1F5F9', borderRadius: 20, paddingHorizontal: 6, paddingVertical: 6 },
+  controlBtn: { backgroundColor: '#FFF', borderRadius: 14, padding: 6, shadowColor: '#000', shadowOpacity: 0.06, elevation: 1 },
+  quantityText: { marginHorizontal: 12, fontSize: 15, fontWeight: 'bold', color: '#1E293B' },
+  deleteBtn: { marginLeft: 12, padding: 8, backgroundColor: '#FEE2E2', borderRadius: 10 },
+  
+  // ⚡ NUEVOS ESTILOS AGRUPADOS Y ESTILIZADOS
+  logisticsCard: { backgroundColor: '#FFF', padding: 20, borderRadius: 16, marginBottom: 15, shadowColor: '#000', shadowOpacity: 0.04, elevation: 2 },
+  contactCard: { backgroundColor: '#FFF', padding: 20, borderRadius: 16, marginBottom: 15, shadowColor: '#000', shadowOpacity: 0.04, elevation: 2 },
+  cardSectionTitle: { fontSize: 16, fontWeight: 'bold', color: '#1E293B', marginBottom: 16 },
+  
+  logisticsRow: { marginBottom: 5 },
+  logisticsHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+  divider: { height: 1, backgroundColor: '#F1F5F9', marginVertical: 15 },
+  
+  inputTitle: { fontSize: 14, fontWeight: 'bold' },
+  mapLink: { paddingVertical: 4, paddingHorizontal: 8, backgroundColor: '#F8FAFC', borderRadius: 8 },
+  mapLinkText: { fontSize: 13, color: '#EDB422', fontWeight: '700' },
+  
+  addressBox: { flexDirection: 'row', alignItems: 'center', padding: 14, borderRadius: 12, borderWidth: 1 },
+  addressBoxText: { flex: 1, fontSize: 14, color: '#334155', fontWeight: '500', lineHeight: 20 },
+  
+  textInput: { backgroundColor: '#F8FAFC', borderRadius: 12, padding: 14, fontSize: 15, color: '#1E293B', textAlignVertical: 'top', borderWidth: 1, borderColor: '#E2E8F0' },
+  
+  summaryContainer: { backgroundColor: '#FFF', padding: 20, borderRadius: 16, shadowColor: '#000', shadowOpacity: 0.04, elevation: 2, marginBottom: 10 },
+  summaryTitle: { fontSize: 16, fontWeight: 'bold', marginBottom: 15, color: '#1E293B' },
+  summaryRow: { flexDirection: 'row', justifyContent: 'space-between' },
+  summaryLabel: { fontSize: 15, color: '#64748B', fontWeight: '500' },
+  summaryValue: { fontSize: 16, fontWeight: '800', color: '#1E293B' },
+  infoFooterTexto: { fontSize: 12, color: '#94A3B8', marginTop: 12, fontStyle: 'italic', lineHeight: 18 },
+  
+  footer: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: '#FFF', paddingHorizontal: 20, paddingTop: 15, paddingBottom: 30, borderTopWidth: 1, borderTopColor: '#F1F5F9' },
+  checkoutBtn: { backgroundColor: '#FFDB58', paddingVertical: 16, borderRadius: 14, alignItems: 'center', shadowColor: '#FFDB58', shadowOpacity: 0.25, shadowOffset: { width: 0, height: 4 }, elevation: 4 },
+  checkoutBtnText: { fontSize: 16, fontWeight: '800', color: '#1A1A1A' },
 });
 
 export default CartScreen;

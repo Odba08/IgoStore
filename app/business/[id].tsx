@@ -215,7 +215,8 @@ export default function BusinessDetailScreen() {
             title: item.title,
             price: itemFinalPrice,
             image: itemImage,
-            quantity: 1 // Por defecto, el botón rápido agrega 1
+            quantity: 1 ,
+           businessId: business.id,
         });
 
         // Opcional: Feedback visual discreto (puedes usar un Toast más adelante)
