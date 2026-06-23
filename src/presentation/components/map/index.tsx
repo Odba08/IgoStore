@@ -12,7 +12,7 @@ import * as Location from 'expo-location';
 
 const { width, height } = Dimensions.get('window');
 
-// ⚡ MOTOR DE DECODIFICACIÓN GEOMÉTRICA (Algoritmo de compresión OSRM/Google precision 5)
+// ⚡ MOTOR DE DECODIFICACIÓN GEOMÉTRICA
 const decodePolyline = (encoded: string) => {
   let points = [];
   let index = 0, len = encoded.length;
@@ -51,12 +51,22 @@ const MapScreen = () => {
   const { items, clearCart } = useCartStore();
   const { lastKnowLocation, getLocation, pickupLocation, deliveryLocation, setPickupLocation, setDeliveryLocation } = useLocationStore();
 
-  // ESTADOS DEL MODO RUTA (PANTALLA COMPLETA)
+  // ⚡ CÁLCULO DEL SUBTOTAL PURO
+  const cartSubtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+
+  // DETECCIÓN DE MODO
+  const isExplorerView = mode !== 'route' || items.length === 0;
+
+  // ESTADOS DEL MODO RUTA Y EXPLORADOR
   const [activeMode, setActiveMode] = useState<any>(mode || 'delivery');
   const [activeEditing, setActiveEditing] = useState<'pickup' | 'delivery' | null>(null);
   const [routeQuote, setRouteQuote] = useState<any>(null);
   const [polylineCoords, setPolylineCoords] = useState<any[]>([]);
   const [isCalculatingRoute, setIsCalculatingRoute] = useState(false);
+  const [businesses, setBusinesses] = useState<any[]>([]); 
+
+  // ⚡ CONTROL DEL SUB-MODO EXPLORADOR MANUAL (Fijar cualquier Punto A o B)
+  const [activeExplorerField, setActiveExplorerField] = useState<'pickup' | 'delivery'>('delivery');
 
   // ESTADOS DEL BUSCADOR INDIVIDUAL
   const [address, setAddress] = useState('Mueve el mapa para seleccionar...');
@@ -71,7 +81,12 @@ const MapScreen = () => {
     if (lastKnowLocation === null) {
       getLocation();
     } else {
-      setTargetCoords({ latitude: lastKnowLocation.latitude, longitude: lastKnowLocation.longitude });
+      const initialCoords = { latitude: lastKnowLocation.latitude, longitude: lastKnowLocation.longitude };
+      setTargetCoords(initialCoords);
+      
+      if (isExplorerView) {
+        if (!deliveryLocation) setDeliveryLocation({ ...initialCoords, address: 'Mi ubicación actual' });
+      }
     }
 
     if (mode === 'route') {
@@ -79,7 +94,27 @@ const MapScreen = () => {
     }
   }, [lastKnowLocation, mode]);
 
-  // Enmarcar la ruta automáticamente cuando se cargue la Polyline
+  // Descarga defensiva de comercios asociados
+  useEffect(() => {
+    if (isExplorerView) {
+      const fetchBusinesses = async () => {
+        try {
+          const BASE = process.env.EXPO_PUBLIC_API_URL || 'http://10.200.38.48:3000';
+          const API_URL = BASE.endsWith('/api') ? BASE : `${BASE}/api`;
+          
+          const response = await fetch(`${API_URL}/bussines`); 
+          const data = await response.json();
+          
+          const list = Array.isArray(data) ? data : (data.data || data.items || []);
+          setBusinesses(list);
+        } catch (error) {
+          console.warn("Radar de red en espera de comercios activos.");
+        }
+      };
+      fetchBusinesses();
+    }
+  }, [isExplorerView]);
+
   useEffect(() => {
     if (polylineCoords.length > 0 && mapRef.current) {
       setTimeout(() => {
@@ -99,95 +134,87 @@ const MapScreen = () => {
     );
   }
 
-  // INTERACCIÓN CON API NESTJS DESDE EL MAPA
-  const executeRouteCalculation = async (originPoint: any, destinationPoint: any) => {
-  if (!destinationPoint) return;
-  setIsCalculatingRoute(true);
-
-  try {
-    // 🛡️ EXTRACCIÓN DEFENSIVA: Lee tanto la propiedad nueva como la vieja por seguridad
+  // INTERACCIÓN CON API NESTJS
+  const executeRouteCalculation = async (originPoint: any, destinationPoint: any, alternativeBusinessId?: string) => {
     const firstItem = items[0] as any;
-    const businessId = firstItem?.businessId || firstItem?.business_id;
+    
+    // Si estamos en modo explorador y no se tocó un marcador amarillo, usamos un UUID genérico autorizado para cálculo libre
+    const businessId = isExplorerView 
+      ? (alternativeBusinessId || '00000000-0000-0000-0000-000000000000') 
+      : (firstItem?.businessId || firstItem?.business_id);
 
-    // Si los datos en caché están corruptos o vacíos, frenamos el hilo antes de golpear al Backend
-    if (!businessId || businessId === 'undefined') {
-      Alert.alert(
-        "Sincronización Requerida", 
-        "El carrito contiene datos del esquema anterior. Por favor, vacía el carrito y vuelve a agregar el producto para actualizar el ID."
-      );
-      setIsCalculatingRoute(false);
+    if (!originPoint && isExplorerView) {
+      Alert.alert("Origen Requerido", "Por favor selecciona un origen alternando a la pestaña Punto A.");
       return;
     }
 
-    const BASE = process.env.EXPO_PUBLIC_API_URL || 'http://10.200.38.48:3000';
-    const API_URL = BASE.endsWith('/api') ? BASE : `${BASE}/api`;
-    
-   // En app/map.tsx, dentro de executeRouteCalculation
+    setIsCalculatingRoute(true);
 
-const orderPayload = {
-  businessId: businessId, 
-  userIdTemp: personalData || 'Cliente Igo',
+    try {
+      const BASE = process.env.EXPO_PUBLIC_API_URL || 'http://10.200.38.48:3000';
+      const API_URL = BASE.endsWith('/api') ? BASE : `${BASE}/api`;
+      const ENDPOINT = isExplorerView ? `${API_URL}/orders/quote` : `${API_URL}/orders`;
+      
+      const currentOrigin = originPoint || pickupLocation;
+      const currentDestination = destinationPoint || deliveryLocation || targetCoords;
 
-  // ⚡ CORRECCIÓN CRÍTICA: Ahora enviamos el Punto A (Recogida) dinámico al backend
-  pickupLat: originPoint?.latitude,
-  pickupLong: originPoint?.longitude,
-  pickupAddress: originPoint?.address || 'Ubicación dinámica de recogida',
+      const orderPayload = isExplorerView ? {
+        businessId: businessId,
+        pickupLat: currentOrigin.latitude, 
+        pickupLong: currentOrigin.longitude,
+        deliveryLat: currentDestination.latitude, 
+        deliveryLong: currentDestination.longitude,
+      } : {
+        businessId: businessId, 
+        userIdTemp: personalData || 'Cliente Igo',
+        pickupLat: currentOrigin.latitude,
+        pickupLong: currentOrigin.longitude,
+        deliveryLat: currentDestination.latitude,
+        deliveryLong: currentDestination.longitude,
+        deliveryAddress: `${currentDestination.address} | Ref: ${addressNotes || ''}`.trim(),
+        items: items.map(item => ({
+          productId: item.id.substring(0, 36),
+          quantity: item.quantity,
+          selectedOptionsText: item.title.includes('(') ? item.title.substring(item.title.indexOf('(') + 1, item.title.lastIndexOf(')')) : 'Sin adicionales',
+          finalUnitPrice: item.price        
+        }))
+      };
 
-  // Punto B (Entrega) que ya tenías
-  deliveryLat: destinationPoint.latitude,
-  deliveryLong: destinationPoint.longitude,
-  deliveryAddress: `${destinationPoint.address} | Ref: ${addressNotes || ''}`.trim(),
-  
-  items: items.map(item => ({
-    productId: item.id.substring(0, 36),
-    quantity: item.quantity,
-    selectedOptionsText: item.title.includes('(') ? item.title.substring(item.title.indexOf('(') + 1, item.title.lastIndexOf(')')) : 'Sin adicionales',
-    finalUnitPrice: item.price        
-  }))
-};
+      const response = await fetch(ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(orderPayload)
+      });
 
-    const response = await fetch(`${API_URL}/orders`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(orderPayload)
-    });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || 'Error en cotización');
 
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.message || 'Error en cotización');
+      setRouteQuote({
+        orderId: data.orderId || null,
+        distance: data.distance,
+        totalToPay: isExplorerView ? null : data.totalToPay,
+        deliveryFee: data.deliveryFee,
+        userLat: currentDestination.latitude,
+        userLong: currentDestination.longitude,
+        businessLat: currentOrigin.latitude, 
+        businessLong: currentOrigin.longitude,
+        businessId: businessId !== '00000000-0000-0000-0000-000000000000' ? businessId : null
+      });
 
-    setRouteQuote({
-      ...data,
-      userLat: destinationPoint.latitude,
-      userLong: destinationPoint.longitude,
-      businessLat: originPoint?.latitude || data.business?.latitude || data.businessLocation?.latitude || 10.644, 
-      businessLong: originPoint?.longitude || data.business?.longitude || data.businessLocation?.longitude || -71.640 
-    });
-
-   if (data.routePolyline) {
-  if (typeof data.routePolyline === 'string') {
-    // Escenario 1: El backend envía el texto comprimido estándar
-    setPolylineCoords(decodePolyline(data.routePolyline));
-  } else if (Array.isArray(data.routePolyline)) {
-    // Escenario 2: El backend ya envía el arreglo de coordenadas listo
-    setPolylineCoords(data.routePolyline);
-  } else if (data.routePolyline.coordinates) {
-    // Escenario 3: El backend envía un objeto GeoJSON crudo
-    const mappedCoords = data.routePolyline.coordinates.map((c: any) => ({
-      latitude: c[1],
-      longitude: c[0]
-    }));
-    setPolylineCoords(mappedCoords);
-  } else {
-    console.warn("Formato de ruta desconocido:", data.routePolyline);
-  }
-}
-  } catch (error: any) {
-    console.error(error);
-    Alert.alert("Error de Logística", "Fallo al trazar la ruta en tiempo real.");
-  } finally {
-    setIsCalculatingRoute(false);
-  }
-};
+      if (data.routePolyline) {
+        if (typeof data.routePolyline === 'string') {
+          setPolylineCoords(decodePolyline(data.routePolyline));
+        } else if (Array.isArray(data.routePolyline)) {
+          setPolylineCoords(data.routePolyline);
+        }
+      }
+    } catch (error: any) {
+      console.error(error);
+      Alert.alert("Error de Consulta", "No pudimos trazar la ruta seleccionada.");
+    } finally {
+      setIsCalculatingRoute(false);
+    }
+  };
 
   const fetchGeocodeAddress = async (lat: number, lng: number) => {
     setLoadingAddress(true);
@@ -198,7 +225,17 @@ const orderPayload = {
         const street = place.street || 'Calle sin nombre';
         const district = place.district || place.subregion || '';
         const city = place.city || '';
-        setAddress(`${street}, ${district} ${city}`.trim().replace(/^,|,$/, ''));
+        const label = `${street}, ${district} ${city}`.trim().replace(/^,|,$/, '');
+        setAddress(label);
+        
+        // Asignación reactiva según la pestaña del explorador activa
+        if (isExplorerView && activeMode !== 'route') {
+          if (activeExplorerField === 'pickup') {
+            setPickupLocation({ latitude: lat, longitude: lng, address: label });
+          } else {
+            setDeliveryLocation({ latitude: lat, longitude: lng, address: label });
+          }
+        }
       }
     } catch (error) {
       setAddress(`Ubicación fijada`);
@@ -235,52 +272,38 @@ const orderPayload = {
     Keyboard.dismiss();
     setSearchResults([]);
     setSearchQuery(place.display_name.split(',')[0]);
-    setTargetCoords({ latitude: lat, longitude: lon });
+    
+    const coordsPayload = { latitude: lat, longitude: lon };
+    setTargetCoords(coordsPayload);
     setAddress(place.display_name);
-    mapRef.current?.animateToRegion({ latitude: lat, longitude: lon, latitudeDelta: 0.006, longitudeDelta: 0.006 }, 1000);
+
+    if (isExplorerView) {
+      if (activeExplorerField === 'pickup') setPickupLocation({ ...coordsPayload, address: place.display_name });
+      else setDeliveryLocation({ ...coordsPayload, address: place.display_name });
+    }
+
+    mapRef.current?.animateToRegion({ ...coordsPayload, latitudeDelta: 0.006, longitudeDelta: 0.006 }, 1000);
   };
 
   const handleRegionChangeComplete = (newRegion: any) => {
-    if (activeMode === 'route' && !activeEditing) return; // Congelar si solo se está visualizando la polyline
+    if (activeMode === 'route' && !activeEditing) return; 
     const centerPoint = { latitude: newRegion.latitude, longitude: newRegion.longitude };
     setTargetCoords(centerPoint);
     fetchGeocodeAddress(newRegion.latitude, newRegion.longitude);
   };
 
-  // DESPACHO INDIVIDUAL DE CONFIGURACIÓN DE PINS
-// ✅ REEMPLAZA TU FUNCIÓN ACTUAL POR ESTA VERSIÓN BLINDADA:
-const handleConfirmSelection = () => {
-  if (!targetCoords) return;
-  const payload = { latitude: targetCoords.latitude, longitude: targetCoords.longitude, address };
+  const handleConfirmSelection = () => {
+    if (!targetCoords) return;
+    const payload = { latitude: targetCoords.latitude, longitude: targetCoords.longitude, address };
 
-  if (activeMode === 'route' && activeEditing) {
-    // Si estábamos editando la ruta en caliente, actualizamos el store y recalculamos
-    if (activeEditing === 'pickup') {
-      setPickupLocation(payload);
-      executeRouteCalculation(payload, deliveryLocation);
-    } else {
-      setDeliveryLocation(payload);
-      executeRouteCalculation(pickupLocation, payload);
-    }
-    setActiveEditing(null);
-  } else {
-    // Modo de asignación inicial directo desde el Carrito
-    if (activeMode === 'pickup') {
-      setPickupLocation(payload);
-    } else {
-      setDeliveryLocation(payload);
-    }
+    if (activeMode === 'pickup') setPickupLocation(payload);
+    else setDeliveryLocation(payload);
     
-    // 🛡️ BLINDAJE LOGÍSTICO: Evita el colapso si la pila de navegación está vacía
-    if (router.canGoBack()) {
-      router.back(); 
-    } else {
-      router.push('/cart/cart'); // Escape seguro al carrito
-    }
-  }
-};
+    if (router.canGoBack()) router.back();
+    else router.push('/cart/cart'); 
+  };
 
-  // ENVÍO FINAL A WHATSAPP DESDE EL MAPA DE PANTALLA COMPLETA
+  // ⚡ FUNCIÓN DE DESPACHO A WHATSAPP COMPLETA
   const dispatchWhatsAppOrder = () => {
     if (!routeQuote) return;
     const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
@@ -289,7 +312,7 @@ const handleConfirmSelection = () => {
 
     let message = `*🍔 NUEVO PEDIDO - IGO STORE* 🛒\n`;
     message += `---------------------------------------\n`;
-    message += `*🆔 Orden ID:* #${routeQuote.orderId.slice(0, 8).toUpperCase()}\n\n`;
+    message += `*🆔 Orden ID:* #${routeQuote.orderId || 'N/A'}\n\n`;
     message += `*📦 DETALLE DEL PEDIDO:*\n`;
     items.forEach((item) => {
       message += `▪️ ${item.quantity}x ${item.title.split(' (')[0]}\n`;
@@ -297,12 +320,15 @@ const handleConfirmSelection = () => {
     message += `\n👤 *CLIENTE:* ${String(personalData || 'No indicado').trim()}\n`;
     message += `📝 *REF:* ${String(addressNotes || 'Sin notas').trim()}\n\n`;
     message += `*🏢 RECOGIDA (PUNTO A):*\n📍 GPS: ${mapsUrlTienda}\n\n`;
-    message += `*📍 ENTREGA (PUNTO B):*\n🏠 Dirección: ${deliveryLocation?.address}\n🗺️ GPS: ${mapsUrlCliente}\n`;
+    message += `*📍 ENTREGA (PUNTO B):*\n🏠 Dirección: ${deliveryLocation?.address || 'Ubicación en Mapa'}\n🗺️ GPS: ${mapsUrlCliente}\n`;
     message += `---------------------------------------\n`;
     message += `💰 *SUBTOTAL:* $${subtotal.toFixed(2)}\n`;
-    message += `🛵 *DELIVERY (${routeQuote.distance}):* $${(routeQuote.totalToPay - subtotal).toFixed(2)}\n`;
-    message += `⭐️ *TOTAL NETO A PAGAR:* $${routeQuote.totalToPay.toFixed(2)}\n\n`;
-    message += `_Hola, acabo de cotizar mi ruta. Quedo atento a la asignación del motorizado._`;
+    
+    // Deducción matemática de envío si es necesario
+    const deliveryCalculated = routeQuote.totalToPay ? Math.max(0, routeQuote.totalToPay - subtotal).toFixed(2) : (routeQuote.deliveryFee?.toFixed(2) || '0.00');
+    
+    message += `🛵 *DELIVERY (${routeQuote.distance}):* $${deliveryCalculated}\n`;
+    message += `⭐️ *TOTAL NETO A PAGAR:* $${routeQuote.totalToPay?.toFixed(2) || '0.00'}\n\n`;
 
     Linking.openURL(`https://wa.me/573014215155?text=${encodeURIComponent(message.trim())}`);
     clearCart();
@@ -327,41 +353,57 @@ const handleConfirmSelection = () => {
         showsUserLocation={true}
         showsMyLocationButton={false}
       >
-        {/* RENDERIZADO COMPLETO EN MODO RUTA VIAL */}
-        {activeMode === 'route' && (
-          <>
-            {/* PIN RECOGIDA (MORADO) */}
-            {pickupLocation && !activeEditing && (
-              <Marker coordinate={pickupLocation} title="Origen (Recogida)" pinColor="#6200EE" />
-            )}
-            {/* PIN ENTREGA (ROJO) */}
-            {deliveryLocation && !activeEditing && (
-              <Marker coordinate={deliveryLocation} title="Destino (Entrega)" pinColor="#FF3B30" />
-            )}
-            {/* TRAZADO DE RUTA DINÁMICO */}
-            {polylineCoords.length > 0 && !activeEditing && (
-              <Polyline coordinates={polylineCoords} strokeColor="#6200EE" strokeWidth={5} />
-            )}
-          </>
-        )}
+        {/* RADAR DE NEGOCIOS (Si existen en BD) */}
+        {isExplorerView ? businesses.map((bus) => {
+          const lat = parseFloat(bus.latitude);
+          const lng = parseFloat(bus.longitude);
+          if (isNaN(lat) || isNaN(lng)) return null;
+          return (
+            <Marker
+              key={bus.id}
+              coordinate={{ latitude: lat, longitude: lng }}
+              title={bus.name}
+              pinColor="#EDB422" 
+              onPress={() => {
+                const origin = { latitude: lat, longitude: lng, address: bus.name };
+                setPickupLocation(origin);
+                executeRouteCalculation(origin, deliveryLocation, bus.id);
+                setActiveMode('route');
+              }}
+            />
+          );
+        }) : null}
+
+        {/* RECOGNICIÓN DE PINS FIJOS EN SELECCIÓN O RUTA */}
+        {pickupLocation && (activeMode === 'route' || activeExplorerField !== 'pickup') ? (
+          <Marker coordinate={pickupLocation} title="Origen (Punto A)" pinColor="#6200EE" />
+        ) : null}
+        
+        {deliveryLocation && (activeMode === 'route' || activeExplorerField !== 'delivery') ? (
+          <Marker coordinate={deliveryLocation} title="Destino (Punto B)" pinColor="#FF3B30" />
+        ) : null}
+
+        {activeMode === 'route' && polylineCoords.length > 0 ? (
+          <Polyline coordinates={polylineCoords} strokeColor="#6200EE" strokeWidth={5} />
+        ) : null}
       </MapView>
 
-      {/* COMPONENTE DE BÚSQUEDA CONDICIONAL */}
-      {(activeMode !== 'route' || activeEditing) && (
+      {/* BUSCADOR INTELIGENTE */}
+      {(activeMode !== 'route' || activeEditing) ? (
         <View style={styles.searchContainer}>
           <View style={styles.inputWrapper}>
             <Ionicons name="search" size={20} color="#666" style={{ marginRight: 8 }} />
             <TextInput
               style={styles.searchInput}
-              placeholder={activeEditing === 'pickup' || activeMode === 'pickup' ? "Cambiar dirección de recogida..." : "Cambiar dirección de entrega..."}
+              placeholder={activeExplorerField === 'pickup' ? "Buscar sector o local de recogida (A)..." : "Buscar avenida o casa de entrega (B)..."}
               placeholderTextColor="#999"
               value={searchQuery}
               onChangeText={handleSearchTextChange}
             />
-            {isSearching && <ActivityIndicator size="small" color="#EDB422" />}
+            {isSearching ? <ActivityIndicator size="small" color="#EDB422" /> : null}
           </View>
 
-          {searchResults.length > 0 && (
+          {searchResults.length > 0 ? (
             <View style={styles.resultsList}>
               <FlatList
                 data={searchResults}
@@ -375,38 +417,30 @@ const handleConfirmSelection = () => {
                 )}
               />
             </View>
-          )}
+          ) : null}
         </View>
-      )}
+      ) : null}
 
-      {/* BOTÓN DE RETORNO AL CARRITO */}
-      <TouchableOpacity 
-  style={styles.backFloatingBtn} 
-  onPress={() => {
-    if (router.canGoBack()) {
-      router.back();
-    } else {
-      router.push('/'); // Redirección de escape segura al carrito si la pila está vacía
-    }
-  }}
->
-  <Ionicons name="arrow-back" size={24} color="#1A1A1A" />
-</TouchableOpacity>
+      <TouchableOpacity style={styles.backFloatingBtn} onPress={() => { if (router.canGoBack()) router.back(); else router.push('/'); }}>
+        <Ionicons name="arrow-back" size={24} color="#1A1A1A" />
+      </TouchableOpacity>
 
-      {/* MIRA CENTRAL (Solo visible en modos de selección o edición activa) */}
-      {(activeMode !== 'route' || activeEditing) && (
+      {/* MIRA CENTRAL DINÁMICA (Adapta su color al punto bajo edición) */}
+      {(activeMode !== 'route' || activeEditing) ? (
         <View style={styles.markerFixed} pointerEvents="none">
           <View style={styles.pinWrapper}>
-            <Ionicons name="location" size={44} color={activeMode === 'pickup' || activeEditing === 'pickup' ? "#6200EE" : "#FF3B30"} style={styles.pinIcon} />
+            <Ionicons name="location" size={44} color={activeExplorerField === 'pickup' || activeEditing === 'pickup' ? "#6200EE" : "#FF3B30"} style={styles.pinIcon} />
             <View style={styles.baseDot} />
           </View>
         </View>
-      )}
+      ) : null}
 
-      {/* PANEL INFERIOR FLOTANTE - COUPLING DE SVE OSRM */}
-      {activeMode === 'route' && !activeEditing && (
+      {/* ⚡ RENDERIZADO DEL RESUMEN VIAL CORREGIDO Y BLINDADO */}
+      {activeMode === 'route' && !activeEditing ? (
         <View style={styles.routeSheet}>
-          <Text style={styles.routeSheetTitle}>Ruta Analizada a Pantalla Completa</Text>
+          <Text style={styles.routeSheetTitle}>
+            {!isExplorerView ? "Resumen de tu Pedido" : "Cotización Instantánea de Envío"}
+          </Text>
           
           {isCalculatingRoute ? (
             <ActivityIndicator size="large" color="#6200EE" style={{ marginVertical: 20 }} />
@@ -417,43 +451,108 @@ const handleConfirmSelection = () => {
                   <Text style={styles.distanceLabel}>Distancia Vial</Text>
                   <Text style={styles.distanceValue}>{routeQuote?.distance || 'Calculando...'}</Text>
                 </View>
+
+                {!isExplorerView ? (
+                  <View style={{ alignItems: 'center' }}>
+                    <Text style={styles.distanceLabel}>Delivery</Text>
+                    <Text style={[styles.distanceValue, { color: '#FF3B30' }]}>
+                      ${routeQuote?.totalToPay 
+                        ? Math.max(0, routeQuote.totalToPay - cartSubtotal).toFixed(2) 
+                        : (routeQuote?.deliveryFee?.toFixed(2) || '0.00')}
+                    </Text>
+                  </View>
+                ) : null}
+
                 <View style={{ alignItems: 'flex-end' }}>
-                  <Text style={styles.priceLabel}>Precio Total Neto</Text>
-                  <Text style={styles.priceValue}>${routeQuote?.totalToPay?.toFixed(2) || '0.00'}</Text>
+                  <Text style={styles.priceLabel}>
+                    {!isExplorerView ? "Total Neto a Pagar" : "Costo del Delivery"}
+                  </Text>
+                  <Text style={styles.priceValue}>
+                    ${!isExplorerView ? (routeQuote?.totalToPay?.toFixed(2) || '0.00') : (routeQuote?.deliveryFee?.toFixed(2) || '0.00')}
+                  </Text>
                 </View>
               </View>
 
-              {/* CONTROLES DE EDICIÓN EN CALIENTE */}
-              <View style={styles.editButtonsContainer}>
-                <TouchableOpacity style={styles.editBtnMini} onPress={() => { setActiveEditing('pickup'); setSearchQuery(''); }}>
-                  <Ionicons name="business" size={16} color="#6200EE" style={{ marginRight: 5 }} />
-                  <Text style={styles.editBtnText}>Cambiar Recogida</Text>
-                </TouchableOpacity>
+              {!isExplorerView ? (
+                <>
+                  <View style={styles.editButtonsContainer}>
+                    <TouchableOpacity style={styles.editBtnMini} onPress={() => { setActiveEditing('pickup'); setActiveExplorerField('pickup'); setSearchQuery(''); }}>
+                      <Ionicons name="business" size={16} color="#6200EE" style={{ marginRight: 5 }} />
+                      <Text style={styles.editBtnText}>Cambiar Recogida</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.editBtnMini} onPress={() => { setActiveEditing('delivery'); setActiveExplorerField('delivery'); setSearchQuery(''); }}>
+                      <Ionicons name="location" size={16} color="#FF3B30" style={{ marginRight: 5 }} />
+                      <Text style={styles.editBtnText}>Cambiar Entrega</Text>
+                    </TouchableOpacity>
+                  </View>
+                  <TouchableOpacity style={styles.whatsappBtn} onPress={dispatchWhatsAppOrder}>
+                    <Ionicons name="logo-whatsapp" size={20} color="white" style={{ marginRight: 10 }} />
+                    <Text style={styles.whatsappBtnText}>Enviar Pedido Estructurado</Text>
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <>
+                  {routeQuote?.businessId ? (
+                    <TouchableOpacity style={[styles.whatsappBtn, { backgroundColor: '#1A1A1A' }]} onPress={() => router.push({ pathname: "/business/[id]", params: { id: routeQuote.businessId } })}>
+                      <Ionicons name="restaurant" size={20} color="white" style={{ marginRight: 10 }} />
+                      <Text style={styles.whatsappBtnText}>Ver Menú de esta Tienda</Text>
+                    </TouchableOpacity>
+                  ) : null}
+                  <TouchableOpacity style={{ marginTop: 12, alignItems: 'center', paddingVertical: 5 }} onPress={() => { setPolylineCoords([]); setRouteQuote(null); setActiveMode('delivery'); }}>
+                    <Text style={{ color: '#666', fontWeight: 'bold', fontSize: 13 }}>X  Volver a simular rutas libres</Text>
+                  </TouchableOpacity>
+                </>
+              )}
+            </>
+          )}
+        </View>
+      ) : null}
 
-                <TouchableOpacity style={styles.editBtnMini} onPress={() => { setActiveEditing('delivery'); setSearchQuery(''); }}>
-                  <Ionicons name="location" size={16} color="#FF3B30" style={{ marginRight: 5 }} />
-                  <Text style={styles.editBtnText}>Cambiar Entrega</Text>
+      {/* CONTROLES PARA EXPLORACIÓN TOTALMENTE LIBRE */}
+      {(activeMode !== 'route' || activeEditing) ? (
+        <View style={styles.bottomSheet}>
+          {isExplorerView ? (
+            <>
+              {/* INTERFAZ DE TABS SUPERIORES PARA EL EXPLORADOR */}
+              <View style={styles.tabsContainer}>
+                <TouchableOpacity style={[styles.tabButton, activeExplorerField === 'pickup' ? styles.tabActivePickup : null]} onPress={() => { setActiveExplorerField('pickup'); setAddress(pickupLocation?.address || 'Mueve el mapa...'); }}>
+                  <Text style={[styles.tabText, activeExplorerField === 'pickup' ? styles.tabTextActive : null]}>🏢 Origen (Punto A)</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.tabButton, activeExplorerField === 'delivery' ? styles.tabActiveDelivery : null]} onPress={() => { setActiveExplorerField('delivery'); setAddress(deliveryLocation?.address || 'Mueve el mapa...'); }}>
+                  <Text style={[styles.tabText, activeExplorerField === 'delivery' ? styles.tabTextActive : null]}>📍 Destino (Punto B)</Text>
                 </TouchableOpacity>
               </View>
-
-              <TouchableOpacity style={styles.whatsappBtn} onPress={dispatchWhatsAppOrder}>
-                <Ionicons name="logo-whatsapp" size={20} color="white" style={{ marginRight: 10 }} />
-                <Text style={styles.whatsappBtnText}>Enviar Pedido Estructurado</Text>
+              <Text style={styles.addressLabel} numberOfLines={1}>{address}</Text>
+              
+              <TouchableOpacity 
+                style={[styles.actionBtn, { backgroundColor: '#1A1A1A' }]} 
+                onPress={() => {
+                  if (!pickupLocation) {
+                    Alert.alert("Falta el Origen", "Ve a la pestaña 'Punto A' y selecciona desde dónde sale el envío.");
+                    return;
+                  }
+                  if (!deliveryLocation) {
+                    Alert.alert("Falta el Destino", "Ve a la pestaña 'Punto B' y selecciona a dónde llega el envío.");
+                    return;
+                  }
+                  executeRouteCalculation(pickupLocation, deliveryLocation);
+                  setActiveMode('route');
+                  setActiveEditing(null);
+                }}
+              >
+                <Text style={[styles.actionBtnText, { color: '#FFF' }]}>⚡ Calcular Ruta y Precio de Envío</Text>
+              </TouchableOpacity>
+            </>
+          ) : (
+            <>
+              <Text style={styles.addressLabel} numberOfLines={2}>{address}</Text>
+              <TouchableOpacity style={styles.actionBtn} onPress={handleConfirmSelection} disabled={loadingAddress}>
+                <Text style={styles.actionBtnText}>Confirmar este punto</Text>
               </TouchableOpacity>
             </>
           )}
         </View>
-      )}
-
-      {/* CONfirmador de panel inferior para modos individuales de edición */}
-      {(activeMode !== 'route' || activeEditing) && (
-        <View style={styles.bottomSheet}>
-          <Text style={styles.addressLabel} numberOfLines={2}>{address}</Text>
-          <TouchableOpacity style={styles.actionBtn} onPress={handleConfirmSelection} disabled={loadingAddress}>
-            <Text style={styles.actionBtnText}>Confirmar este Punto</Text>
-          </TouchableOpacity>
-        </View>
-      )}
+      ) : null}
     </View>
   );
 };
@@ -488,7 +587,15 @@ const styles = StyleSheet.create({
   editBtnText: { fontSize: 12, fontWeight: '600', color: '#334155' },
   whatsappBtn: { backgroundColor: '#25D366', height: 52, borderRadius: 14, flexDirection: 'row', justifyContent: 'center', alignItems: 'center' },
   whatsappBtnText: { color: 'white', fontSize: 15, fontWeight: 'bold' },
-  addressLabel: { fontSize: 14, color: '#1A1A1A', fontWeight: '500', marginBottom: 15 },
+  addressLabel: { fontSize: 14, color: '#1A1A1A', fontWeight: '600', marginBottom: 15, textAlign: 'center' },
   actionBtn: { backgroundColor: '#FFDB58', height: 50, borderRadius: 14, justifyContent: 'center', alignItems: 'center' },
-  actionBtnText: { fontSize: 15, fontWeight: '700', color: '#1A1A1A' }
+  actionBtnText: { fontSize: 15, fontWeight: '700', color: '#1A1A1A' },
+
+  // Estilos de la barra de pestañas para simulación libre
+  tabsContainer: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 14, backgroundColor: '#F1F5F9', padding: 4, borderRadius: 12 },
+  tabButton: { flex: 0.49, paddingVertical: 10, alignItems: 'center', borderRadius: 10 },
+  tabActivePickup: { backgroundColor: '#6200EE' },
+  tabActiveDelivery: { backgroundColor: '#FF3B30' },
+  tabText: { fontSize: 13, fontWeight: '700', color: '#64748B' },
+  tabTextActive: { color: '#FFF' }
 });
