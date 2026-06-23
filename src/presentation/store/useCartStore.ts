@@ -2,12 +2,14 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-interface CartItem {
+// ⚡ CONTRATO EXTENDIDO: Ahora cada producto sabe a qué negocio pertenece
+export interface CartItem {
   id: string;
   title: string;
   price: number;
   image: string;
   quantity: number;
+  businessId: string; // ⚡ PROPIEDAD CARDINAL AÑADIDA
 }
 
 interface CartState {
@@ -15,10 +17,9 @@ interface CartState {
   addItem: (item: CartItem) => void;
   removeItem: (id: string) => void;
   updateQuantity: (id: string, quantity: number) => void;
-  clearCart: () => void; // 1. Definimos el nuevo contrato
+  clearCart: () => void; 
 }
 
-// 2. Envolvemos el creador con persist()
 export const useCartStore = create<CartState>()(
   persist(
     (set) => ({
@@ -47,12 +48,11 @@ export const useCartStore = create<CartState>()(
         };
       }),
 
-      // 3. Implementación de la limpieza (Devuelve el array a su estado original)
       clearCart: () => set({ items: [] }), 
     }),
     {
-      name: 'cart-storage', // Nombre del archivo encriptado en el teléfono
-      storage: createJSONStorage(() => AsyncStorage), // Motor de almacenamiento
+      name: 'cart-storage', 
+      storage: createJSONStorage(() => AsyncStorage), 
     }
   )
 );

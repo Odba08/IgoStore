@@ -14,6 +14,18 @@ export interface MenuCategoryRef {
   name: string;
 }
 
+export interface OptionChoice {
+  name: string;
+  additionalPrice: number;
+}
+
+export interface ProductOption {
+  title: string;
+  isRequired: boolean;
+  maxAllowed: number;
+  choices: OptionChoice[];
+}
+
 export interface Producto {
   id: string;
   title: string;
@@ -22,7 +34,7 @@ export interface Producto {
   slug: string;
   stock: number;
   
-  options: string[]; 
+  options?: ProductOption[];
   tags?: string[]; // Agregué tags que suele ser útil
   
   // --- LOS CAMPOS NUEVOS QUE FALTABAN ---

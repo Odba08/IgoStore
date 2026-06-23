@@ -1,80 +1,50 @@
 import React, { useState } from 'react';
 import { 
   View, Text, StyleSheet, ScrollView, TouchableOpacity, 
-  Image, Linking, Alert, TextInput 
+  Image, Alert, TextInput 
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
+
 import { useCartStore } from '../../src/presentation/store/useCartStore';
+import { useLocationStore } from '../../src/presentation/store/useLocationStore';
 
 const CartScreen = () => {
   const router = useRouter();
 
-  const { items, clearCart, removeItem } = useCartStore();
+  const { items, removeItem } = useCartStore();
   const updateQuantity = useCartStore((state) => state.updateQuantity);
   
-  // 1. Estados logísticos (CORREGIDO: Ambos estados declarados)
+  const pickupLocation = useLocationStore((state: any) => state.pickupLocation);
+  const deliveryLocation = useLocationStore((state: any) => state.deliveryLocation);
+
   const [personalData, setPersonalData] = useState('');
   const [addressNotes, setAddressNotes] = useState('');
-  
+
   const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
-  const delivery = 2.00;
-  const total = subtotal + delivery;
 
-  const handleCheckout = async () => {
-    // 2. Defensa táctica
-    if (items.length === 0) {
-      Alert.alert("Carrito Vacío", "Agrega productos al carrito antes de proceder al pago.", [{ text: "OK" }]);
-      return;
-    }
-
-    if (personalData.trim().length === 0) {
-      Alert.alert("Falta Información", "Por favor ingresa tus datos personales para el contacto.", [{ text: "Entendido" }]);
-      return;
-    }
-
-    if (addressNotes.trim().length === 0) {
-      Alert.alert("Falta Información", "Por favor ingresa tu dirección de entrega para el envío.", [{ text: "Entendido" }]);
-      return;
-    }
-
-    // 3. Construcción del recibo (CORREGIDO: Datos personales incluidos)
-    let message = `*NUEVO PEDIDO* 🛒\n\n`;
-
-    items.forEach((item) => {
-        message += `▪️ ${item.quantity}x ${item.title} - $${(item.price * item.quantity).toFixed(2)}\n`;
-    });
-
-    message += `\n*Datos del Cliente:* ${personalData.trim()}`;
-    message += `\n*Dirección / Notas:* ${addressNotes.trim()}\n`;
+  const handleNavigateToRouteCalculation = () => {
+    if (items.length === 0) return;
     
-    message += `\n*Subtotal:* $${subtotal.toFixed(2)}`;
-    message += `\n*Envío:* $${delivery.toFixed(2)}`;
-    message += `\n*TOTAL A PAGAR:* $${total.toFixed(2)}\n\n`;
-    message += `Hola, me gustaría confirmar este pedido.`;
-
-    const phoneNumber = "573014215155";
-    const url = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`;
-
-   try {
-      const canOpen = await Linking.canOpenURL(url);
-      if (canOpen) {
-        await Linking.openURL(url);
-        
-        // 4. Reseteo del ciclo
-        clearCart(); 
-        setPersonalData(''); // Limpiamos el input de datos
-        setAddressNotes(''); // Limpiamos el input de dirección
-        router.push('/'); 
-        
-      } else {
-        Alert.alert("Error", "Parece que no tienes WhatsApp instalado en este dispositivo.");
-      }
-    } catch (error) {
-      Alert.alert("Error", "Hubo un problema al intentar abrir WhatsApp.");
+    if (!deliveryLocation) {
+      Alert.alert("Falta Ubicación", "Por favor selecciona el punto de entrega en el mapa (Punto B) antes de proceder.");
+      return;
     }
-  }
+    if (personalData.trim().length === 0) {
+      Alert.alert("Campos Vacíos", "Por favor ingresa tu nombre y teléfono para procesar el despacho.");
+      return;
+    }
+
+    router.push({
+      pathname: '/map',
+      params: {
+        mode: 'route',
+        personalData: personalData,
+        addressNotes: addressNotes
+      }
+    });
+  };
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -86,19 +56,23 @@ const CartScreen = () => {
         <View style={{ width: 40 }} />
       </View>
 
-      <ScrollView 
-        contentContainerStyle={styles.scrollContent}
-        keyboardShouldPersistTaps="handled" 
-      >
+      <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
         {items.map((item) => (
           <View key={item.id} style={styles.cartItem}>
-            <Image source={{ uri: item.image }} style={styles.itemImage} />
+            <Image 
+              source={{ uri: (item.image && item.image.trim() !== '') ? item.image : 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=200&q=80' }} 
+              style={styles.itemImage} 
+            />
             <View style={styles.itemDetails}>
-              <Text style={styles.itemTitle} numberOfLines={2}>{item.title}</Text>
+              <Text style={styles.itemTitle} numberOfLines={2}>{item.title.split(' (')[0]}</Text>
+              {item.title.includes('(') && (
+                <Text style={styles.itemOptions} numberOfLines={2}>
+                  {item.title.substring(item.title.indexOf('('))}
+                </Text>
+              )}
               <Text style={styles.itemPrice}>${item.price.toFixed(2)}</Text>
             </View>
             
-            {/* NUEVO: Contenedor de Acciones (Cantidad + Papelera) */}
             <View style={styles.actionContainer}>
               <View style={styles.quantityControls}>
                 <TouchableOpacity style={styles.controlBtn} onPress={() => updateQuantity(item.id, item.quantity - 1)}>
@@ -110,75 +84,100 @@ const CartScreen = () => {
                 </TouchableOpacity>
               </View>
 
-              {/* EL BOTÓN DE EXTERMINIO */}
               <TouchableOpacity style={styles.deleteBtn} onPress={() => removeItem(item.id)}>
                 <Ionicons name="trash-outline" size={20} color="#FF3B30" />
               </TouchableOpacity>
             </View>
-
           </View>
         ))}
 
-        {/* DATOS PERSONALES */}
         {items.length > 0 && (
-          <View style={styles.inputContainer}>
-            <Text style={styles.inputTitle}>Datos de Contacto</Text>
-            <TextInput
-              style={[styles.textInput, { minHeight: 60 }]} // Un poco más bajo que el de dirección
-              placeholder="Nombre y número de teléfono"
-              placeholderTextColor="#999"
-              multiline={false} // Mejor que sea una línea simple o dos máximo
-              value={personalData}
-              onChangeText={setPersonalData}
-            />
-          </View>
-        )}
+          <>
+            {/* ⚡ BLOQUE LOGÍSTICO UNIFICADO (Puntos A y B en la misma tarjeta) */}
+            <View style={styles.logisticsCard}>
+              <Text style={styles.cardSectionTitle}>Detalles de la Ruta</Text>
+              
+              <View style={styles.logisticsRow}>
+                <View style={styles.logisticsHeader}>
+                  <Text style={[styles.inputTitle, { color: '#6200EE', flex: 1, marginRight: 10 }]} numberOfLines={1}>
+                    🏢 Origen (Recogida)
+                  </Text>
+                  <TouchableOpacity style={styles.mapLink} onPress={() => router.push({ pathname: '/map', params: { mode: 'pickup' } })}>
+                    <Text style={[styles.mapLinkText, { color: '#6200EE' }]}>Editar Mapa</Text>
+                  </TouchableOpacity>
+                </View>
+                <View style={[styles.addressBox, { borderColor: '#E9E3FF', backgroundColor: '#F4F0FF' }]}>
+                  <Ionicons name="business" size={20} color="#6200EE" style={{ marginRight: 8 }} />
+                  <Text style={styles.addressBoxText} numberOfLines={2}>
+                    {pickupLocation ? pickupLocation.address : 'Selecciona dónde recogemos el pedido...'}
+                  </Text>
+                </View>
+              </View>
 
-        {/* DIRECCIÓN DE ENTREGA */}
-        {items.length > 0 && (
-          <View style={styles.inputContainer}>
-            <Text style={styles.inputTitle}>Dirección de entrega</Text>
-            <TextInput
-              style={styles.textInput}
-              placeholder="Ej: Calle 123, casa verde. Sin cebolla por favor."
-              placeholderTextColor="#999"
-              multiline={true}
-              numberOfLines={3}
-              value={addressNotes}
-              onChangeText={setAddressNotes}
-            />
-          </View>
-        )}
+              <View style={styles.divider} />
 
-        {/* RESUMEN DE PAGO */}
-        {items.length > 0 && (
-          <View style={styles.summaryContainer}>
-            <Text style={styles.summaryTitle}>Resumen de Pago</Text>
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Subtotal</Text>
-              <Text style={styles.summaryValue}>${subtotal.toFixed(2)}</Text>
+              <View style={styles.logisticsRow}>
+                <View style={styles.logisticsHeader}>
+                  <Text style={[styles.inputTitle, { color: '#EDB422', flex: 1, marginRight: 10 }]} numberOfLines={1}>
+                    📍 Destino (Entrega)
+                  </Text>
+                  <TouchableOpacity style={styles.mapLink} onPress={() => router.push({ pathname: '/map', params: { mode: 'delivery' } })}>
+                    <Text style={styles.mapLinkText}>Fijar Destino</Text>
+                  </TouchableOpacity>
+                </View>
+                <View style={[styles.addressBox, { borderColor: '#FDF7E8', backgroundColor: '#FDF7E8' }]}>
+                  <Ionicons name="location-sharp" size={20} color="#EDB422" style={{ marginRight: 8 }} />
+                  <Text style={styles.addressBoxText} numberOfLines={2}>
+                    {deliveryLocation ? deliveryLocation.address : 'Selecciona a dónde lo enviamos...'}
+                  </Text>
+                </View>
+              </View>
             </View>
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Envío</Text>
-              <Text style={styles.summaryValue}>${delivery.toFixed(2)}</Text>
+
+            {/* ⚡ BLOQUE DE CONTACTO UNIFICADO */}
+            <View style={styles.contactCard}>
+              <Text style={styles.cardSectionTitle}>Información del Cliente</Text>
+              
+              <TextInput
+                style={[styles.textInput, { minHeight: 50, marginBottom: 12 }]}
+                placeholder="Nombre y teléfono de contacto"
+                placeholderTextColor="#999"
+                value={personalData}
+                onChangeText={setPersonalData}
+              />
+              
+              <TextInput
+                style={[styles.textInput, { minHeight: 60 }]}
+                placeholder="Punto de referencia o notas para el motorizado (Ej: Portón negro...)"
+                placeholderTextColor="#999"
+                multiline={true}
+                numberOfLines={2}
+                value={addressNotes}
+                onChangeText={setAddressNotes}
+              />
             </View>
-            <View style={[styles.summaryRow, styles.totalRow]}>
-              <Text style={styles.totalLabel}>Total</Text>
-              <Text style={styles.totalValue}>${total.toFixed(2)}</Text>
+
+            {/* RESUMEN DE ARTÍCULOS */}
+            <View style={styles.summaryContainer}>
+              <Text style={styles.summaryTitle}>Resumen Parcial</Text>
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>Subtotal de Productos</Text>
+                <Text style={styles.summaryValue}>${subtotal.toFixed(2)}</Text>
+              </View>
+              <Text style={styles.infoFooterTexto}>*La tarifa de envío se calculará mediante coordenadas viales en la siguiente pantalla.</Text>
             </View>
-          </View>
+          </>
         )}
       </ScrollView>
 
-      {/* BOTÓN DE PAGO */}
       <View style={styles.footer}>
         <TouchableOpacity 
           style={[styles.checkoutBtn, items.length === 0 && { backgroundColor: '#E0E0E0' }]} 
-          onPress={handleCheckout}
+          onPress={handleNavigateToRouteCalculation}
           disabled={items.length === 0}
         >
           <Text style={styles.checkoutBtnText}>
-            {items.length === 0 ? "Carrito Vacío" : "Proceder al Pago"}
+            {items.length === 0 ? "Añade productos para continuar" : "Calcular Ruta Vial e Ir al Mapa"}
           </Text>
         </TouchableOpacity>
       </View>
@@ -191,35 +190,49 @@ const styles = StyleSheet.create({
   customHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 15, paddingVertical: 15, backgroundColor: '#FFF', borderBottomWidth: 1, borderBottomColor: '#F0F0F0' },
   backButton: { width: 40, height: 40, justifyContent: 'center', alignItems: 'flex-start' },
   headerTitle: { fontSize: 18, fontWeight: 'bold', color: '#1A1A1A' },
-  scrollContent: { padding: 20, paddingBottom: 130, backgroundColor: '#F2F4F7', flexGrow: 1 },
-  cartItem: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', padding: 15, borderRadius: 15, marginBottom: 15, shadowColor: '#000', shadowOpacity: 0.05, elevation: 2 },
-  itemImage: { width: 60, height: 60, borderRadius: 10, backgroundColor: '#EEE' },
-  itemDetails: { flex: 1, marginLeft: 15 },
-  itemTitle: { fontSize: 16, fontWeight: 'bold', color: '#333', marginBottom: 5 },
-  itemPrice: { fontSize: 15, fontWeight: '600', color: '#27AE60' },
-  quantityControls: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F5F5F5', borderRadius: 20, paddingHorizontal: 5, paddingVertical: 5 },
-  controlBtn: { backgroundColor: '#FFF', borderRadius: 15, padding: 5, shadowColor: '#000', shadowOpacity: 0.1, elevation: 1 },
-  quantityText: { marginHorizontal: 12, fontSize: 16, fontWeight: 'bold' },
+  scrollContent: { padding: 15, paddingBottom: 130, backgroundColor: '#F8FAFC', flexGrow: 1 },
   
-  // Estilos del Input
-  inputContainer: { backgroundColor: '#FFF', padding: 20, borderRadius: 15, marginBottom: 15, shadowColor: '#000', shadowOpacity: 0.05, elevation: 2 },
-  inputTitle: { fontSize: 16, fontWeight: 'bold', color: '#1A1A1A', marginBottom: 10 },
-  textInput: { backgroundColor: '#F9F9F9', borderRadius: 10, padding: 15, fontSize: 15, color: '#333', minHeight: 80, textAlignVertical: 'top', borderWidth: 1, borderColor: '#EEE' },
-
-  summaryContainer: { backgroundColor: '#FFF', padding: 20, borderRadius: 15, shadowColor: '#000', shadowOpacity: 0.05, elevation: 2 },
-  summaryTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 15, color: '#1A1A1A' },
-  summaryRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 },
-  summaryLabel: { fontSize: 15, color: '#666' },
-  summaryValue: { fontSize: 15, fontWeight: '500', color: '#333' },
-  totalRow: { borderTopWidth: 1, borderTopColor: '#EEE', paddingTop: 15, marginTop: 5 },
-  totalLabel: { fontSize: 18, fontWeight: 'bold', color: '#1A1A1A' },
-  totalValue: { fontSize: 18, fontWeight: 'bold', color: '#27AE60' },
-  footer: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: '#FFF', padding: 20, borderTopWidth: 1, borderTopColor: '#EEE' },
-  checkoutBtn: { backgroundColor: '#FFDB58', paddingVertical: 15, borderRadius: 12, alignItems: 'center' },
-  checkoutBtnText: { fontSize: 16, fontWeight: 'bold', color: '#1A1A1A' },
-  // Añade estos estilos debajo de quantityText:
+  cartItem: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', padding: 15, borderRadius: 16, marginBottom: 15, shadowColor: '#000', shadowOpacity: 0.04, elevation: 2 },
+  itemImage: { width: 65, height: 65, borderRadius: 12, backgroundColor: '#F1F5F9' },
+  itemDetails: { flex: 1, marginLeft: 15, justifyContent: 'center' },
+  itemTitle: { fontSize: 15, fontWeight: 'bold', color: '#1E293B', marginBottom: 4 },
+  itemOptions: { fontSize: 12, color: '#64748B', fontStyle: 'italic', marginBottom: 6 },
+  itemPrice: { fontSize: 15, fontWeight: '800', color: '#10B981' },
+  
   actionContainer: { flexDirection: 'row', alignItems: 'center' },
-  deleteBtn: { marginLeft: 12, padding: 6, backgroundColor: '#FFE5E5', borderRadius: 8 },
+  quantityControls: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F1F5F9', borderRadius: 20, paddingHorizontal: 6, paddingVertical: 6 },
+  controlBtn: { backgroundColor: '#FFF', borderRadius: 14, padding: 6, shadowColor: '#000', shadowOpacity: 0.06, elevation: 1 },
+  quantityText: { marginHorizontal: 12, fontSize: 15, fontWeight: 'bold', color: '#1E293B' },
+  deleteBtn: { marginLeft: 12, padding: 8, backgroundColor: '#FEE2E2', borderRadius: 10 },
+  
+  // ⚡ NUEVOS ESTILOS AGRUPADOS Y ESTILIZADOS
+  logisticsCard: { backgroundColor: '#FFF', padding: 20, borderRadius: 16, marginBottom: 15, shadowColor: '#000', shadowOpacity: 0.04, elevation: 2 },
+  contactCard: { backgroundColor: '#FFF', padding: 20, borderRadius: 16, marginBottom: 15, shadowColor: '#000', shadowOpacity: 0.04, elevation: 2 },
+  cardSectionTitle: { fontSize: 16, fontWeight: 'bold', color: '#1E293B', marginBottom: 16 },
+  
+  logisticsRow: { marginBottom: 5 },
+  logisticsHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+  divider: { height: 1, backgroundColor: '#F1F5F9', marginVertical: 15 },
+  
+  inputTitle: { fontSize: 14, fontWeight: 'bold' },
+  mapLink: { paddingVertical: 4, paddingHorizontal: 8, backgroundColor: '#F8FAFC', borderRadius: 8 },
+  mapLinkText: { fontSize: 13, color: '#EDB422', fontWeight: '700' },
+  
+  addressBox: { flexDirection: 'row', alignItems: 'center', padding: 14, borderRadius: 12, borderWidth: 1 },
+  addressBoxText: { flex: 1, fontSize: 14, color: '#334155', fontWeight: '500', lineHeight: 20 },
+  
+  textInput: { backgroundColor: '#F8FAFC', borderRadius: 12, padding: 14, fontSize: 15, color: '#1E293B', textAlignVertical: 'top', borderWidth: 1, borderColor: '#E2E8F0' },
+  
+  summaryContainer: { backgroundColor: '#FFF', padding: 20, borderRadius: 16, shadowColor: '#000', shadowOpacity: 0.04, elevation: 2, marginBottom: 10 },
+  summaryTitle: { fontSize: 16, fontWeight: 'bold', marginBottom: 15, color: '#1E293B' },
+  summaryRow: { flexDirection: 'row', justifyContent: 'space-between' },
+  summaryLabel: { fontSize: 15, color: '#64748B', fontWeight: '500' },
+  summaryValue: { fontSize: 16, fontWeight: '800', color: '#1E293B' },
+  infoFooterTexto: { fontSize: 12, color: '#94A3B8', marginTop: 12, fontStyle: 'italic', lineHeight: 18 },
+  
+  footer: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: '#FFF', paddingHorizontal: 20, paddingTop: 15, paddingBottom: 30, borderTopWidth: 1, borderTopColor: '#F1F5F9' },
+  checkoutBtn: { backgroundColor: '#FFDB58', paddingVertical: 16, borderRadius: 14, alignItems: 'center', shadowColor: '#FFDB58', shadowOpacity: 0.25, shadowOffset: { width: 0, height: 4 }, elevation: 4 },
+  checkoutBtnText: { fontSize: 16, fontWeight: '800', color: '#1A1A1A' },
 });
 
 export default CartScreen;
