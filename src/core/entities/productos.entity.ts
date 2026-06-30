@@ -14,7 +14,6 @@ export interface MenuCategoryRef {
   name: string;
 }
 
-// --- NUEVO CONTRATO PARA LAS OPCIONES ---
 export interface OptionChoice {
   name: string;
   additionalPrice: number;
@@ -26,7 +25,6 @@ export interface ProductOption {
   maxAllowed: number;
   choices: OptionChoice[];
 }
-// ----------------------------------------
 
 export interface Producto {
   id: string;
@@ -36,11 +34,8 @@ export interface Producto {
   slug: string;
   stock: number;
   
-  // --- EL CANDADO ABIERTO ---
-  // Ahora TypeScript sabe que esto es un árbol lógico, no texto plano.
-  options?: ProductOption[]; 
-  
-  tags?: string[]; 
+  options?: ProductOption[];
+  tags?: string[]; // Agregué tags que suele ser útil
   
   isPromo?: boolean;         // Para saber si tachar el precio
   discountPrice?: number;    // El precio de oferta

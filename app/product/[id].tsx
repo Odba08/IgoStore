@@ -16,11 +16,10 @@ export default function ProductDetailScreen() {
   // 🧠 CONEXIÓN A LA BÓVEDA
   const addItem = useCartStore((state) => state.addItem);
   
-  // Estados
+  // Estados Generales
   const [quantity, setQuantity] = useState(1);
   
-  // --- EL NUEVO ESTADO ESTRUCTURAL ---
-  // Guarda las opciones como un diccionario: { "Añade Extras": [{name: "Bacon", price: 1.5}] }
+  // Estado para guardar las opciones seleccionadas. 
   const [selectedOptions, setSelectedOptions] = useState<Record<string, any[]>>({});
 
   const { data: product, isLoading } = useProduct(id as string);
@@ -43,46 +42,47 @@ export default function ProductDetailScreen() {
 
   if (!product) return null;
 
-  // --- MOTOR DE SELECCIÓN TRIDIMENSIONAL ---
+  // --- LÓGICA DE SELECCIÓN DE OPCIONES ---
   const handleOptionSelect = (groupTitle: string, choice: any, maxAllowed: number) => {
     setSelectedOptions((prev) => {
       const currentSelections = prev[groupTitle] || [];
       const isAlreadySelected = currentSelections.some(c => c.name === choice.name);
 
+      let newSelections;
+
       if (isAlreadySelected) {
-        // Deseleccionar: Filtramos el elemento actual
-        return { ...prev, [groupTitle]: currentSelections.filter(c => c.name !== choice.name) };
+        newSelections = currentSelections.filter(c => c.name !== choice.name);
       } else {
-        // Seleccionar
         if (maxAllowed === 1) {
-          // Comportamiento "Radio Button": Reemplaza cualquier selección previa
-          return { ...prev, [groupTitle]: [choice] };
+          newSelections = [choice];
         } else {
-          // Comportamiento "Checkbox": Agrega a la lista si no supera el límite
           if (currentSelections.length >= maxAllowed) {
              Alert.alert("Límite alcanzado", `Solo puedes seleccionar hasta ${maxAllowed} opciones.`);
              return prev;
           }
-          return { ...prev, [groupTitle]: [...currentSelections, choice] };
+          newSelections = [...currentSelections, choice];
         }
       }
+
+      return { ...prev, [groupTitle]: newSelections };
     });
   };
 
-  // --- MOTOR DE CÁLCULO DE PRECIOS DINÁMICO ---
+  // --- LÓGICA DE PRECIOS Y OFERTAS ---
   const basePrice = (product.isPromo && product.discountPrice)
     ? product.discountPrice 
     : product.price;
 
-  // Extraemos todos los 'additionalPrice' de las opciones seleccionadas y los sumamos
   let extrasTotal = 0;
   Object.values(selectedOptions).forEach(selections => {
       selections.forEach(choice => {
-          extrasTotal += (choice.additionalPrice || 0);
+          extrasTotal += choice.additionalPrice || 0;
       });
   });
 
   const finalUnitTestPrice = basePrice + extrasTotal;
+  
+  // ⚡ LA VARIABLE FALTANTE QUE CAUSABA EL ERROR:
   const totalPrice = finalUnitTestPrice * quantity;
 
   const discountPercent = (product.isPromo && product.discountPrice)
@@ -124,7 +124,7 @@ export default function ProductDetailScreen() {
             
             <View style={{ marginBottom: 15 }}>
                 <Text style={styles.sellerName}>
-                    Vendido por {product.business?.name || 'Desconocido'}
+                    Vendido por {product.business?.name || "Desconocido"}
                 </Text>
                 
                 <Text style={styles.title}>{product.title}</Text>
@@ -146,9 +146,10 @@ export default function ProductDetailScreen() {
 
             <View style={styles.divider} />
 
-            {/* --- RENDERIZADO ANIDADO DE OPCIONES --- */}
+            {/* --- LÓGICA DE RENDERIZADO DINÁMICO DE OPCIONES --- */}
             {product.options && product.options.length > 0 && (
                 <View style={styles.section}>
+                    
                     {product.options.map((optionGroup: any, groupIndex: number) => {
                          const currentSelections = selectedOptions[optionGroup.title] || [];
                          return (
@@ -173,7 +174,7 @@ export default function ProductDetailScreen() {
                                                 styles.optionText,
                                                 isSelected && styles.optionTextSelected
                                             ]}>
-                                                {choice.name} {choice.additionalPrice > 0 ? `(+$${choice.additionalPrice.toFixed(2)})` : ''}
+                                                {choice.name} {choice.additionalPrice > 0 ? `(+$${choice.additionalPrice})` : ''}
                                             </Text>
                                         </TouchableOpacity>
                                       );
@@ -217,7 +218,7 @@ export default function ProductDetailScreen() {
               </TouchableOpacity>
           </View>
 
-          {/* ⚡ LA INYECCIÓN AL CARRITO (SEGURIDAD Y ENSAMBLAJE) */}
+          {/* ⚡ LA INYECCIÓN DE DATOS REPARADA Y BLINDADA */}
           <TouchableOpacity 
             style={[
                 styles.addToCartButton, 
@@ -226,7 +227,7 @@ export default function ProductDetailScreen() {
             disabled={product.stock === 0}
             onPress={() => {
             
-            // 1. Barrera de Seguridad: Validar Opciones Requeridas
+            // 1. Validar Opciones Requeridas
             if (product.options && product.options.length > 0) {
                for (const group of product.options) {
                   if (group.isRequired) {
@@ -241,19 +242,24 @@ export default function ProductDetailScreen() {
 
             // 2. EL CANDADO: Revisamos el carrito ANTES de hacer nada
             const currentCart = useCartStore.getState().items;
-            if (currentCart.length > 0 && currentCart[0].business_id !== product.business?.id) {
-                Alert.alert("Acción no permitida", "No puedes mezclar productos de diferentes negocios. Vacía tu carrito primero.");
-                return; 
-            }
-
-            // 3. SI PASA LOS CANDADOS, CONSTRUIMOS EL PRODUCTO Y AGREGAMOS
-            // Aplanamos todas las selecciones en una sola cadena de texto separada por comas (Ej: "Medio, Bacon, Ketchup")
+            
+            // ⚡ EXTRACCIÓN SEGURA DEL ID DEL NEGOCIO (Evita el "must be a UUID" de NestJS)
+              const currentProductBusinessId = (product as any).businessId || product.business?.id;
+              // 🛡️ VALIDACIÓN INALTERABLE: Compara de forma estricta los IDs de negocio
+              if (currentCart.length > 0 && currentCart[0].businessId !== currentProductBusinessId) {
+                  Alert.alert(
+                    "Acción no permitida", 
+                    "No puedes mezclar productos de diferentes negocios. Vacía tu carrito primero."
+                  );
+                  return; 
+              }
+              
+            // 3. SI PASA EL CANDADO, CONSTRUIMOS EL PRODUCTO Y AGREGAMOS
             const optionsString = Object.values(selectedOptions)
               .flat()
               .map(o => o.name)
               .join(', ');
 
-            // Generamos un ID único para el carrito basado en las opciones elegidas para que no se agrupen hamburguesas distintas
             const cartItemId = optionsString ? `${product.id}-${optionsString}` : product.id;
             const cartItemTitle = optionsString ? `${product.title} (${optionsString})` : product.title;
             const imageUrl = product.images?.[0]?.url || ''; 
@@ -264,10 +270,11 @@ export default function ProductDetailScreen() {
                 price: finalUnitTestPrice,
                 image: imageUrl,
                 quantity: quantity,
-                business_id: product.business?.id || "default"
+                // ⚡ INYECCIÓN GARANTIZADA HACIA ZUSTAND
+                businessId: currentProductBusinessId,
             });
 
-            // 4. ÉXITO 
+            // 4. ÉXITO
             Alert.alert("🛒 Carrito", `Agregaste ${quantity}x ${product.title}`);
             router.back(); 
         }}
@@ -314,9 +321,9 @@ const styles = StyleSheet.create({
   section: { marginBottom: 20 },
   sectionTitle: { fontSize: 16, fontWeight: 'bold', marginBottom: 12, color: '#333' },
   
-  // --- ESTILOS ACTUALIZADOS PARA LA GRILLA DE OPCIONES ---
+  // Estilos para la nueva grilla de opciones (Reemplazando sizesGrid)
   optionsGrid: { flexDirection: 'row', flexWrap: 'wrap' },
-  optionChip: { paddingHorizontal: 18, paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: '#E0E0E0', marginRight: 10, marginBottom: 10, backgroundColor: 'white' },
+  optionChip: { paddingHorizontal: 15, paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: '#E0E0E0', marginRight: 10, marginBottom: 10, backgroundColor: 'white' },
   optionChipSelected: { backgroundColor: '#1a1a1a', borderColor: '#1a1a1a' },
   optionText: { fontSize: 14, color: '#333', fontWeight: '500' },
   optionTextSelected: { color: 'white', fontWeight: 'bold' },

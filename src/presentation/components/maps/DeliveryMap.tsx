@@ -65,11 +65,13 @@ export const DeliveryMap = ({ origin, destination, distanceKm, routePolyline }: 
 
         {/* --- CAMBIO 2: Ahora recibe las coordenadas dinámicas --- */}
         <Polyline
-          coordinates={polylineCoordinates}
-          strokeColor="#6200EE"
-          strokeWidth={5} // Un poco más gruesa para que se vea mejor en las calles
-          lineCap="round" // Hace que las uniones de las calles se vean suaves
-        />
+        // ⚡ LLAVE TÁCTICA: Destruye el elemento nativo si cambia la ruta o si se vacía
+        key={`polyline-${polylineCoordinates.length}-${polylineCoordinates[0]?.latitude || 0}`}
+        coordinates={polylineCoordinates}
+        strokeColor="#6200EE"
+        strokeWidth={5} 
+        lineCap="round" 
+      />
       </MapView>
 
       <View style={styles.distanceBadge}>

@@ -1,15 +1,16 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Alert } from 'react-native'; // <-- Importación necesaria para el bloqueo
+import { Alert } from 'react-native'; 
 
-interface CartItem {
+// ⚡ CONTRATO EXTENDIDO Y ESTRICTO
+export interface CartItem {
   id: string;
   title: string;
   price: number;
   image: string;
   quantity: number;
-  business_id: string; // <-- 1. CRÍTICO: El carrito ahora exige saber la tienda
+  businessId: string; // ⚡ PROPIEDAD CARDINAL (camelCase)
 }
 
 interface CartState {
@@ -17,7 +18,7 @@ interface CartState {
   addItem: (item: CartItem) => void;
   removeItem: (id: string) => void;
   updateQuantity: (id: string, quantity: number) => void;
-  clearCart: () => void;
+  clearCart: () => void; 
 }
 
 export const useCartStore = create<CartState>()(
@@ -26,10 +27,12 @@ export const useCartStore = create<CartState>()(
       items: [],
 
       addItem: (item) => set((state) => {
+        // 1. CANDADO DE NEGOCIO UNIFICADO
         if (state.items.length > 0) {
-          const currentBusinessId = state.items[0].business_id;
+          // ⚡ LECTURA CORREGIDA: Usamos estrictamente businessId
+          const currentBusinessId = state.items[0].businessId;
           
-          if (currentBusinessId !== item.business_id) {
+          if (currentBusinessId !== item.businessId) {
             Alert.alert(
               "Acción no permitida",
               "Solo puedes pedir de una tienda a la vez. Vacía tu carrito actual si deseas comprar en este negocio."
@@ -38,7 +41,7 @@ export const useCartStore = create<CartState>()(
           }
         }
 
-        // --- 3. LÓGICA DE INSERCIÓN ORIGINAL ---
+        // 2. LÓGICA DE INSERCIÓN ORIGINAL
         const existingItem = state.items.find((i) => i.id === item.id);
         if (existingItem) {
           return { items: state.items.map((i) => i.id === item.id ? { ...i, quantity: i.quantity + item.quantity} : i) };
@@ -64,8 +67,8 @@ export const useCartStore = create<CartState>()(
       clearCart: () => set({ items: [] }), 
     }),
     {
-      name: 'cart-storage',
-      storage: createJSONStorage(() => AsyncStorage),
+      name: 'cart-storage', 
+      storage: createJSONStorage(() => AsyncStorage), 
     }
   )
 );
