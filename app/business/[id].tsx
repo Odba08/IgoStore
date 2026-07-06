@@ -1,11 +1,10 @@
-import React, { useState, useMemo } from 'react'; // <--- ASEGÚRATE DE TENER useMemo
+import React, { useState, useMemo } from 'react'; 
 import { View, Text, Image, StyleSheet, ActivityIndicator, TouchableOpacity, ScrollView, FlatList, TextInput, Alert } from 'react-native';
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 
 // HOOKS
-
 import { useMenuCategories } from '@/presentation/hooks/useMenuCategories';
 import { useBusiness } from '@/presentation/hooks/useBusiness';
 import { useCartStore } from '@/presentation/store/useCartStore';
@@ -55,7 +54,7 @@ export default function BusinessDetailScreen() {
     return { uri: `${API_URL}/files/product/${image.url}` };
   };
 
-  // --- SOLUCIÓN AL TECLADO: MEMORIZAMOS EL HEADER ---
+  // --- MEMORIZAMOS EL HEADER ---
   const headerComponent = useMemo(() => {
     if (!business) return null;
 
@@ -82,7 +81,7 @@ export default function BusinessDetailScreen() {
            <Text style={styles.businessCategory}>📂 {business.category?.name || "General"}</Text>
         </View>
         
-        {/* BUSCADOR (Ahora dentro del useMemo) */}
+        {/* BUSCADOR */}
         <View style={styles.searchContainer}>
             <Ionicons name="search" size={20} color="#999" style={styles.searchIcon} />
             <TextInput
@@ -90,7 +89,7 @@ export default function BusinessDetailScreen() {
                 placeholderTextColor="#999"
                 style={styles.searchInput}
                 value={searchQuery}
-                onChangeText={setSearchQuery} // Esto actualiza el estado fuera del memo
+                onChangeText={setSearchQuery} 
                 returnKeyType="search"
             />
             {searchQuery.length > 0 && (
@@ -141,7 +140,6 @@ export default function BusinessDetailScreen() {
       </View>
     );
   }, [business, categories, selectedCategoryId, searchQuery]); 
-  // ^^^ IMPORTANTE: Agregamos las dependencias para que se actualice visualmente cuando escribas
 
   if (loadingBusiness || loadingCategories) {
     return (
@@ -167,11 +165,7 @@ export default function BusinessDetailScreen() {
         keyExtractor={(item) => item.id}
         contentContainerStyle={{ paddingBottom: 40 }}
         keyboardShouldPersistTaps="handled"
-        
-        // --- AQUÍ ESTÁ EL CAMBIO ---
-        // Pasamos la variable memorizada, NO una función anónima () => ...
         ListHeaderComponent={headerComponent} 
-
         renderItem={({ item }) => {
             const prodImage = getProductImage(item.images?.[0]);
 
@@ -198,33 +192,39 @@ export default function BusinessDetailScreen() {
                         )}
                     </View>
 
+                    {/* ⚡ BOTÓN CORREGIDO Y BLINDADO */}
                     <TouchableOpacity 
-    style={styles.addButton}
-    onPress={() => {
-        // 1. Calculamos el precio real (con o sin descuento)
-        const itemFinalPrice = (item.isPromo && item.discountPrice) 
-            ? item.discountPrice 
-            : item.price;
-        
-        // 2. Extraemos la imagen segura
-        const itemImage = item.images?.[0]?.url || '';
+                        style={styles.addButton}
+                        onPress={() => {
+                            // 1. EL CANDADO ANTES DE EJECUTAR
+                            const currentCart = useCartStore.getState().items;
+                            const cartBusinessId = currentCart.length > 0 ? (currentCart[0].businessId || currentCart[0].business_id) : null;
+                            
+                            if (cartBusinessId && cartBusinessId !== business.id) {
+                                Alert.alert("Acción no permitida", "No puedes mezclar productos de diferentes negocios. Vacía tu carrito primero.");
+                                return;
+                            }
 
-        // 3. Inyectamos en Zustand
-        addItem({
-            id: item.id, // Aquí no hay talla, usamos el ID directo
-            title: item.title,
-            price: itemFinalPrice,
-            image: itemImage,
-            quantity: 1 ,
-           businessId: business.id,
-        });
+                            // 2. EXTRAEMOS PRECIO FINAL E IMAGEN
+                            const finalPrice = item.isPromo ? item.discountPrice : item.price;
+                            const imageUri = prodImage.uri ? prodImage.uri : '';
 
-        // Opcional: Feedback visual discreto (puedes usar un Toast más adelante)
-         Alert.alert("🛒 Carrito", `${item.title} añadido al carrito`, [{ text: "OK" }]);
-    }}
->
-    <Ionicons name="add" size={20} color="white" />
-</TouchableOpacity>
+                            // 3. INYECTAMOS EN ZUSTAND
+                            addItem({
+                                id: item.id, 
+                                title: item.title,
+                                price: finalPrice,
+                                image: imageUri,
+                                quantity: 1,
+                                businessId: business.id
+                            });
+
+                            // 4. ÉXITO
+                            Alert.alert("🛒 Carrito", `${item.title} añadido al carrito`);
+                        }}
+                    >
+                        <Ionicons name="add" size={20} color="white" />
+                    </TouchableOpacity>
                 </TouchableOpacity>
             );
         }}
@@ -244,7 +244,6 @@ export default function BusinessDetailScreen() {
   );
 }
 
-// ... TUS ESTILOS ...
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FAFAFA' }, 
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
@@ -267,7 +266,6 @@ const styles = StyleSheet.create({
   ratingBadge: { backgroundColor: '#F0F0F0', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
   ratingText: { fontSize: 12, fontWeight: 'bold' },
 
-  // === ESTILOS DEL BUSCADOR ===
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image } from 'rea
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useAuthStore } from '@/presentation/store/useAuthStore';
 
 const PROFILE_OPTIONS = [
   { id: '1', title: 'Mis Pedidos', icon: 'receipt-outline' },
@@ -14,6 +15,12 @@ const PROFILE_OPTIONS = [
 
 const ProfileScreen = () => {
   const router = useRouter();
+  const { logout } = useAuthStore(); // Extracción del controlador de cierre de sesión
+
+  // Función lógica para procesar la salida
+  const handleLogout = () => {
+    logout();
+  };
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
@@ -31,7 +38,7 @@ const ProfileScreen = () => {
         {/* ENCABEZADO DEL PERFIL */}
         <View style={styles.headerSection}>
           <View style={styles.avatarContainer}>
-            <Image source={{ uri: 'https://avatar.iran.liara.run/public/33' }} style={styles.avatar} />
+            <Image source={require('../../assets/images/oscar.jpeg')} style={styles.avatar} />
             <TouchableOpacity style={styles.editAvatarBtn}>
               <Ionicons name="camera" size={16} color="#FFF" />
             </TouchableOpacity>
@@ -58,7 +65,7 @@ const ProfileScreen = () => {
         </View>
 
         {/* CERRAR SESIÓN */}
-        <TouchableOpacity style={styles.logoutBtn}>
+        <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
           <Ionicons name="log-out-outline" size={22} color="#E74C3C" />
           <Text style={styles.logoutText}>Cerrar Sesión</Text>
         </TouchableOpacity>
@@ -68,7 +75,7 @@ const ProfileScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: '#FFDB58' }, // El SafeArea asume el color amarillo arriba
+  safeArea: { flex: 1, backgroundColor: '#FFDB58' }, 
   customHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 15, paddingVertical: 10, backgroundColor: '#FFDB58' },
   backButton: { width: 40, height: 40, justifyContent: 'center', alignItems: 'flex-start' },
   headerTitle: { fontSize: 18, fontWeight: 'bold', color: '#1A1A1A' },

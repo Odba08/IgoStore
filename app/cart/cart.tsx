@@ -83,7 +83,6 @@ const CartScreen = () => {
                   <Ionicons name="add" size={18} color="#000" />
                 </TouchableOpacity>
               </View>
-
               <TouchableOpacity style={styles.deleteBtn} onPress={() => removeItem(item.id)}>
                 <Ionicons name="trash-outline" size={20} color="#FF3B30" />
               </TouchableOpacity>

@@ -1,8 +1,6 @@
 import { StatusBar } from "expo-status-bar";
 import { ScrollView, Text, View, FlatList, TouchableOpacity, TextInput, StyleSheet, Image, ActivityIndicator } from "react-native";
-
 import { useRouter } from "expo-router";
-
 import { useAllProducts } from "@/presentation/hooks/useProducts";
 import { Ionicons } from "@expo/vector-icons";
 import { useMemo, useState } from "react";
@@ -22,16 +20,15 @@ export default function Index() {
 
   const [searchText, setSearchText] = useState('');
 
-  // 2. FUNCIÓN DE NAVEGACIÓN (NUEVA)
-  // Recibe ID y Nombre desde CategoryList y nos manda a la pantalla nueva
+  // 2. FUNCIÓN DE NAVEGACIÓN
   const handleSelectCategory = (id: string, name: string) => {
       router.push({
-          pathname: "/category/[id]", // La ruta del archivo que creamos antes
-          params: { id: id, name: name } // Pasamos los datos
+          pathname: "/category/[id]", 
+          params: { id: id, name: name } 
       });
   };
 
-  // 3. LÓGICA DE FILTRADO (Productos)
+  // 3. LÓGICA DE FILTRADO
   const filteredProducts = useMemo(() => {
     if (!products) return [];
     if (!searchText) return [];
@@ -40,7 +37,6 @@ export default function Index() {
        p.title.toLowerCase().includes(searchText.toLowerCase())
     );
   }, [products, searchText]);
-
 
   if (loadingBusiness) {
     return (
@@ -64,7 +60,8 @@ export default function Index() {
       <PrincipalHeader />
       <StatusBar style='dark' />
 
-      <ScrollView contentContainerStyle={{ paddingBottom: 50 }}>
+      {/* Se aumenta el paddingBottom para que el último elemento no quede oculto por la barra */}
+      <ScrollView contentContainerStyle={{ paddingBottom: 100 }} showsVerticalScrollIndicator={false}>
         
         {/* BUSCADOR */}
         <View style={styles.searchContainer}>
@@ -115,16 +112,13 @@ export default function Index() {
         ) : (
            // HOME NORMAL
            <>
-
-             {/* AQUÍ ESTÁ EL CAMBIO CLAVE: Pasamos la función */}
              <CategoryList onSelectCategory={handleSelectCategory} />
-           {/* <View style={styles.divider} /> */}
              
              <PromoSlider />
 
              <View style={{ marginTop: 20 }}>
                 <View style={styles.headerRow}>
-                    <Text style={styles.sectionTitle}>Tiendas destacadas{/*  ({businesses?.length ?? 0}) */}</Text>
+                    <Text style={styles.sectionTitle}>Tiendas destacadas</Text>
                     <TouchableOpacity onPress={() => router.push("/products")}>
                        <Text style={{ color: '#EDB422', fontWeight: 'bold' }}>Ver más</Text>
                     </TouchableOpacity>
@@ -139,13 +133,34 @@ export default function Index() {
                     showsHorizontalScrollIndicator={false}
                 />
              </View>
-
-             
-             
            </>
         )}
-
       </ScrollView>
+
+      {/* --- LA INYECCIÓN TÁCTICA: BOTTOM NAVIGATION BAR --- */}
+      <View style={styles.bottomBar}>
+          
+          <TouchableOpacity style={styles.tabItem} onPress={() => { /* Ya estamos en Home */ }}>
+              <Ionicons name="home" size={24} color="#1a1a1a" />
+              <Text style={[styles.tabText, { color: '#1a1a1a', fontWeight: 'bold' }]}>Inicio</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.tabItem} onPress={() => router.push("/")}>
+              <Ionicons name="cart-outline" size={24} color="#888" />
+              <Text style={styles.tabText}>Carrito</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.tabItem} onPress={() => router.push("/")}>
+              <Ionicons name="receipt-outline" size={24} color="#888" />
+              <Text style={styles.tabText}>Pedidos</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.tabItem} onPress={() => router.push("/")}>
+              <Ionicons name="person-outline" size={24} color="#888" />
+              <Text style={styles.tabText}>Perfil</Text>
+          </TouchableOpacity>
+
+      </View>
     </View>
   );
 }
@@ -164,10 +179,41 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: 18, fontWeight: "800", marginLeft: 20, marginBottom: 10, color: '#1a1a1a' },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingRight: 20, marginBottom: 10 },
   emptyText: { textAlign: 'center', marginTop: 20, color: '#888', fontStyle: 'italic' },
-  divider: { height: 1, backgroundColor: "#E0E0E0", marginVertical: 20, marginHorizontal: 20 },
   resultItem: {
       flexDirection: 'row', alignItems: 'center', backgroundColor: 'white',
       marginHorizontal: 20, marginBottom: 10, padding: 10, borderRadius: 12,
       shadowColor: '#000', shadowOpacity: 0.05, elevation: 2
+  },
+
+  // --- ESTILOS DE LA BARRA INFERIOR ---
+  bottomBar: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 70,
+    backgroundColor: 'white',
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    paddingBottom: 15, // Espacio para la barra de navegación del iPhone/Android
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#EBEBEB',
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -3 },
+    shadowOpacity: 0.05,
+    elevation: 10,
+  },
+  tabItem: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    flex: 1,
+  },
+  tabText: {
+    fontSize: 11,
+    color: '#888',
+    marginTop: 4,
+    fontWeight: '500'
   }
 });

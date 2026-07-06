@@ -3,14 +3,16 @@ import { View, Text, Image, ScrollView, TouchableOpacity, StyleSheet, ActivityIn
 import { useCategories } from '@/presentation/hooks/useCategories';
 
 const CATEGORY_ICONS: Record<string, any> = {
+  // Coincidencias exactas con la BDD
   'Restaurantes': require('../../../../assets/Icons/opciones/burger.png'),
-  'Veterinaria': require('../../../../assets/Icons/opciones/cat.png'), 
-  'Mascotas': require('../../../../assets/Icons/opciones/dog.png'),
-  'Bebidas': require('../../../../assets/Icons/opciones/drink.png'),
+  'Supermercado': require('../../../../assets/Icons/opciones/green.png'), // *Recomendación: Conseguir un cart.png a futuro
   'Farmacia': require('../../../../assets/Icons/opciones/farm.png'),
-  'Helados': require('../../../../assets/Icons/opciones/green.png'),
-  'Pizza': require('../../../../assets/Icons/opciones/keys.png'),
-  'Tecnología': require('../../../../assets/Icons/opciones/rider.png'), 
+  'Licorería': require('../../../../assets/Icons/opciones/drink.png'), 
+  'Mascotas': require('../../../../assets/Icons/opciones/dog.png'),
+  'Envíos': require('../../../../assets/Icons/opciones/rider.png'), 
+  'Tiendas': require('../../../../assets/Icons/opciones/keys.png'), // *Recomendación: Conseguir un store.png a futuro
+  
+  // Resguardo contra fallos (Fallback)
   'Default': require('../../../../assets/Icons/opciones/green.png'),
 };
 

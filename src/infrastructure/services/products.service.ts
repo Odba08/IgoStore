@@ -1,4 +1,4 @@
-import { Producto } from '@entities/productos.entity';
+import { Producto } from '@/core/entities/productos.entity';
 import { getProductByIdApi, getProductsApi } from '../api/products.api';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL;
@@ -37,7 +37,7 @@ export class ProductService {
       }));
     } catch (error) {
       console.error("Error fetching products:", error);
-      return [];
+      throw error;
     }
   }
 }

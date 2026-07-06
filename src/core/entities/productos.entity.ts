@@ -37,7 +37,6 @@ export interface Producto {
   options?: ProductOption[];
   tags?: string[]; // Agregué tags que suele ser útil
   
-  // --- LOS CAMPOS NUEVOS QUE FALTABAN ---
   isPromo?: boolean;         // Para saber si tachar el precio
   discountPrice?: number;    // El precio de oferta
   menuCategory?: MenuCategoryRef; // La categoría del menú (Mancuernas, Bebidas, etc.)
