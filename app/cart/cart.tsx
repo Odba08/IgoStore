@@ -13,34 +13,47 @@ import { useLocationStore } from '../../src/presentation/store/useLocationStore'
 const CartScreen = () => {
   const router = useRouter();
 
-  const { items, removeItem } = useCartStore();
-  const updateQuantity = useCartStore((state) => state.updateQuantity);
-  
-  const pickupLocation = useLocationStore((state: any) => state.pickupLocation);
+  const { items, removeItem, updateQuantity } = useCartStore();
   const deliveryLocation = useLocationStore((state: any) => state.deliveryLocation);
+  const setDeliveryLocation = useLocationStore((state: any) => state.setDeliveryLocation);
 
-  const [personalData, setPersonalData] = useState('');
+  // ✅ Leemos dinámicamente las direcciones desde el store de Zustand
+  const savedAddresses = useLocationStore((state: any) => state.savedAddresses) || [];
+
+  const [currentUser] = useState({ name: 'Oscar', phone: '+584141234567' });
   const [addressNotes, setAddressNotes] = useState('');
+  const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
 
   const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+
+  const handleSelectSavedAddress = (addressItem: any) => {
+    setSelectedAddressId(addressItem.id);
+    setDeliveryLocation({
+      latitude: addressItem.latitude,
+      longitude: addressItem.longitude,
+      address: addressItem.address
+    });
+  };
 
   const handleNavigateToRouteCalculation = () => {
     if (items.length === 0) return;
     
-    if (!deliveryLocation) {
-      Alert.alert("Falta Ubicación", "Por favor selecciona el punto de entrega en el mapa (Punto B) antes de proceder.");
-      return;
-    }
-    if (personalData.trim().length === 0) {
-      Alert.alert("Campos Vacíos", "Por favor ingresa tu nombre y teléfono para procesar el despacho.");
+    if (
+      !deliveryLocation || 
+      typeof deliveryLocation.latitude !== 'number' || 
+      typeof deliveryLocation.longitude !== 'number' ||
+      isNaN(deliveryLocation.latitude)
+    ) {
+      Alert.alert("Falta Ubicación", "Por favor selecciona una dirección guardada o fija un punto en el mapa para la entrega.");
       return;
     }
 
     router.push({
       pathname: '/map',
       params: {
-        mode: 'route',
-        personalData: personalData,
+        serviceType: 'store', 
+        mode: 'route', 
+        personalData: currentUser.name,
         addressNotes: addressNotes
       }
     });
@@ -92,62 +105,60 @@ const CartScreen = () => {
 
         {items.length > 0 && (
           <>
-            {/* ⚡ BLOQUE LOGÍSTICO UNIFICADO (Puntos A y B en la misma tarjeta) */}
             <View style={styles.logisticsCard}>
-              <Text style={styles.cardSectionTitle}>Detalles de la Ruta</Text>
+              <Text style={styles.cardSectionTitle}>¿A dónde lo enviamos?</Text>
               
-              <View style={styles.logisticsRow}>
-                <View style={styles.logisticsHeader}>
-                  <Text style={[styles.inputTitle, { color: '#6200EE', flex: 1, marginRight: 10 }]} numberOfLines={1}>
-                    🏢 Origen (Recogida)
-                  </Text>
-                  <TouchableOpacity style={styles.mapLink} onPress={() => router.push({ pathname: '/map', params: { mode: 'pickup' } })}>
-                    <Text style={[styles.mapLinkText, { color: '#6200EE' }]}>Editar Mapa</Text>
+              {/* ✅ Renderiza las direcciones guardadas directamente del Store de Zustand */}
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.addressBookScroll}>
+                {savedAddresses.map((addr: any) => (
+                  <TouchableOpacity 
+                    key={addr.id} 
+                    style={[styles.savedAddressChip, selectedAddressId === addr.id && styles.savedAddressChipActive]}
+                    onPress={() => handleSelectSavedAddress(addr)}
+                  >
+                    <Text style={[styles.savedAddressLabel, selectedAddressId === addr.id && styles.savedAddressLabelActive]}>
+                      {addr.label}
+                    </Text>
                   </TouchableOpacity>
-                </View>
-                <View style={[styles.addressBox, { borderColor: '#E9E3FF', backgroundColor: '#F4F0FF' }]}>
-                  <Ionicons name="business" size={20} color="#6200EE" style={{ marginRight: 8 }} />
-                  <Text style={styles.addressBoxText} numberOfLines={2}>
-                    {pickupLocation ? pickupLocation.address : 'Selecciona dónde recogemos el pedido...'}
-                  </Text>
-                </View>
-              </View>
-
-              <View style={styles.divider} />
+                ))}
+              </ScrollView>
 
               <View style={styles.logisticsRow}>
                 <View style={styles.logisticsHeader}>
                   <Text style={[styles.inputTitle, { color: '#EDB422', flex: 1, marginRight: 10 }]} numberOfLines={1}>
-                    📍 Destino (Entrega)
+                    📍 Dirección de Entrega
                   </Text>
-                  <TouchableOpacity style={styles.mapLink} onPress={() => router.push({ pathname: '/map', params: { mode: 'delivery' } })}>
-                    <Text style={styles.mapLinkText}>Fijar Destino</Text>
+                  <TouchableOpacity style={styles.mapLink} onPress={() => { setSelectedAddressId(null); router.push({ pathname: '/map', params: { serviceType: 'store' } }); }}>
+                    <Text style={styles.mapLinkText}>Buscar en Mapa</Text>
                   </TouchableOpacity>
                 </View>
                 <View style={[styles.addressBox, { borderColor: '#FDF7E8', backgroundColor: '#FDF7E8' }]}>
                   <Ionicons name="location-sharp" size={20} color="#EDB422" style={{ marginRight: 8 }} />
                   <Text style={styles.addressBoxText} numberOfLines={2}>
-                    {deliveryLocation ? deliveryLocation.address : 'Selecciona a dónde lo enviamos...'}
+                    {deliveryLocation ? deliveryLocation.address : 'Selecciona un destino arriba o busca en el mapa...'}
                   </Text>
                 </View>
               </View>
             </View>
 
-            {/* ⚡ BLOQUE DE CONTACTO UNIFICADO */}
             <View style={styles.contactCard}>
-              <Text style={styles.cardSectionTitle}>Información del Cliente</Text>
+              <Text style={styles.cardSectionTitle}>Datos de Despacho</Text>
+              
+              <View style={styles.readonlyProfileRow}>
+                <Ionicons name="person-circle" size={36} color="#6200EE" />
+                <View style={{ marginLeft: 12 }}>
+                  <Text style={{ fontSize: 15, fontWeight: 'bold', color: '#1A1A1A' }}>{currentUser.name}</Text>
+                  <Text style={{ fontSize: 13, color: '#666' }}>{currentUser.phone}</Text>
+                </View>
+                <View style={styles.verifiedBadge}>
+                  <Ionicons name="checkmark-circle" size={14} color="#10B981" />
+                  <Text style={{ fontSize: 11, color: '#10B981', marginLeft: 4, fontWeight: 'bold' }}>Verificado</Text>
+                </View>
+              </View>
               
               <TextInput
-                style={[styles.textInput, { minHeight: 50, marginBottom: 12 }]}
-                placeholder="Nombre y teléfono de contacto"
-                placeholderTextColor="#999"
-                value={personalData}
-                onChangeText={setPersonalData}
-              />
-              
-              <TextInput
-                style={[styles.textInput, { minHeight: 60 }]}
-                placeholder="Punto de referencia o notas para el motorizado (Ej: Portón negro...)"
+                style={[styles.textInput, { minHeight: 60, marginTop: 15 }]}
+                placeholder="Punto de referencia o notas para el motorizado (Ej: Portón negro, tocar timbre 3)..."
                 placeholderTextColor="#999"
                 multiline={true}
                 numberOfLines={2}
@@ -156,14 +167,13 @@ const CartScreen = () => {
               />
             </View>
 
-            {/* RESUMEN DE ARTÍCULOS */}
             <View style={styles.summaryContainer}>
               <Text style={styles.summaryTitle}>Resumen Parcial</Text>
               <View style={styles.summaryRow}>
                 <Text style={styles.summaryLabel}>Subtotal de Productos</Text>
                 <Text style={styles.summaryValue}>${subtotal.toFixed(2)}</Text>
               </View>
-              <Text style={styles.infoFooterTexto}>*La tarifa de envío se calculará mediante coordenadas viales en la siguiente pantalla.</Text>
+              <Text style={styles.infoFooterTexto}>*La tarifa de envío se calculará automáticamente con las coordenadas viales en la siguiente pantalla.</Text>
             </View>
           </>
         )}
@@ -176,7 +186,7 @@ const CartScreen = () => {
           disabled={items.length === 0}
         >
           <Text style={styles.checkoutBtnText}>
-            {items.length === 0 ? "Añade productos para continuar" : "Calcular Ruta Vial e Ir al Mapa"}
+            {items.length === 0 ? "Añade productos para continuar" : "Calcular Envío y Proceder"}
           </Text>
         </TouchableOpacity>
       </View>
@@ -190,48 +200,44 @@ const styles = StyleSheet.create({
   backButton: { width: 40, height: 40, justifyContent: 'center', alignItems: 'flex-start' },
   headerTitle: { fontSize: 18, fontWeight: 'bold', color: '#1A1A1A' },
   scrollContent: { padding: 15, paddingBottom: 130, backgroundColor: '#F8FAFC', flexGrow: 1 },
-  
   cartItem: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', padding: 15, borderRadius: 16, marginBottom: 15, shadowColor: '#000', shadowOpacity: 0.04, elevation: 2 },
   itemImage: { width: 65, height: 65, borderRadius: 12, backgroundColor: '#F1F5F9' },
   itemDetails: { flex: 1, marginLeft: 15, justifyContent: 'center' },
   itemTitle: { fontSize: 15, fontWeight: 'bold', color: '#1E293B', marginBottom: 4 },
   itemOptions: { fontSize: 12, color: '#64748B', fontStyle: 'italic', marginBottom: 6 },
   itemPrice: { fontSize: 15, fontWeight: '800', color: '#10B981' },
-  
   actionContainer: { flexDirection: 'row', alignItems: 'center' },
   quantityControls: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F1F5F9', borderRadius: 20, paddingHorizontal: 6, paddingVertical: 6 },
   controlBtn: { backgroundColor: '#FFF', borderRadius: 14, padding: 6, shadowColor: '#000', shadowOpacity: 0.06, elevation: 1 },
   quantityText: { marginHorizontal: 12, fontSize: 15, fontWeight: 'bold', color: '#1E293B' },
   deleteBtn: { marginLeft: 12, padding: 8, backgroundColor: '#FEE2E2', borderRadius: 10 },
-  
-  // ⚡ NUEVOS ESTILOS AGRUPADOS Y ESTILIZADOS
   logisticsCard: { backgroundColor: '#FFF', padding: 20, borderRadius: 16, marginBottom: 15, shadowColor: '#000', shadowOpacity: 0.04, elevation: 2 },
   contactCard: { backgroundColor: '#FFF', padding: 20, borderRadius: 16, marginBottom: 15, shadowColor: '#000', shadowOpacity: 0.04, elevation: 2 },
   cardSectionTitle: { fontSize: 16, fontWeight: 'bold', color: '#1E293B', marginBottom: 16 },
-  
+  addressBookScroll: { marginBottom: 15, flexDirection: 'row' },
+  savedAddressChip: { paddingHorizontal: 14, paddingVertical: 8, backgroundColor: '#F1F5F9', borderRadius: 20, marginRight: 10, borderWidth: 1, borderColor: 'transparent' },
+  savedAddressChipActive: { backgroundColor: '#FFF8E1', borderColor: '#EDB422' },
+  savedAddressLabel: { fontSize: 13, color: '#64748B', fontWeight: '600' },
+  savedAddressLabelActive: { color: '#EDB422', fontWeight: '800' },
+  readonlyProfileRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F8FAFC', padding: 12, borderRadius: 12, borderWidth: 1, borderColor: '#E2E8F0' },
+  verifiedBadge: { position: 'absolute', right: 15, flexDirection: 'row', alignItems: 'center', backgroundColor: '#ECFDF5', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 },
   logisticsRow: { marginBottom: 5 },
   logisticsHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
-  divider: { height: 1, backgroundColor: '#F1F5F9', marginVertical: 15 },
-  
   inputTitle: { fontSize: 14, fontWeight: 'bold' },
   mapLink: { paddingVertical: 4, paddingHorizontal: 8, backgroundColor: '#F8FAFC', borderRadius: 8 },
   mapLinkText: { fontSize: 13, color: '#EDB422', fontWeight: '700' },
-  
   addressBox: { flexDirection: 'row', alignItems: 'center', padding: 14, borderRadius: 12, borderWidth: 1 },
   addressBoxText: { flex: 1, fontSize: 14, color: '#334155', fontWeight: '500', lineHeight: 20 },
-  
   textInput: { backgroundColor: '#F8FAFC', borderRadius: 12, padding: 14, fontSize: 15, color: '#1E293B', textAlignVertical: 'top', borderWidth: 1, borderColor: '#E2E8F0' },
-  
   summaryContainer: { backgroundColor: '#FFF', padding: 20, borderRadius: 16, shadowColor: '#000', shadowOpacity: 0.04, elevation: 2, marginBottom: 10 },
   summaryTitle: { fontSize: 16, fontWeight: 'bold', marginBottom: 15, color: '#1E293B' },
   summaryRow: { flexDirection: 'row', justifyContent: 'space-between' },
   summaryLabel: { fontSize: 15, color: '#64748B', fontWeight: '500' },
   summaryValue: { fontSize: 16, fontWeight: '800', color: '#1E293B' },
   infoFooterTexto: { fontSize: 12, color: '#94A3B8', marginTop: 12, fontStyle: 'italic', lineHeight: 18 },
-  
   footer: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: '#FFF', paddingHorizontal: 20, paddingTop: 15, paddingBottom: 30, borderTopWidth: 1, borderTopColor: '#F1F5F9' },
   checkoutBtn: { backgroundColor: '#FFDB58', paddingVertical: 16, borderRadius: 14, alignItems: 'center', shadowColor: '#FFDB58', shadowOpacity: 0.25, shadowOffset: { width: 0, height: 4 }, elevation: 4 },
-  checkoutBtnText: { fontSize: 16, fontWeight: '800', color: '#1A1A1A' },
+  checkoutBtnText: { fontSize: 16, fontWeight: '800', color: '#1A1A1A' }
 });
 
 export default CartScreen;
