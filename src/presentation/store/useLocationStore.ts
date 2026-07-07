@@ -12,22 +12,35 @@ export interface LocationPoint extends LatLng {
   address: string;
 }
 
+// ✅ INTERFAZ DE DIRECCIÓN GUARDADA (Extiende de LocationPoint agregando ID y Etiqueta)
+export interface SavedAddress extends LocationPoint {
+  id: string;
+  label: string;
+}
+
 interface LocationState {
   lastKnowLocation: LatLng | null;
   userLocationList: LatLng[];
   watchSubscription: LocationSubscription | null;
 
-  // ⚡ NUEVOS CASILLEROS CARDINALES
+  // ⚡ CASILLEROS CARDINALES
   pickupLocation: LocationPoint | null;   // Punto A: Recogida (Sede/Tienda)
   deliveryLocation: LocationPoint | null; // Punto B: Entrega (Cliente)
+  
+  // ✅ LIBRETA DE DIRECCIONES GLOBALES
+  savedAddresses: SavedAddress[];
 
   getLocation: () => Promise<LatLng>;
   watchLocation: () => void;
   clearWatchLocation: () => void;
 
-  // ⚡ NUEVAS ACCIONES MUTATORIAS EN TIEMPO DE EJECUCIÓN
+  // ⚡ ACCIONES MUTATORIAS EN TIEMPO DE EJECUCIÓN
   setPickupLocation: (location: LocationPoint | null) => void;
   setDeliveryLocation: (location: LocationPoint | null) => void;
+  
+  // ✅ NUEVAS ACCIONES PARA LA LIBRETA DE DIRECCIONES
+  addSavedAddress: (address: Omit<SavedAddress, 'id'>) => void;
+  removeSavedAddress: (id: string) => void;
 }
 
 export const useLocationStore = create<LocationState>()((set, get) => ({
@@ -39,6 +52,13 @@ export const useLocationStore = create<LocationState>()((set, get) => ({
   // Estados iniciales aislados
   pickupLocation: null,
   deliveryLocation: null,
+
+  // ✅ Direcciones iniciales por defecto cargadas en el Store
+  savedAddresses: [
+    { id: '1', label: '🏠 Casa', address: 'Zona Norte, Maracaibo', latitude: 10.6800, longitude: -71.6300 },
+    { id: '2', label: '💻 URBE Digital', address: 'Universidad URBE, Prolongación C2', latitude: 10.6750, longitude: -71.6230 },
+    { id: '3', label: '🏢 CUNIBE', address: 'Sede CUNIBE', latitude: 10.6650, longitude: -71.6100 }
+  ],
 
   getLocation: async () => {
     const location = await getCurrentLocation();
@@ -75,5 +95,18 @@ export const useLocationStore = create<LocationState>()((set, get) => ({
 
   // ⚡ IMPLEMENTACIÓN DE SETTERS PARA MANEJO DE PASO DE DATOS
   setPickupLocation: (location) => set({ pickupLocation: location }),
-  setDeliveryLocation: (location) => set({ deliveryLocation: location })
+  setDeliveryLocation: (location) => set({ deliveryLocation: location }),
+
+  // ✅ ACCIÓN PARA AGREGAR UNA DIRECCIÓN (Genera ID autoincremental basado en fecha)
+  addSavedAddress: (newAddr) => set((state) => ({
+    savedAddresses: [
+      ...state.savedAddresses,
+      { ...newAddr, id: Date.now().toString() }
+    ]
+  })),
+
+  // ✅ ACCIÓN PARA ELIMINAR UNA DIRECCIÓN POR ID
+  removeSavedAddress: (id) => set((state) => ({
+    savedAddresses: state.savedAddresses.filter(addr => addr.id !== id)
+  }))
 }));
