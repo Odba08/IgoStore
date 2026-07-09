@@ -53,12 +53,7 @@ export const useLocationStore = create<LocationState>()((set, get) => ({
   pickupLocation: null,
   deliveryLocation: null,
 
-  // ✅ Direcciones iniciales por defecto cargadas en el Store
-  savedAddresses: [
-    { id: '1', label: '🏠 Casa', address: 'Zona Norte, Maracaibo', latitude: 10.6800, longitude: -71.6300 },
-    { id: '2', label: '💻 URBE Digital', address: 'Universidad URBE, Prolongación C2', latitude: 10.6750, longitude: -71.6230 },
-    { id: '3', label: '🏢 CUNIBE', address: 'Sede CUNIBE', latitude: 10.6650, longitude: -71.6100 }
-  ],
+  savedAddresses: [],
 
   getLocation: async () => {
     const location = await getCurrentLocation();

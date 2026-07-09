@@ -10,6 +10,7 @@ import { useLocationStore } from '@/presentation/store/useLocationStore';
 import { useCartStore } from '@/presentation/store/useCartStore';
 // ✅ Importación con alias seguro para evitar conflictos de tipos con el Location global
 import * as ExpoLocation from 'expo-location';
+import { useOrdersStore } from '@/presentation/store/useOrderStore';
 
 const { width, height } = Dimensions.get('window');
 
@@ -343,6 +344,26 @@ const MapScreen = () => {
     message += `\n👤 *CLIENTE:* ${String(personalData || 'No indicado').trim()}\n📝 *REF:* ${String(addressNotes || 'Sin notas').trim()}\n\n*🏢 RECOGIDA (PUNTO A):*\n📍 GPS: ${mapsUrlTienda}\n\n*📍 ENTREGA (PUNTO B):*\n🏠 Dirección: ${deliveryLocation?.address || 'Ubicación en Mapa'}\n🗺️ GPS: ${mapsUrlCliente}\n---------------------------------------\n💰 *SUBTOTAL:* $${subtotal.toFixed(2)}\n`;
     const deliveryCalculated = routeQuote.totalToPay ? Math.max(0, routeQuote.totalToPay - subtotal).toFixed(2) : (routeQuote.deliveryFee?.toFixed(2) || '0.00');
     message += `🛵 *DELIVERY (${routeQuote.distance}):* $${deliveryCalculated}\n⭐️ *TOTAL NETO A PAGAR:* $${routeQuote.totalToPay?.toFixed(2) || '0.00'}\n\n`;
+    
+    // ✅ REGISTRO EN HISTORIAL: Guardamos el pedido en el store global
+    const firstItem = items[0] as any;
+    const businessName = isFavorService ? 'Servicio Igo Favor' : (firstItem?.businessName || firstItem?.business_name || 'Igo Tienda');
+    
+    useOrdersStore.getState().addOrder({
+      businessName,
+      deliveryAddress: deliveryLocation?.address || 'Ubicación en Mapa',
+      subtotal,
+      deliveryFee: parseFloat(deliveryCalculated),
+      totalAmount: subtotal + parseFloat(deliveryCalculated),
+      items: items.map(item => ({
+        id: item.id,
+        title: item.title,
+        quantity: item.quantity,
+        price: item.price,
+        image: item.image
+      }))
+    });
+
     Linking.openURL(`https://wa.me/573014215155?text=${encodeURIComponent(message.trim())}`);
     clearCart(); setPickupLocation(null); setDeliveryLocation(null); router.replace('/');
   };
