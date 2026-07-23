@@ -8,7 +8,7 @@ export const useBusinesses = () => {
   return useQuery<Business[], Error>({
     queryKey: ["businesses"],
     queryFn: () => BusinessService.getBusinessesWithImages(),
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: 0, // Real-time sync with admin panel
     retry: 1,
     refetchOnWindowFocus: false,
   });
@@ -21,7 +21,7 @@ export const useBusiness = (id: string) => {
       const businesses = await BusinessService.getBusinessById(id);
       return Array.isArray(businesses) ? businesses[0] : businesses;
     },
-    enabled: !!id, // Seguro: solo dispara si existe un ID (evita errores de "undefined")
-    staleTime: 5 * 60 * 1000,
+    enabled: !!id,
+    staleTime: 0, // Real-time sync with admin panel
   });
 };

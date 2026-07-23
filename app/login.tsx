@@ -15,12 +15,20 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('admin123');
   const [showPassword, setShowPassword] = useState(false);
 
-  const handleLogin = () => {
-    const success = login(email, password);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleLogin = async () => {
+    if (!email || !password) {
+      Alert.alert('Atención', 'Por favor ingresa email y contraseña.');
+      return;
+    }
+    setIsSubmitting(true);
+    const success = await login(email, password);
+    setIsSubmitting(false);
     if (success) {
       router.replace('/'); 
     } else {
-      Alert.alert('Error', 'Credenciales incorrectas.');
+      Alert.alert('Error', 'Credenciales incorrectas o servidor no disponible.');
     }
   };
 

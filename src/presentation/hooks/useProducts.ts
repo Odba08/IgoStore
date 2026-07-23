@@ -15,6 +15,6 @@ export const useAllProducts = () => {
   return useQuery({
     queryKey: ["products"],
     queryFn: () => ProductService.getProducts(),
-    staleTime: 5 * 60 * 1000, // 5 minutos
+    staleTime: 0, // Real-time sync with admin panel status updates
   });
 };

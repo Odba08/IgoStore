@@ -64,7 +64,7 @@ const CustomMap = ({ initialLocation }: Props) => {
     if (!isFavorMode) {
         const fetchBusinesses = async () => {
             try {
-                const rawUrl = process.env.EXPO_PUBLIC_API_URL || 'http://10.200.38.48:3000';
+                const rawUrl = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.31.236:3000';
                 const baseUrl = rawUrl.endsWith('/api') ? rawUrl : `${rawUrl}/api`;
                 let response = await fetch(`${baseUrl}/business`).catch(() => null);
                 if (!response || !response.ok) response = await fetch(`${baseUrl}/bussines`);

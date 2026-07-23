@@ -49,7 +49,8 @@ export default function ProductDetailScreen() {
       group.choices.forEach((choice: any) => extrasTotal += (choice.additionalPrice * (groupSelections[choice.name] || 0)));
   });
 
-  const finalUnitTestPrice = (product.isPromo ? product.discountPrice : product.price) + extrasTotal;
+  const basePrice = (product?.isPromo ? product?.discountPrice : product?.price) || 0;
+  const finalUnitTestPrice = basePrice + extrasTotal;
   const totalPrice = finalUnitTestPrice * quantity;
 
   return (
@@ -108,7 +109,14 @@ export default function ProductDetailScreen() {
 
       <View style={styles.footer}>
           <TouchableOpacity style={styles.addToCartButton} onPress={() => {
-              addItem({ id: product.id, title: product.title, price: finalUnitTestPrice, quantity: quantity, businessId: product.business?.id });
+              addItem({ 
+                id: product.id, 
+                title: product.title, 
+                price: finalUnitTestPrice, 
+                quantity: quantity, 
+                businessId: product.business?.id || '',
+                image: product.images?.[0]?.url || ''
+              });
               router.back(); 
           }}>
               <Text style={styles.addToCartText}>Agregar • ${totalPrice.toFixed(2)}</Text>
