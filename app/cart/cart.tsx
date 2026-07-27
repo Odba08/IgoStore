@@ -181,9 +181,14 @@ const CartScreen = () => {
 
       <View style={styles.footer}>
         <TouchableOpacity 
-          style={[styles.checkoutBtn, items.length === 0 && { backgroundColor: '#E0E0E0' }]} 
-          onPress={handleNavigateToRouteCalculation}
-          disabled={items.length === 0}
+          style={[styles.checkoutBtn, items.length === 0 && { backgroundColor: '#FFDB58' }]} 
+          onPress={() => {
+            if (items.length === 0) {
+              router.replace('/');
+            } else {
+              handleNavigateToRouteCalculation();
+            }
+          }}
         >
           <Text style={styles.checkoutBtnText}>
             {items.length === 0 ? "Añade productos para continuar" : "Calcular Envío y Proceder"}

@@ -69,9 +69,9 @@ export default function CategoryScreen() {
           }}
         >
           <Ionicons 
-            name={isFav ? "heart" : "heart-outline"} 
+            name={isFav ? "star" : "star-outline"} 
             size={20} 
-            color={isFav ? "#FF453A" : "black"} 
+            color={isFav ? "#EDB422" : "black"} 
           />
         </TouchableOpacity>
 

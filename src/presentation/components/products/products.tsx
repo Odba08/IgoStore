@@ -16,7 +16,7 @@ import { useCartStore } from '@/presentation/store/useCartStore';
 
 export default function Productos() {
   const router = useRouter();
-   const totalItems = useCartStore(state => state.items.reduce((total, item) => total + item.quantity, 0));
+  const totalItems = useCartStore(state => state.items.reduce((total, item) => total + item.quantity, 0));
   // 1. DATA
   const { data: businesses, isLoading } = useBusinesses();
   
@@ -67,9 +67,9 @@ export default function Productos() {
           }}
         >
           <Ionicons 
-            name={isFav ? "heart" : "heart-outline"} 
+            name={isFav ? "star" : "star-outline"} 
             size={24} 
-            color={isFav ? "#FF453A" : "black"} 
+            color={isFav ? "#EDB422" : "black"} 
           />
         </TouchableOpacity>
 
@@ -101,7 +101,7 @@ export default function Productos() {
         
         <View style={styles.removeFavButton}>
             <TouchableOpacity onPress={() => toggleFavorite(item.id)}>
-                <Ionicons name="heart" size={18} color="#FF453A" />
+                <Ionicons name="star" size={18} color="#EDB422" />
             </TouchableOpacity>
         </View>
       </TouchableOpacity>
@@ -116,32 +116,20 @@ export default function Productos() {
     <View style={styles.mainContainer}>
       <StatusBar style='dark' />
       
-      {/* HEADER */}
+      {/* HEADER SIMPLE */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.iconBtn}>
            <Ionicons name='chevron-back-outline' size={24} color='#000' />
         </TouchableOpacity>
 
-        <View style={styles.locationBox}>
-          <Ionicons name='location-outline' size={18} color='#6528FF' />
-          <Text numberOfLines={1} style={styles.locationText}>Calle 1 con av. 23</Text>
-          <Ionicons name='chevron-down' size={16} color='#5D5D5D' />
-        </View>
+        <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#000', flex: 1, textAlign: 'center' }}>
+          Tiendas
+        </Text>
 
-        <TouchableOpacity style={styles.iconBtn}
-        onPress={() => router.push('./cart/cart')}>
-           <Ionicons name='cart-outline' size={24} color='#000' />
-            {totalItems > 0 && (
-               <View style={styles.badge}>
-                 <Text style={styles.badgeText}>
-                   {totalItems > 99 ? '99+' : totalItems}
-                 </Text>
-               </View>
-             )}
-        </TouchableOpacity>
+        <View style={{ width: 44 }} />
       </View>
 
-      <ScrollView contentContainerStyle={{ paddingBottom: 80 }} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={{ paddingBottom: 140 }} showsVerticalScrollIndicator={false}>
         
         {/* BUSCADOR */}
         <View style={styles.searchContainer}>
@@ -163,7 +151,7 @@ export default function Productos() {
         {/* SECCIÓN FAVORITOS (Horizontal) */}
         {favoriteBusinesses.length > 0 && (
             <View style={styles.sectionContainer}>
-                <Text style={styles.sectionTitle}>Tus Favoritos ❤️</Text>
+                <Text style={styles.sectionTitle}>Tus Favoritos ⭐</Text>
                 <FlatList 
                     horizontal
                     data={favoriteBusinesses}
@@ -196,6 +184,18 @@ export default function Productos() {
         </View>
 
       </ScrollView>
+
+      {/* FLOATING CART BUTTON */}
+      {totalItems > 0 && (
+        <TouchableOpacity 
+          style={styles.floatingCartButton} 
+          onPress={() => router.push('/cart/cart')}
+        >
+          <Ionicons name="cart" size={20} color="#000" style={{ marginRight: 8 }} />
+          <Text style={styles.floatingCartText}>Sigue con tu compra ({totalItems})</Text>
+          <Ionicons name="arrow-forward" size={16} color="#000" style={{ marginLeft: 8 }} />
+        </TouchableOpacity>
+      )}
     </View>
   );
 }
@@ -207,12 +207,6 @@ const styles = StyleSheet.create({
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
     marginTop: 50, paddingHorizontal: 20, marginBottom: 10,
   },
-  locationBox: {
-    flexDirection: "row", alignItems: "center", backgroundColor: "white",
-    paddingVertical: 8, paddingHorizontal: 12, borderRadius: 20,
-    shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 5, elevation: 2
-  },
-  locationText: { marginHorizontal: 5, fontSize: 14, fontWeight: "600", color: "#333" },
   iconBtn: {
     backgroundColor: 'white', padding: 10, borderRadius: 25,
     shadowColor: '#000', shadowOpacity: 0.1, elevation: 3
@@ -243,7 +237,7 @@ const styles = StyleSheet.create({
   metaText: { fontSize: 12, color: '#666' },
   favButton: { position: 'absolute', top: 10, right: 10, padding: 5, zIndex: 10 },
   favCard: {
-    width: 140, height: 180, marginRight: 15, // Aumenté altura para que quepa el texto
+    width: 140, height: 180, marginRight: 15,
     borderRadius: 20, overflow: 'hidden', position: 'relative',
     backgroundColor: 'black'
   },
@@ -254,27 +248,32 @@ const styles = StyleSheet.create({
     color: 'white', fontWeight: 'bold', fontSize: 16, 
     textShadowColor: 'rgba(0,0,0,0.8)', textShadowRadius: 4
   },
-  badge: {
-    position: 'absolute',
-    top: -6,
-    right: -6,
-    backgroundColor: '#FF3B30', // Rojo alerta estándar de iOS
-    minWidth: 20,
-    height: 20,
-    borderRadius: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 4,
-    borderWidth: 1.5,
-    borderColor: '#FFF', // Borde blanco para separarlo del icono oscuro
-  },
-  badgeText: {
-    color: '#FFF',
-    fontSize: 10,
-    fontWeight: 'bold',
-  },
   removeFavButton: {
     position: 'absolute', top: 10, right: 10,
     backgroundColor: 'rgba(255,255,255,0.9)', borderRadius: 20, padding: 6
+  },
+
+  // --- FLOATING CART BUTTON ---
+  floatingCartButton: {
+    position: 'absolute',
+    bottom: 30,
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFDB58',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 25,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 5,
+    elevation: 6,
+    zIndex: 99
+  },
+  floatingCartText: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#000'
   }
 });

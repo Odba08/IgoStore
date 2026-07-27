@@ -8,10 +8,21 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router'; 
 import { useLocationStore } from '@/presentation/store/useLocationStore';
 import { useCartStore } from '@/presentation/store/useCartStore';
-// ✅ Importación con alias seguro para evitar conflictos de tipos con el Location global
+// ✅ Importación con alias seguro
 import * as ExpoLocation from 'expo-location';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width, height } = Dimensions.get('window');
+
+// ⚡ RESOLUCIÓN DINÁMICA DE URL DEL BACKEND (Android Emulator vs iOS vs Dispositivo Físico)
+const getApiUrl = () => {
+  const envUrl = process.env.EXPO_PUBLIC_API_URL;
+  if (envUrl) return envUrl.endsWith('/api') ? envUrl : `${envUrl}/api`;
+  
+  // IP de respaldo según la plataforma
+  const defaultHost = Platform.OS === 'android' ? 'http://10.0.2.2:3000' : 'http://192.168.31.236:3000';
+  return `${defaultHost}/api`;
+};
 
 // ⚡ MOTOR DE DECODIFICACIÓN GEOMÉTRICA
 const decodePolyline = (encoded: string) => {
@@ -28,6 +39,9 @@ const decodePolyline = (encoded: string) => {
   return points;
 };
 
+// Coordenadas por defecto (Maracaibo) si el GPS aún no entrega ubicación
+const FALLBACK_COORDS = { latitude: 10.6427, longitude: -71.6125 };
+
 const MapScreen = () => {
   const router = useRouter();
   
@@ -42,13 +56,16 @@ const MapScreen = () => {
   
   const { items, clearCart } = useCartStore();
   
-  // ✅ Extraemos addSavedAddress del store de Zustand
+  // ✅ Extraemos store de Zustand
   const { 
     lastKnowLocation, getLocation, pickupLocation, deliveryLocation, 
     setPickupLocation, setDeliveryLocation, addSavedAddress 
   } = useLocationStore();
 
   const cartSubtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+
+  // Ubicación activa para renderizar el mapa
+  const initialCoords = lastKnowLocation || FALLBACK_COORDS;
 
   // Estados
   const [activeMode, setActiveMode] = useState<any>(mode || 'delivery');
@@ -58,22 +75,20 @@ const MapScreen = () => {
   const [isCalculatingRoute, setIsCalculatingRoute] = useState(false);
   const [businesses, setBusinesses] = useState<any[]>([]); 
   
-  // Si es modo Store, el campo activo siempre es 'delivery'
-  const [activeExplorerField, setActiveExplorerField] = useState<'pickup' | 'delivery'>(isStoreService ? 'delivery' : 'delivery');
+  const [activeExplorerField, setActiveExplorerField] = useState<'pickup' | 'delivery'>('delivery');
 
   const [address, setAddress] = useState('Mueve el mapa para seleccionar...');
   const [loadingAddress, setLoadingAddress] = useState(false);
-  const [targetCoords, setTargetCoords] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [targetCoords, setTargetCoords] = useState<{ latitude: number; longitude: number } | null>(initialCoords);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [isSearching, setIsSearching] = useState(false);
 
-  // ✅ Estado local para la etiqueta/nombre de la dirección a guardar
+  // Estado local para la etiqueta/nombre de la dirección a guardar
   const [addressLabelInput, setAddressLabelInput] = useState('');
 
-  // Inicialización inteligente del mapa
+  // Inicialización inteligente del mapa (intenta obtener GPS sin bloquear el renderizado)
   useEffect(() => {
-    // ✅ Validación robusta contra objetos vacíos ({})
     const hasDelivery = deliveryLocation && typeof deliveryLocation.latitude === 'number' && !isNaN(deliveryLocation.latitude);
     const hasPickup = pickupLocation && typeof pickupLocation.latitude === 'number' && !isNaN(pickupLocation.latitude);
     
@@ -83,19 +98,16 @@ const MapScreen = () => {
       const coords = { latitude: savedLocation.latitude, longitude: savedLocation.longitude };
       setTargetCoords(coords);
       setAddress(savedLocation.address || 'Ubicación seleccionada');
-    } else if (lastKnowLocation === null) {
-      getLocation();
+    } else if (!lastKnowLocation) {
+      getLocation(); // Pedimos GPS en segundo plano
     } else {
-      const initialCoords = { latitude: lastKnowLocation.latitude, longitude: lastKnowLocation.longitude };
-      setTargetCoords(initialCoords);
-      if (mode !== 'route') {
-        if (!hasDelivery) {
-          setDeliveryLocation({ ...initialCoords, address: 'Mi ubicación actual' });
-        }
+      const coords = { latitude: lastKnowLocation.latitude, longitude: lastKnowLocation.longitude };
+      setTargetCoords(coords);
+      if (mode !== 'route' && !hasDelivery) {
+        setDeliveryLocation({ ...coords, address: 'Mi ubicación actual' });
       }
     }
 
-    // Si es modo Favor, calculamos inmediatamente si ambos existen
     if (mode === 'route' && isFavorService && hasDelivery && hasPickup) {
       executeRouteCalculation(pickupLocation, deliveryLocation);
     }
@@ -105,29 +117,32 @@ const MapScreen = () => {
   useEffect(() => {
     const fetchBusinesses = async () => {
       try {
-        const BASE = process.env.EXPO_PUBLIC_API_URL || 'http://10.200.38.48:3000';
-        const API_URL = BASE.endsWith('/api') ? BASE : `${BASE}/api`;
+        const API_URL = getApiUrl();
         
         let response = await fetch(`${API_URL}/business`).catch(() => null);
-        if (!response || !response.ok) response = await fetch(`${API_URL}/bussines`); 
+        if (!response || !response.ok) {
+          response = await fetch(`${API_URL}/bussines`).catch(() => null);
+        }
         
-        const data = await response.json();
-        const list = Array.isArray(data) ? data : (data.data || data.items || []);
-        setBusinesses(list);
+        if (response && response.ok) {
+          const data = await response.json();
+          const list = Array.isArray(data) ? data : (data.data || data.items || []);
+          setBusinesses(list);
 
-        // ✅ Si es checkout en tienda (Store), localizamos la tienda del carrito para fijar el Origen (Punto A)
-        if (isStoreService && items.length > 0) {
-          const firstItem = items[0] as any;
-          const targetBizId = firstItem.businessId || firstItem.business_id;
-          const targetBiz = list.find((b: any) => b.id === targetBizId);
-          if (targetBiz) {
-            const bizCoords = { 
-              latitude: parseFloat(targetBiz.latitude), 
-              longitude: parseFloat(targetBiz.longitude),
-              address: targetBiz.name 
-            };
-            setPickupLocation(bizCoords); // Guardamos la tienda en el Store
-            executeRouteCalculation(bizCoords, deliveryLocation || targetCoords);
+          // Si es checkout en tienda (Store), localizamos la tienda del carrito
+          if (isStoreService && items.length > 0) {
+            const firstItem = items[0] as any;
+            const targetBizId = firstItem.businessId || firstItem.business_id;
+            const targetBiz = list.find((b: any) => b.id === targetBizId);
+            if (targetBiz) {
+              const bizCoords = { 
+                latitude: parseFloat(targetBiz.latitude), 
+                longitude: parseFloat(targetBiz.longitude),
+                address: targetBiz.name 
+              };
+              setPickupLocation(bizCoords);
+              executeRouteCalculation(bizCoords, deliveryLocation || targetCoords);
+            }
           }
         }
       } catch (error) {
@@ -135,7 +150,6 @@ const MapScreen = () => {
       }
     };
 
-    // ✅ Descargamos negocios siempre para dibujar los pines dorados
     fetchBusinesses();
   }, [isFavorService, isStoreService, mode, items]);
 
@@ -143,13 +157,12 @@ const MapScreen = () => {
     if (polylineCoords.length > 0 && mapRef.current) {
       setTimeout(() => {
         mapRef.current?.fitToCoordinates(polylineCoords, {
-          edgePadding: { top: 80, right: 50, bottom: 320, left: 50 }, animated: true,
+          edgePadding: { top: 80, right: 50, bottom: 320, left: 50 }, 
+          animated: true,
         });
       }, 600);
     }
   }, [polylineCoords]);
-
-  if (lastKnowLocation === null) return <View style={styles.loadingContainer}><ActivityIndicator size="large" color="black" /></View>;
 
   const executeRouteCalculation = async (originPoint: any, destinationPoint: any, alternativeBusinessId?: string) => {
     const firstItem = items[0] as any;
@@ -158,7 +171,6 @@ const MapScreen = () => {
     const currentOrigin = originPoint || pickupLocation;
     const currentDestination = destinationPoint || deliveryLocation || targetCoords;
 
-    // ✅ Validación robusta: Evitamos disparar la consulta con coordenadas (0,0) o undefined
     if (
       !currentDestination || 
       typeof currentDestination.latitude !== 'number' || 
@@ -175,8 +187,7 @@ const MapScreen = () => {
 
     setIsCalculatingRoute(true);
     try {
-      const BASE = process.env.EXPO_PUBLIC_API_URL || 'http://10.200.38.48:3000';
-      const API_URL = BASE.endsWith('/api') ? BASE : `${BASE}/api`;
+      const API_URL = getApiUrl();
       const ENDPOINT = isFavorService ? `${API_URL}/orders/quote` : `${API_URL}/orders`;
       
       const orderPayload = isFavorService ? {
@@ -186,7 +197,6 @@ const MapScreen = () => {
       } : {
         businessId: businessId, 
         userIdTemp: personalData || 'Cliente Igo',
-        // ✅ Para el modo tienda, si tenemos coordenadas las enviamos, sino el backend usará las de la base de datos
         ...(currentOrigin && typeof currentOrigin.latitude === 'number' && !isNaN(currentOrigin.latitude) ? {
           pickupLat: currentOrigin.latitude,
           pickupLong: currentOrigin.longitude
@@ -200,7 +210,13 @@ const MapScreen = () => {
         }))
       };
 
-      const response = await fetch(ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(orderPayload) });
+      const token = await AsyncStorage.getItem('token');
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
+      const response = await fetch(ENDPOINT, { method: 'POST', headers, body: JSON.stringify(orderPayload) });
       const data = await response.json();
       
       if (!response.ok) throw new Error(data.message || 'Error en cotización');
@@ -218,7 +234,6 @@ const MapScreen = () => {
         if (typeof data.routePolyline === 'string') {
           setPolylineCoords(decodePolyline(data.routePolyline));
         } else if (Array.isArray(data.routePolyline)) {
-          // ✅ MAPEADO DEFENSIVO: Asegura que el formato sea estrictamente { latitude: number, longitude: number }
           const formattedCoords = data.routePolyline.map((point: any) => {
             if (point && typeof point === 'object') {
               const lat = Number(point.latitude ?? point.lat);
@@ -242,7 +257,9 @@ const MapScreen = () => {
     } catch (error: any) {
       console.error(error);
       Alert.alert("Error de Consulta", "No pudimos trazar la ruta seleccionada.");
-    } finally { setIsCalculatingRoute(false); }
+    } finally { 
+      setIsCalculatingRoute(false); 
+    }
   };
 
   const fetchGeocodeAddress = async (lat: number, lng: number) => {
@@ -252,8 +269,6 @@ const MapScreen = () => {
       if (response && response.length > 0) {
         const place = response[0];
         const label = `${place.street || 'Calle sin nombre'}, ${place.district || place.subregion || ''} ${place.city || ''}`.trim().replace(/^,|,$/, '');
-        
-        // ✅ Guardamos solo de forma local mientras se desplaza
         setAddress(label);
         setTargetCoords({ latitude: lat, longitude: lng });
       }
@@ -278,7 +293,11 @@ const MapScreen = () => {
       const response = await fetch(url, { headers: { 'User-Agent': 'IgoStoreApp/1.4' } });
       const data = await response.json();
       setSearchResults(Array.isArray(data) ? data : []);
-    } catch (error) { setSearchResults([]); } finally { setIsSearching(false); }
+    } catch (error) { 
+      setSearchResults([]); 
+    } finally { 
+      setIsSearching(false); 
+    }
   };
 
   const handleSelectPlace = (place: any) => {
@@ -307,14 +326,12 @@ const MapScreen = () => {
     if (!targetCoords) return;
     const payload = { latitude: targetCoords.latitude, longitude: targetCoords.longitude, address };
 
-    // ✅ Guardamos en el Store global únicamente al confirmar
     if (activeExplorerField === 'pickup' && canEditOrigin) {
       setPickupLocation(payload);
     } else {
       setDeliveryLocation(payload);
     }
 
-    // ✅ Si el usuario presiona "Guardar y Usar", agregamos la dirección a su perfil/carrito
     if (shouldSave) {
       const label = addressLabelInput.trim() || '📍 Ubicación guardada';
       addSavedAddress({
@@ -350,11 +367,20 @@ const MapScreen = () => {
   return (
     <View style={styles.container}>
       <MapView
-        ref={mapRef} style={styles.map} provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
-        initialRegion={{ latitude: lastKnowLocation.latitude, longitude: lastKnowLocation.longitude, latitudeDelta: 0.012, longitudeDelta: 0.012 }}
-        onRegionChangeComplete={handleRegionChangeComplete} showsUserLocation={true} showsMyLocationButton={false}
+        ref={mapRef} 
+        style={styles.map} 
+        provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
+        initialRegion={{ 
+          latitude: initialCoords.latitude, 
+          longitude: initialCoords.longitude, 
+          latitudeDelta: 0.012, 
+          longitudeDelta: 0.012 
+        }}
+        onRegionChangeComplete={handleRegionChangeComplete} 
+        showsUserLocation={true} 
+        showsMyLocationButton={false}
       >
-        {/* ✅ PINES DORADOS PARA COMERCIOS (Con etiqueta flotante con el nombre) */}
+        {/* PINES DORADOS PARA COMERCIOS */}
         {businesses.map((bus) => {
           const lat = parseFloat(bus.latitude), lng = parseFloat(bus.longitude);
           if (isNaN(lat) || isNaN(lng)) return null;
@@ -373,7 +399,6 @@ const MapScreen = () => {
                 }
               }}
             >
-              {/* ✅ Burbuja flotante con el nombre del local siempre visible */}
               <View style={styles.businessMarkerWrapper}>
                 <View style={styles.businessMarkerBubble}>
                   <Text style={styles.businessMarkerText} numberOfLines={1}>{bus.name}</Text>
@@ -392,7 +417,6 @@ const MapScreen = () => {
           <Marker coordinate={deliveryLocation} title="Destino (Punto B)" pinColor="#FF3B30" />
         ) : null}
 
-        {/* ✅ CAMBIO: Validamos mínimo 2 puntos para dibujar la línea */}
         {activeMode === 'route' && polylineCoords.length >= 2 ? (
           <Polyline coordinates={polylineCoords} strokeColor="#6200EE" strokeWidth={5} />
         ) : null}
@@ -423,6 +447,35 @@ const MapScreen = () => {
 
       <TouchableOpacity style={styles.backFloatingBtn} onPress={() => { if (router.canGoBack()) router.back(); else router.push('/'); }}>
         <Ionicons name="arrow-back" size={24} color="#1A1A1A" />
+      </TouchableOpacity>
+
+      <TouchableOpacity 
+        style={styles.myLocationFloatingBtn} 
+        onPress={async () => {
+          try {
+            const loc = await ExpoLocation.getCurrentPositionAsync({ accuracy: ExpoLocation.Accuracy.High });
+            const coords = { latitude: loc.coords.latitude, longitude: loc.coords.longitude };
+            mapRef.current?.animateToRegion({
+              ...coords,
+              latitudeDelta: 0.008,
+              longitudeDelta: 0.008
+            }, 1000);
+            setTargetCoords(coords);
+            fetchGeocodeAddress(coords.latitude, coords.longitude);
+          } catch (err) {
+            if (lastKnowLocation) {
+              mapRef.current?.animateToRegion({
+                ...lastKnowLocation,
+                latitudeDelta: 0.008,
+                longitudeDelta: 0.008
+              }, 1000);
+            } else {
+              Alert.alert("GPS", "No pudimos obtener tu ubicación actual.");
+            }
+          }
+        }}
+      >
+        <Ionicons name="locate" size={24} color="#1A1A1A" />
       </TouchableOpacity>
 
       {(activeMode !== 'route' || activeEditing) ? (
@@ -467,7 +520,6 @@ const MapScreen = () => {
                     </TouchableOpacity>
                   </View>
                   
-                  {/* ⚡ BOTÓN DE WHATSAPP MEJORADO Y SEGURO */}
                   <TouchableOpacity 
                     style={[
                       styles.whatsappBtn, 
@@ -503,7 +555,6 @@ const MapScreen = () => {
         </View>
       ) : null}
 
-      {/* ⚡ CONTROL VISUAL ESTRATÉGICO SEGÚN SERVICIO */}
       {(activeMode !== 'route' || activeEditing) ? (
         <View style={styles.bottomSheet}>
           {isFavorService ? (
@@ -534,7 +585,6 @@ const MapScreen = () => {
               </View>
               <Text style={styles.addressLabel} numberOfLines={2}>{address}</Text>
               
-              {/* ✅ Formulario para ponerle nombre y guardar la dirección */}
               <View style={styles.saveAddressContainer}>
                 <Ionicons name="bookmark-outline" size={18} color="#666" style={{ marginRight: 8 }} />
                 <TextInput
@@ -584,6 +634,7 @@ const styles = StyleSheet.create({
   resultItem: { flexDirection: 'row', alignItems: 'center', padding: 14, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
   resultText: { flex: 1, fontSize: 13, color: '#334155' },
   backFloatingBtn: { position: 'absolute', top: Platform.OS === 'ios' ? 55 : 35, left: 15, backgroundColor: 'white', width: 48, height: 48, borderRadius: 24, justifyContent: 'center', alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.15, elevation: 6, zIndex: 20 },
+  myLocationFloatingBtn: { position: 'absolute', bottom: Platform.OS === 'ios' ? 260 : 240, right: 15, backgroundColor: 'white', width: 48, height: 48, borderRadius: 24, justifyContent: 'center', alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.15, elevation: 6, zIndex: 20 },
   markerFixed: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'center', alignItems: 'center' },
   pinWrapper: { alignItems: 'center', justifyContent: 'center', marginBottom: 44 },
   pinIcon: { shadowColor: '#000', shadowRadius: 4, shadowOpacity: 0.25 },
@@ -610,16 +661,11 @@ const styles = StyleSheet.create({
   tabActiveDelivery: { backgroundColor: '#FF3B30' },
   tabText: { fontSize: 13, fontWeight: '700', color: '#64748B' },
   tabTextActive: { color: '#FFF' },
-  
-  // ✅ Nuevos estilos del formulario de guardado
   saveAddressContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 10, paddingHorizontal: 12, height: 44, marginBottom: 15 },
   saveAddressInput: { flex: 1, fontSize: 14, color: '#1A1A1A' },
   actionButtonsRow: { flexDirection: 'row', justifyContent: 'space-between' },
-
-  // ✅ Nuevos estilos del marcador dorado de comercios
   businessMarkerWrapper: { alignItems: 'center', justifyContent: 'center' },
   businessMarkerBubble: { backgroundColor: 'white', paddingHorizontal: 6, paddingVertical: 3, borderRadius: 6, borderWidth: 1, borderColor: '#EDB422', marginBottom: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 1.5, elevation: 2 },
   businessMarkerText: { fontSize: 9, fontWeight: 'bold', color: '#1A1A1A' },
   businessMarkerPin: { shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 2, elevation: 3 }
 });
-

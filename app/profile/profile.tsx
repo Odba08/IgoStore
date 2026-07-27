@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Alert } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuthStore } from '@/presentation/store/useAuthStore';
@@ -17,21 +17,37 @@ const PROFILE_OPTIONS = [
 
 const ProfileScreen = () => {
   const router = useRouter();
-  const { logout } = useAuthStore();
+  const { expand } = useLocalSearchParams();
+  const { user, logout } = useAuthStore();
   
   // ✅ Extraemos las direcciones del store de Zustand y la acción de eliminar
   const { savedAddresses, removeSavedAddress } = useLocationStore();
 
-  // ✅ Estado para controlar el colapso del menú de direcciones
+  // ✅ Estados para controlar el colapso de los menús
   const [showAddresses, setShowAddresses] = useState(false);
+  const [showPayments, setShowPayments] = useState(false);
+
+  useEffect(() => {
+    if (expand === 'addresses') {
+      setShowAddresses(true);
+      setShowPayments(false);
+    } else if (expand === 'payments') {
+      setShowPayments(true);
+      setShowAddresses(false);
+    }
+  }, [expand]);
 
   const handleLogout = () => {
     logout();
   };
 
   const handleOptionPress = (optionTitle: string) => {
-    if (optionTitle === 'Mis Direcciones') {
+    if (optionTitle === 'Mis Pedidos') {
+      router.push('/orders' as any);
+    } else if (optionTitle === 'Mis Direcciones') {
       setShowAddresses(!showAddresses);
+    } else if (optionTitle === 'Métodos de Pago') {
+      setShowPayments(!showPayments);
     } else {
       Alert.alert(optionTitle, "Próximamente disponible.");
     }
@@ -69,8 +85,8 @@ const ProfileScreen = () => {
               <Ionicons name="camera" size={16} color="#FFF" />
             </TouchableOpacity>
           </View>
-          <Text style={styles.userName}>Oscar Bueno</Text>
-          <Text style={styles.userEmail}>obueno8@gmail.com</Text>
+          <Text style={styles.userName}>{user?.fullname || 'Usuario Igo'}</Text>
+          <Text style={styles.userEmail}>{user?.email || ''}</Text>
           
           <TouchableOpacity style={styles.editProfileBtn}>
             <Text style={styles.editProfileText}>Editar Perfil</Text>
@@ -81,6 +97,7 @@ const ProfileScreen = () => {
         <View style={styles.optionsContainer}>
           {PROFILE_OPTIONS.map((option) => {
             const isAddressOption = option.title === 'Mis Direcciones';
+            const isPaymentOption = option.title === 'Métodos de Pago';
             
             return (
               <View key={option.id} style={styles.optionBlock}>
@@ -99,10 +116,45 @@ const ProfileScreen = () => {
                       size={20} 
                       color="#666" 
                     />
+                  ) : isPaymentOption ? (
+                    <Ionicons 
+                      name={showPayments ? "chevron-down" : "chevron-forward"} 
+                      size={20} 
+                      color="#666" 
+                    />
                   ) : (
                     <Ionicons name="chevron-forward" size={20} color="#CCC" />
                   )}
                 </TouchableOpacity>
+
+                {/* ✅ MÉTODOS DE PAGO DESPLEGABLE */}
+                {isPaymentOption && showPayments && (
+                  <View style={styles.paymentsListContainer}>
+                    <View style={styles.paymentMethodRow}>
+                      <Ionicons name="phone-portrait-outline" size={18} color="#EDB422" style={{ marginRight: 10 }} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.paymentLabel}>Pago Móvil Mercantil</Text>
+                        <Text style={styles.paymentText}>CI: 27284670 | Tel: 04127687819</Text>
+                      </View>
+                    </View>
+                    
+                    <View style={styles.paymentMethodRow}>
+                      <Ionicons name="wallet-outline" size={18} color="#EDB422" style={{ marginRight: 10 }} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.paymentLabel}>Binance Pay</Text>
+                        <Text style={styles.paymentText}>Email: ingo@gmail.com</Text>
+                      </View>
+                    </View>
+
+                    <View style={styles.paymentMethodRow}>
+                      <Ionicons name="send-outline" size={18} color="#EDB422" style={{ marginRight: 10 }} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.paymentLabel}>Zelle</Text>
+                        <Text style={styles.paymentText}>Email: ingo@gmail.com</Text>
+                      </View>
+                    </View>
+                  </View>
+                )}
 
                 {/* ✅ LISTA DE DIRECCIONES GUARDADAS DESPLEGABLE */}
                 {isAddressOption && showAddresses && (
@@ -171,7 +223,13 @@ const styles = StyleSheet.create({
   addressRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#EEE' },
   addressLabel: { fontSize: 14, fontWeight: 'bold', color: '#333' },
   addressText: { fontSize: 12, color: '#666', marginTop: 2 },
-  deleteAddressBtn: { padding: 8 }
+  deleteAddressBtn: { padding: 8 },
+
+  // ✅ Estilos del desplegable de métodos de pago
+  paymentsListContainer: { paddingHorizontal: 15, paddingBottom: 15, backgroundColor: '#FAFAFA', borderBottomLeftRadius: 10, borderBottomRightRadius: 10 },
+  paymentMethodRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#EEE' },
+  paymentLabel: { fontSize: 14, fontWeight: 'bold', color: '#333' },
+  paymentText: { fontSize: 12, color: '#666', marginTop: 2 }
 });
 
 export default ProfileScreen;

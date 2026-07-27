@@ -40,6 +40,7 @@ export interface Producto {
   isPromo?: boolean;         // Para saber si tachar el precio
   discountPrice?: number;    // El precio de oferta
   menuCategory?: MenuCategoryRef; // La categoría del menú (Mancuernas, Bebidas, etc.)
+  isApproved?: boolean;      // Estado de aprobación en el panel administrador
   
   // Compatibilidad
   categoryId?: string; 

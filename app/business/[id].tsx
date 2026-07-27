@@ -14,6 +14,8 @@ export default function BusinessDetailScreen() {
   const businessId = Array.isArray(id) ? id[0] : id;
   const router = useRouter();
   const addItem = useCartStore((state) => state.addItem);
+  const items = useCartStore((state) => state.items);
+  const totalItems = items.reduce((total, item) => total + item.quantity, 0);
   
   // 1. DATA
   const { data: business, isLoading: loadingBusiness } = useBusiness(businessId);
@@ -23,10 +25,11 @@ export default function BusinessDetailScreen() {
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
 
-  // 3. LÓGICA DE FILTRADO
   const filteredProducts = useMemo(() => {
     if (!business?.products) return [];
-    let result = business.products;
+    
+    // Filtramos solo productos aprobados en el cliente por seguridad
+    let result = business.products.filter(p => p.isApproved);
 
     if (selectedCategoryId !== null) {
         result = result.filter(p => p.menuCategory?.id === selectedCategoryId);
@@ -196,17 +199,19 @@ export default function BusinessDetailScreen() {
                     <TouchableOpacity 
                         style={styles.addButton}
                         onPress={() => {
-                            // 1. EL CANDADO ANTES DE EJECUTAR
+                            // 1. EL CANDADO ANTES DE EJECUTAR (Bypass controlado para TypeScript)
                             const currentCart = useCartStore.getState().items;
-                            const cartBusinessId = currentCart.length > 0 ? (currentCart[0].businessId || currentCart[0].business_id) : null;
+                            const firstItem = currentCart[0] as any;
+                            const cartBusinessId = currentCart.length > 0 ? (firstItem.businessId || firstItem.business_id) : null;
                             
                             if (cartBusinessId && cartBusinessId !== business.id) {
                                 Alert.alert("Acción no permitida", "No puedes mezclar productos de diferentes negocios. Vacía tu carrito primero.");
                                 return;
                             }
 
-                            // 2. EXTRAEMOS PRECIO FINAL E IMAGEN
-                            const finalPrice = item.isPromo ? item.discountPrice : item.price;
+                            // 2. EXTRAEMOS PRECIO FINAL E IMAGEN (Blindaje numérico absoluto)
+                            const calculatedPrice = item.isPromo ? item.discountPrice : item.price;
+                            const finalPrice = Number(calculatedPrice) || 0; // Obligamos a que sea 'number' puro
                             const imageUri = prodImage.uri ? prodImage.uri : '';
 
                             // 3. INYECTAMOS EN ZUSTAND
@@ -240,6 +245,17 @@ export default function BusinessDetailScreen() {
             </View>
         }
       />
+      {/* FLOATING CART BUTTON */}
+      {totalItems > 0 && (
+        <TouchableOpacity 
+          style={styles.floatingCartButton} 
+          onPress={() => router.push('/cart/cart')}
+        >
+          <Ionicons name="cart" size={20} color="#000" style={{ marginRight: 8 }} />
+          <Text style={styles.floatingCartText}>Sigue con tu compra ({totalItems})</Text>
+          <Ionicons name="arrow-forward" size={16} color="#000" style={{ marginLeft: 8 }} />
+        </TouchableOpacity>
+      )}
     </View>
   );
 }
@@ -307,5 +323,28 @@ const styles = StyleSheet.create({
   addButton: {
     backgroundColor: '#FFDB58', width: 32, height: 32, borderRadius: 16, justifyContent: 'center', alignItems: 'center', shadowColor: "#000", shadowOpacity: 0.1, elevation: 2
   },
-  emptyText: { textAlign: 'center', marginTop: 10, color: '#999' }
+  emptyText: { textAlign: 'center', marginTop: 10, color: '#999' },
+  // --- FLOATING CART BUTTON ---
+  floatingCartButton: {
+    position: 'absolute',
+    bottom: 30,
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFDB58',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 25,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 5,
+    elevation: 6,
+    zIndex: 99
+  },
+  floatingCartText: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#000'
+  }
 });

@@ -1,20 +1,69 @@
 import { create } from 'zustand';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { igoApi } from '@/infrastructure/api/igo.api';
+
+export interface User {
+  id: string;
+  email: string;
+  fullname: string;
+  roles: string[];
+}
 
 interface AuthState {
   isAuthenticated: boolean;
-  login: (email: string, password: string) => boolean;
-  logout: () => void;
+  user: User | null;
+  token: string | null;
+  isLoading: boolean;
+  login: (email: string, password: string) => Promise<boolean>;
+  logout: () => Promise<void>;
+  checkAuth: () => Promise<void>;
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
-  isAuthenticated: false, // Inicia la app bloqueada
-  login: (email, password) => {
-    // Credenciales estáticas para la demostración
-    if (email === 'oscar@igo.com' && password === 'admin123') {
-      set({ isAuthenticated: true });
+  isAuthenticated: false,
+  user: null,
+  token: null,
+  isLoading: true,
+
+  login: async (email, password) => {
+    try {
+      const response = await igoApi.post('/auth/login', { email, password });
+      const { user, token } = response.data;
+
+      await AsyncStorage.setItem('token', token);
+      await AsyncStorage.setItem('user', JSON.stringify(user));
+
+      set({
+        isAuthenticated: true,
+        user,
+        token,
+        isLoading: false,
+      });
       return true;
+    } catch (error) {
+      console.error('Error logging in:', error);
+      return false;
     }
-    return false;
   },
-  logout: () => set({ isAuthenticated: false }),
+
+  logout: async () => {
+    await AsyncStorage.removeItem('token');
+    await AsyncStorage.removeItem('user');
+    set({ isAuthenticated: false, user: null, token: null, isLoading: false });
+  },
+
+  checkAuth: async () => {
+    try {
+      const token = await AsyncStorage.getItem('token');
+      const userJson = await AsyncStorage.getItem('user');
+      if (token && userJson) {
+        const user = JSON.parse(userJson);
+        set({ isAuthenticated: true, user, token, isLoading: false });
+      } else {
+        set({ isAuthenticated: false, user: null, token: null, isLoading: false });
+      }
+    } catch (error) {
+      set({ isAuthenticated: false, user: null, token: null, isLoading: false });
+    }
+  },
 }));
