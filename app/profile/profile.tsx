@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Alert, Modal, TextInput, ActivityIndicator } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuthStore } from '@/presentation/store/useAuthStore';
-// ✅ Importamos el store global de ubicaciones
 import { useLocationStore } from '@/presentation/store/useLocationStore';
+import * as ImagePicker from 'expo-image-picker';
+import { igoApi } from '@/infrastructure/api/igo.api';
 
 const PROFILE_OPTIONS = [
   { id: '1', title: 'Mis Pedidos', icon: 'receipt-outline' },
@@ -18,7 +19,7 @@ const PROFILE_OPTIONS = [
 const ProfileScreen = () => {
   const router = useRouter();
   const { expand } = useLocalSearchParams();
-  const { user, logout } = useAuthStore();
+  const { user, logout, updateUserLocal } = useAuthStore();
   
   // ✅ Extraemos las direcciones del store de Zustand y la acción de eliminar
   const { savedAddresses, removeSavedAddress } = useLocationStore();
@@ -26,6 +27,12 @@ const ProfileScreen = () => {
   // ✅ Estados para controlar el colapso de los menús
   const [showAddresses, setShowAddresses] = useState(false);
   const [showPayments, setShowPayments] = useState(false);
+
+  // Estados de edición del perfil
+  const [modalVisible, setModalVisible] = useState(false);
+  const [editName, setEditName] = useState(user?.fullname || '');
+  const [editEmail, setEditEmail] = useState(user?.email || '');
+  const [updating, setUpdating] = useState(false);
 
   useEffect(() => {
     if (expand === 'addresses') {
@@ -39,6 +46,80 @@ const ProfileScreen = () => {
 
   const handleLogout = () => {
     logout();
+  };
+
+  const handlePickImage = async () => {
+    try {
+      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permissionResult.granted) {
+        Alert.alert("Permiso Denegado", "Se requiere permiso para acceder a la galería.");
+        return;
+      }
+
+      const pickerResult = await ImagePicker.launchImageLibraryAsync({
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (pickerResult.canceled) return;
+
+      const uri = pickerResult.assets[0].uri;
+      setUpdating(true);
+
+      const formData = new FormData();
+      formData.append('file', {
+        uri,
+        name: 'avatar.jpg',
+        type: 'image/jpeg',
+      } as any);
+
+      const uploadRes = await igoApi.post('/files/user', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+
+      const secureUrl = uploadRes.data.secureUrl;
+
+      // Actualizar el perfil del usuario en backend
+      await igoApi.patch(`/users/${user?.id}`, { avatarUrl: secureUrl });
+
+      // Actualizar Zustand localmente
+      await updateUserLocal({ avatarUrl: secureUrl });
+      Alert.alert("Éxito", "Foto de perfil actualizada correctamente.");
+    } catch (err) {
+      console.error(err);
+      Alert.alert("Error", "Ocurrió un error al actualizar la imagen.");
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  const handleSaveProfile = async () => {
+    if (!editName.trim() || !editEmail.trim()) {
+      Alert.alert("Campos vacíos", "El nombre y el correo son obligatorios.");
+      return;
+    }
+
+    try {
+      setUpdating(true);
+      await igoApi.patch(`/users/${user?.id}`, {
+        fullName: editName,
+        email: editEmail,
+      });
+
+      await updateUserLocal({
+        fullname: editName,
+        email: editEmail,
+      });
+
+      setModalVisible(false);
+      Alert.alert("Éxito", "Perfil actualizado correctamente.");
+    } catch (err: any) {
+      const errMsg = err.response?.data?.message || "No se pudo actualizar el perfil.";
+      Alert.alert("Error", Array.isArray(errMsg) ? errMsg[0] : errMsg);
+    } finally {
+      setUpdating(false);
+    }
   };
 
   const handleOptionPress = (optionTitle: string) => {
@@ -80,15 +161,26 @@ const ProfileScreen = () => {
         {/* ENCABEZADO DEL PERFIL */}
         <View style={styles.headerSection}>
           <View style={styles.avatarContainer}>
-            <Image source={require('../../assets/images/oscar.jpeg')} style={styles.avatar} />
-            <TouchableOpacity style={styles.editAvatarBtn}>
-              <Ionicons name="camera" size={16} color="#FFF" />
+            <Image 
+              source={user?.avatarUrl ? { uri: user.avatarUrl } : require('../../assets/images/oscar.jpeg')} 
+              style={styles.avatar} 
+            />
+            <TouchableOpacity style={styles.editAvatarBtn} onPress={handlePickImage} disabled={updating}>
+              {updating ? (
+                <ActivityIndicator size="small" color="#FFF" />
+              ) : (
+                <Ionicons name="camera" size={16} color="#FFF" />
+              )}
             </TouchableOpacity>
           </View>
           <Text style={styles.userName}>{user?.fullname || 'Usuario Igo'}</Text>
           <Text style={styles.userEmail}>{user?.email || ''}</Text>
           
-          <TouchableOpacity style={styles.editProfileBtn}>
+          <TouchableOpacity style={styles.editProfileBtn} onPress={() => {
+            setEditName(user?.fullname || '');
+            setEditEmail(user?.email || '');
+            setModalVisible(true);
+          }}>
             <Text style={styles.editProfileText}>Editar Perfil</Text>
           </TouchableOpacity>
         </View>
@@ -191,6 +283,58 @@ const ProfileScreen = () => {
           <Text style={styles.logoutText}>Cerrar Sesión</Text>
         </TouchableOpacity>
       </ScrollView>
+
+      {/* MODAL DE EDICIÓN DE PERFIL */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={modalVisible}
+        onRequestClose={() => setModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <Text style={styles.modalTitle}>Editar Perfil</Text>
+
+            <TextInput
+              style={styles.textInput}
+              placeholder="Nombre Completo"
+              value={editName}
+              onChangeText={setEditName}
+            />
+
+            <TextInput
+              style={styles.textInput}
+              placeholder="Correo Electrónico"
+              value={editEmail}
+              onChangeText={setEditEmail}
+              keyboardType="email-address"
+              autoCapitalize="none"
+            />
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity 
+                style={[styles.modalBtn, styles.cancelBtn]} 
+                onPress={() => setModalVisible(false)}
+                disabled={updating}
+              >
+                <Text style={styles.cancelBtnText}>Cancelar</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity 
+                style={[styles.modalBtn, styles.saveBtn]} 
+                onPress={handleSaveProfile}
+                disabled={updating}
+              >
+                {updating ? (
+                  <ActivityIndicator size="small" color="#FFF" />
+                ) : (
+                  <Text style={styles.saveBtnText}>Guardar</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -229,7 +373,19 @@ const styles = StyleSheet.create({
   paymentsListContainer: { paddingHorizontal: 15, paddingBottom: 15, backgroundColor: '#FAFAFA', borderBottomLeftRadius: 10, borderBottomRightRadius: 10 },
   paymentMethodRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#EEE' },
   paymentLabel: { fontSize: 14, fontWeight: 'bold', color: '#333' },
-  paymentText: { fontSize: 12, color: '#666', marginTop: 2 }
+  paymentText: { fontSize: 12, color: '#666', marginTop: 2 },
+
+  // ✅ Estilos del Modal
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
+  modalContainer: { width: '85%', backgroundColor: '#FFF', borderRadius: 20, padding: 25, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 4, elevation: 5 },
+  modalTitle: { fontSize: 20, fontWeight: 'bold', color: '#1A1A1A', marginBottom: 20, textAlign: 'center' },
+  textInput: { borderWidth: 1, borderColor: '#DDD', borderRadius: 10, padding: 12, fontSize: 16, color: '#333', marginBottom: 15, backgroundColor: '#FAFAFA' },
+  modalActions: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 10 },
+  modalBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  cancelBtn: { backgroundColor: '#F0F0F0', marginRight: 10 },
+  cancelBtnText: { color: '#666', fontWeight: 'bold', fontSize: 15 },
+  saveBtn: { backgroundColor: '#EDB422' },
+  saveBtnText: { color: '#FFF', fontWeight: 'bold', fontSize: 15 }
 });
 
 export default ProfileScreen;

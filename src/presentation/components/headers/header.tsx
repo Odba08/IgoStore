@@ -3,15 +3,21 @@ import { Ionicons } from "@expo/vector-icons";
 import { View, StyleSheet, Text, Pressable, TouchableOpacity } from "react-native";
 import { useRouter } from "expo-router";
 import { usePermissionsStore } from "@/presentation/store/usePermissions";
+import { useAuthStore } from "@/presentation/store/useAuthStore";
 import { useCartStore } from "@/presentation/store/useCartStore";
+import { useLocationStore } from "@/presentation/store/useLocationStore";
 
 const PrincipalHeader = () => {
   const router = useRouter();
   const {locationStatus} = usePermissionsStore();
+  const { user } = useAuthStore();
+  const isEmployee = user?.roles.includes('empleado') || user?.roles.includes('worker');
 
   const totalItems = useCartStore(state => state.items.reduce((total, item) => total + item.quantity, 0));
+  const deliveryLocation = useLocationStore(state => state.deliveryLocation);
 
   const handleLocationPress = () => {
+    if (isEmployee) return;
     if (locationStatus === "GRANTED"){
       router.replace('./map');
     } else if (locationStatus !== "CHECKING") {
@@ -24,34 +30,37 @@ const PrincipalHeader = () => {
       <TouchableOpacity style={styles.iconRow}
         onPress={() => router.push('./profile/profile') }
       >
-        <Ionicons name='person-outline' size={25} color='#000' style={styles.icon} />
+        <Ionicons name='person-outline' size={25 as any} color='#000' style={styles.icon} />
       </TouchableOpacity>
 
       <View style={styles.locationBox}>
         
         <Ionicons name='location-outline' size={20} color='#6528FF' />
 
-        <Pressable onPress={handleLocationPress}>
-
-        <Text numberOfLines={1} style={styles.locationText}>
-          Ubicación
-        </Text>
+        <Pressable onPress={handleLocationPress} style={{ flex: 1 }}>
+          <Text numberOfLines={1} style={styles.locationText}>
+            {deliveryLocation ? deliveryLocation.address : "Ingresa dirección"}
+          </Text>
         </Pressable>
-        <Ionicons name='chevron-down' size={18} color='#5D5D5D' />
+        {!isEmployee && <Ionicons name='chevron-down' size={18} color='#5D5D5D' />}
       </View>
 
-      <TouchableOpacity style={styles.iconRow}
-        onPress={() => router.push('./cart/cart')}
-      >
-        <Ionicons name='cart-outline' size={30} color='#000' style={styles.icon} />
-        {totalItems > 0 && (
-    <View style={styles.badge}>
-      <Text style={styles.badgeText}>
-        {totalItems > 99 ? '99+' : totalItems}
-      </Text>
-    </View>
-  )}
-      </TouchableOpacity>
+      {!isEmployee ? (
+        <TouchableOpacity style={styles.iconRow}
+          onPress={() => router.push('./cart/cart')}
+        >
+          <Ionicons name='cart-outline' size={30} color='#000' style={styles.icon} />
+          {totalItems > 0 && (
+            <View style={styles.badge}>
+              <Text style={styles.badgeText}>
+                {totalItems > 99 ? '99+' : totalItems}
+              </Text>
+            </View>
+          )}
+        </TouchableOpacity>
+      ) : (
+        <View style={{ width: 50 }} /> // Espaciador para mantener alineación del header
+      )}
     </View>
   );
 };

@@ -1,9 +1,9 @@
 import { StatusBar } from "expo-status-bar";
-import { ScrollView, Text, View, FlatList, TouchableOpacity, TextInput, StyleSheet, Image, ActivityIndicator, Alert, Clipboard } from "react-native";
+import { ScrollView, Text, View, FlatList, TouchableOpacity, TextInput, StyleSheet, Image, ActivityIndicator, Alert, Clipboard, Modal } from "react-native";
 import { useRouter } from "expo-router";
 import { useAllProducts } from "@/presentation/hooks/useProducts";
 import { Ionicons } from "@expo/vector-icons";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useBusinesses } from "@/presentation/hooks/useBusiness";
 import LoadingScreen from "@/presentation/components/loading";
 import PrincipalHeader from "@/presentation/components/headers/header";
@@ -13,11 +13,16 @@ import { BusinessCard } from "@/presentation/components/businessCard/businessCar
 import { useFavoritesStore } from "@/presentation/store/useFavoriteStore";
 import { useCartStore } from "@/presentation/store/useCartStore";
 import { useLocationStore } from "@/presentation/store/useLocationStore";
+import { useAuthStore } from "@/presentation/store/useAuthStore";
+import { igoApi } from "@/infrastructure/api/igo.api";
+import { getPendingDeliveriesApi, updateOrderApi, getOrderQuoteApi } from "@/infrastructure/api/orders.api";
+import MapView, { Marker, Polyline } from 'react-native-maps';
 
 export default function Index() {
   const router = useRouter();
+  const { user } = useAuthStore();
 
-  // 1. CARGA DE DATOS
+  // 1. CARGA DE DATOS CLIENTE
   const { data: businesses, isLoading: loadingBusiness, error } = useBusinesses();
   const { data: products, isLoading: productsLoading } = useAllProducts();
 
@@ -29,9 +34,164 @@ export default function Index() {
   const totalItems = items.reduce((total, item) => total + item.quantity, 0);
 
   // Ubicaciones del store global
-  const { savedAddresses, removeSavedAddress } = useLocationStore();
+  const { savedAddresses, removeSavedAddress, initStore } = useLocationStore();
 
-  // 2. FUNCIÓN DE NAVEGACIÓN
+  // 1.5 LÓGICA DE MOTORIZADO / TRABAJADOR
+  const isEmployee = user?.roles.includes('empleado') || user?.roles.includes('worker');
+  const [employeeStatus, setEmployeeStatus] = useState<string>('inactive');
+  const [pendingOrders, setPendingOrders] = useState<any[]>([]);
+  const [myAssignedOrders, setMyAssignedOrders] = useState<any[]>([]);
+  const [loadingDriverData, setLoadingDriverData] = useState<boolean>(false);
+
+  // Mapa
+  const [selectedRouteOrder, setSelectedRouteOrder] = useState<any | null>(null);
+  const [routePolyline, setRoutePolyline] = useState<any[]>([]);
+  const [loadingRoute, setLoadingRoute] = useState<boolean>(false);
+  const [showMapModal, setShowMapModal] = useState<boolean>(false);
+
+  const fetchDriverData = async () => {
+    if (!user) return;
+    try {
+      // Obtener el estado de servicio del empleado
+      const userRes = await igoApi.get(`/users/${user.id}`);
+      setEmployeeStatus(userRes.data.employeeStatus || 'inactive');
+
+      // Obtener los pedidos pendientes sin motorizado
+      const pendingRes = await getPendingDeliveriesApi();
+      setPendingOrders(pendingRes.data);
+
+      // Obtener todas las órdenes y filtrar las mías activas (no entregadas/canceladas)
+      const allRes = await igoApi.get('/orders');
+      const myAssigned = allRes.data.filter((ord: any) => 
+        ord.deliveryUser?.id === user.id && 
+        ord.status !== 'DELIVERED' && 
+        ord.status !== 'CANCELLED'
+      );
+      setMyAssignedOrders(myAssigned);
+    } catch (err) {
+      console.error("Error loading driver dashboard:", err);
+    }
+  };
+
+  useEffect(() => {
+    initStore();
+  }, []);
+
+  useEffect(() => {
+    if (isEmployee) {
+      fetchDriverData();
+      // Polling cada 10 segundos
+      const interval = setInterval(fetchDriverData, 10000);
+      return () => clearInterval(interval);
+    }
+  }, [isEmployee]);
+
+  const handleClaimOrder = async (orderId: string) => {
+    try {
+      setLoadingDriverData(true);
+      await updateOrderApi(orderId, { deliveryUserId: user?.id, status: 'ON_WAY' });
+      Alert.alert("Pedido Tomado", "Has tomado este pedido con éxito. Ve a tu sección de Entregas Activas.");
+      await fetchDriverData();
+    } catch (err) {
+      console.error("Error claiming order:", err);
+      Alert.alert("Error", "No se pudo reclamar el pedido.");
+    } finally {
+      setLoadingDriverData(false);
+    }
+  };
+
+  const handleCompleteOrder = async (orderId: string) => {
+    try {
+      setLoadingDriverData(true);
+      await updateOrderApi(orderId, { status: 'DELIVERED' });
+      Alert.alert("Pedido Entregado", "¡Buen trabajo! El pedido ha sido completado.");
+      await fetchDriverData();
+    } catch (err) {
+      console.error("Error completing order:", err);
+      Alert.alert("Error", "No se pudo completar el pedido.");
+    } finally {
+      setLoadingDriverData(false);
+    }
+  };
+
+  const handleOpenMap = async (order: any) => {
+    try {
+      setShowMapModal(true);
+      setSelectedRouteOrder(order);
+      setLoadingRoute(true);
+      
+      const res = await getOrderQuoteApi({
+        businessId: order.business.id,
+        deliveryLat: order.deliveryLat,
+        deliveryLong: order.deliveryLong
+      });
+      
+      if (res.data && res.data.routePolyline) {
+        setRoutePolyline(res.data.routePolyline);
+      } else {
+        setRoutePolyline([
+          { latitude: order.business.latitude, longitude: order.business.longitude },
+          { latitude: order.deliveryLat, longitude: order.deliveryLong }
+        ]);
+      }
+    } catch (err) {
+      console.error("Error loading route polyline:", err);
+      setRoutePolyline([
+        { latitude: order.business.latitude, longitude: order.business.longitude },
+        { latitude: order.deliveryLat, longitude: order.deliveryLong }
+      ]);
+    } finally {
+      setLoadingRoute(false);
+    }
+  };
+
+  const handleChangeStatus = () => {
+    Alert.alert(
+      "Cambiar Estado de Servicio",
+      "Selecciona tu estado actual:",
+      [
+        {
+          text: "Trabajando 🟢",
+          onPress: async () => {
+            try {
+              await igoApi.patch(`/users/${user?.id}`, { employeeStatus: 'active' });
+              setEmployeeStatus('active');
+            } catch (err) {
+              Alert.alert("Error", "No se pudo cambiar el estado.");
+            }
+          }
+        },
+        {
+          text: "De descanso 🟡",
+          onPress: async () => {
+            try {
+              await igoApi.patch(`/users/${user?.id}`, { employeeStatus: 'break' });
+              setEmployeeStatus('break');
+            } catch (err) {
+              Alert.alert("Error", "No se pudo cambiar el estado.");
+            }
+          }
+        },
+        {
+          text: "Fuera de Servicio 🔴",
+          onPress: async () => {
+            try {
+              await igoApi.patch(`/users/${user?.id}`, { employeeStatus: 'inactive' });
+              setEmployeeStatus('inactive');
+            } catch (err) {
+              Alert.alert("Error", "No se pudo cambiar el estado.");
+            }
+          }
+        },
+        {
+          text: "Cancelar",
+          style: "cancel"
+        }
+      ]
+    );
+  };
+
+  // 2. FUNCIÓN DE NAVEGACIÓN CLIENTE
   const handleSelectCategory = (id: string, name: string) => {
       router.push({
           pathname: "/category/[id]", 
@@ -39,7 +199,7 @@ export default function Index() {
       });
   };
 
-  // 3. LÓGICA DE FILTRADO (Solo permitimos productos aprobados)
+  // 3. LÓGICA DE FILTRADO CLIENTE (Solo permitimos productos aprobados)
   const filteredProducts = useMemo(() => {
     if (!products) return [];
     if (!searchText) return [];
@@ -54,7 +214,7 @@ export default function Index() {
     return businesses.filter(b => favorites.includes(b.id));
   }, [businesses, favorites]);
 
-  if (loadingBusiness) {
+  if (loadingBusiness && !isEmployee) {
     return (
       <LoadingScreen 
         imageSource={require("../assets/images/adaptive-icon.png")} 
@@ -63,7 +223,7 @@ export default function Index() {
     );
   }
 
-  if (error) {
+  if (error && !isEmployee) {
     return (
       <View style={styles.center}>
         <Text style={{ color: "red" }}>{error.message}</Text>
@@ -76,24 +236,26 @@ export default function Index() {
       <StatusBar style='dark' />
       <PrincipalHeader />
 
-      <ScrollView contentContainerStyle={{ paddingBottom: 160 }} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={{ paddingBottom: isEmployee ? 60 : 160 }} showsVerticalScrollIndicator={false}>
         
-        {/* BUSCADOR */}
-        <View style={styles.searchContainer}>
-            <Ionicons name="search" size={20} color="#999" style={{marginRight: 10}} />
-            <TextInput
-                style={styles.searchInput}
-                placeholder='Buscar comida, bebidas...'
-                placeholderTextColor="#999"
-                value={searchText}
-                onChangeText={setSearchText}
-            />
-            {searchText.length > 0 && (
-                <TouchableOpacity onPress={() => setSearchText('')}>
-                    <Ionicons name="close-circle" size={20} color="#999" />
-                </TouchableOpacity>
-            )}
-        </View>
+        {/* BUSCADOR (Solo para clientes) */}
+        {!isEmployee && (
+          <View style={styles.searchContainer}>
+              <Ionicons name="search" size={20} color="#999" style={{marginRight: 10}} />
+              <TextInput
+                  style={styles.searchInput}
+                  placeholder='Buscar comida, bebidas...'
+                  placeholderTextColor="#999"
+                  value={searchText}
+                  onChangeText={setSearchText}
+              />
+              {searchText.length > 0 && (
+                  <TouchableOpacity onPress={() => setSearchText('')}>
+                      <Ionicons name="close-circle" size={20} color="#999" />
+                  </TouchableOpacity>
+              )}
+          </View>
+        )}
 
         {/* RESULTADOS DE BÚSQUEDA */}
         {searchText.length > 0 ? (
@@ -278,8 +440,148 @@ export default function Index() {
                </View>
              </View>
            </View>
+        ) : activeTab === 'home' && isEmployee ? (
+           // DASHBOARD DEL MOTORIZADO / EMPLEADO
+           <View style={{ paddingHorizontal: 20, marginTop: 10 }}>
+             {/* HEADER DE ESTADO DE SERVICIO */}
+             <View style={styles.driverHeader}>
+               <View style={{ flex: 1 }}>
+                 <Text style={{ fontSize: 13, color: '#666' }}>Hola, Motorizado</Text>
+                 <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#1a1a1a', marginTop: 2 }}>{user?.fullname}</Text>
+               </View>
+               <TouchableOpacity style={styles.statusIndicator} onPress={handleChangeStatus}>
+                 <View style={[styles.statusDot, { 
+                   backgroundColor: employeeStatus === 'active' ? '#4CD964' : employeeStatus === 'break' ? '#FFCC00' : '#FF3B30' 
+                 }]} />
+                 <Text style={[styles.statusText, {
+                   color: employeeStatus === 'active' ? '#4CD964' : employeeStatus === 'break' ? '#EDB422' : '#FF3B30'
+                 }]}>
+                   {employeeStatus === 'active' ? 'Trabajando' : employeeStatus === 'break' ? 'De descanso' : 'Fuera de Servicio'}
+                 </Text>
+               </TouchableOpacity>
+             </View>
+
+             <TouchableOpacity style={styles.refreshBtn} onPress={fetchDriverData}>
+               <Ionicons name="refresh-outline" size={16} color="#666" style={{ marginRight: 6 }} />
+               <Text style={{ fontSize: 13, color: '#666', fontWeight: 'bold' }}>Actualizar Pedidos</Text>
+             </TouchableOpacity>
+
+             {/* SECCIÓN 1: ENTREGAS ACTIVAS (ASIGNADAS) */}
+             <Text style={styles.driverSectionTitle}>Mis Entregas Activas ({myAssignedOrders.length})</Text>
+             {myAssignedOrders.length === 0 ? (
+               <View style={styles.emptyDriverBox}>
+                 <Ionicons name="bicycle-outline" size={32} color="#aaa" />
+                 <Text style={styles.emptyDriverText}>No tienes entregas asignadas actualmente.</Text>
+               </View>
+             ) : (
+               <View style={{ gap: 15 }}>
+                 {myAssignedOrders.map((order) => (
+                   <View key={order.id} style={styles.orderCard}>
+                      <View style={styles.orderCardHeader}>
+                        <View>
+                          <Text style={styles.orderTitle}>Pedido #{String(order.orderNumber).padStart(4, '0')}</Text>
+                          {order.category === "Comida" ? (
+                            <View style={{ flexDirection: "row", alignItems: "center", backgroundColor: "#FEE2E2", paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, marginTop: 4, alignSelf: 'flex-start' }}>
+                              <Ionicons name="flame" size={12} color="#EF4444" style={{ marginRight: 3 }} />
+                              <Text style={{ fontSize: 10, color: "#EF4444", fontWeight: "bold" }}>¡MANTENER CALIENTE!</Text>
+                            </View>
+                          ) : order.category ? (
+                            <View style={{ backgroundColor: "#F1F5F9", paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, marginTop: 4, alignSelf: 'flex-start' }}>
+                              <Text style={{ fontSize: 10, color: "#475569", fontWeight: "bold" }}>{order.category}</Text>
+                            </View>
+                          ) : null}
+                        </View>
+                        <View style={styles.statusBadge}>
+                          <Text style={styles.statusBadgeText}>{order.status}</Text>
+                        </View>
+                      </View>
+                     
+                     <View style={styles.orderCardBody}>
+                       <Text style={styles.orderDetailText}>
+                         <Text style={{ fontWeight: 'bold' }}>Local:</Text> {order.business?.name}
+                       </Text>
+                       <Text style={styles.orderDetailText}>
+                         <Text style={{ fontWeight: 'bold' }}>Destino:</Text> {order.deliveryAddress}
+                       </Text>
+                       <View style={styles.orderCostRow}>
+                         <Text style={styles.orderCostText}>Total: ${order.totalAmount.toFixed(2)}</Text>
+                         <Text style={styles.feeText}>Envío: ${order.deliveryFee.toFixed(2)}</Text>
+                       </View>
+                     </View>
+
+                     <View style={styles.cardActions}>
+                       <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#F1F5F9' }]} onPress={() => handleOpenMap(order)}>
+                         <Ionicons name="map-outline" size={18} color="#333" style={{ marginRight: 6 }} />
+                         <Text style={[styles.actionBtnText, { color: '#333' }]}>Ver Ruta</Text>
+                       </TouchableOpacity>
+                       <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#4CD964' }]} onPress={() => handleCompleteOrder(order.id)}>
+                         <Ionicons name="checkmark-circle-outline" size={18} color="white" style={{ marginRight: 6 }} />
+                         <Text style={[styles.actionBtnText, { color: 'white' }]}>Completar</Text>
+                       </TouchableOpacity>
+                     </View>
+                   </View>
+                 ))}
+               </View>
+             )}
+
+             {/* SECCIÓN 2: PEDIDOS PENDIENTES EN LA PLATAFORMA */}
+             <Text style={[styles.driverSectionTitle, { marginTop: 25 }]}>Pedidos Disponibles ({pendingOrders.length})</Text>
+             {pendingOrders.length === 0 ? (
+               <View style={styles.emptyDriverBox}>
+                 <Ionicons name="albums-outline" size={32} color="#aaa" />
+                 <Text style={styles.emptyDriverText}>No hay pedidos disponibles en la plataforma.</Text>
+               </View>
+             ) : (
+               <View style={{ gap: 15 }}>
+                 {pendingOrders.map((order) => (
+                   <View key={order.id} style={styles.orderCard}>
+                      <View style={styles.orderCardHeader}>
+                        <View>
+                          <Text style={styles.orderTitle}>Pedido #{String(order.orderNumber).padStart(4, '0')}</Text>
+                          {order.category === "Comida" ? (
+                            <View style={{ flexDirection: "row", alignItems: "center", backgroundColor: "#FEE2E2", paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, marginTop: 4, alignSelf: 'flex-start' }}>
+                              <Ionicons name="flame" size={12} color="#EF4444" style={{ marginRight: 3 }} />
+                              <Text style={{ fontSize: 10, color: "#EF4444", fontWeight: "bold" }}>¡COMIDA CALIENTE!</Text>
+                            </View>
+                          ) : order.category ? (
+                            <View style={{ backgroundColor: "#F1F5F9", paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, marginTop: 4, alignSelf: 'flex-start' }}>
+                              <Text style={{ fontSize: 10, color: "#475569", fontWeight: "bold" }}>{order.category}</Text>
+                            </View>
+                          ) : null}
+                        </View>
+                        <Text style={{ fontSize: 12, color: '#888' }}>Disponible</Text>
+                      </View>
+
+                     <View style={styles.orderCardBody}>
+                       <Text style={styles.orderDetailText}>
+                         <Text style={{ fontWeight: 'bold' }}>Local:</Text> {order.business?.name}
+                       </Text>
+                       <Text style={styles.orderDetailText}>
+                         <Text style={{ fontWeight: 'bold' }}>Destino:</Text> {order.deliveryAddress}
+                       </Text>
+                       <View style={styles.orderCostRow}>
+                         <Text style={styles.orderCostText}>Total: ${order.totalAmount.toFixed(2)}</Text>
+                         <Text style={styles.feeText}>Envío: ${order.deliveryFee.toFixed(2)}</Text>
+                       </View>
+                     </View>
+
+                     <View style={styles.cardActions}>
+                       <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#F1F5F9' }]} onPress={() => handleOpenMap(order)}>
+                         <Ionicons name="map-outline" size={18} color="#333" style={{ marginRight: 6 }} />
+                         <Text style={[styles.actionBtnText, { color: '#333' }]}>Ver Ruta</Text>
+                       </TouchableOpacity>
+                       <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#FFDB58' }]} onPress={() => handleClaimOrder(order.id)}>
+                         <Ionicons name="bicycle-outline" size={18} color="black" style={{ marginRight: 6 }} />
+                         <Text style={[styles.actionBtnText, { color: 'black' }]}>Tomar Pedido</Text>
+                       </TouchableOpacity>
+                     </View>
+                   </View>
+                 ))}
+               </View>
+             )}
+           </View>
         ) : (
-           // HOME NORMAL
+           // HOME NORMAL CLIENTE
            <>
              <CategoryList onSelectCategory={handleSelectCategory} />
              
@@ -306,8 +608,8 @@ export default function Index() {
         )}
       </ScrollView>
 
-      {/* FLOATING CART BUTTON */}
-      {totalItems > 0 && (
+      {/* FLOATING CART BUTTON (Solo para clientes) */}
+      {!isEmployee && totalItems > 0 && (
         <TouchableOpacity 
           style={styles.floatingCartButton} 
           onPress={() => router.push('/cart/cart')}
@@ -318,74 +620,176 @@ export default function Index() {
         </TouchableOpacity>
       )}
 
+      {/* MODAL DE MAPA DE RUTA PARA EL MOTORIZADO */}
+      <Modal
+        visible={showMapModal}
+        animationType="slide"
+        onRequestClose={() => {
+          setShowMapModal(false);
+          setSelectedRouteOrder(null);
+          setRoutePolyline([]);
+        }}
+      >
+        <View style={{ flex: 1, backgroundColor: 'white' }}>
+          {selectedRouteOrder && (
+            <>
+              {loadingRoute ? (
+                <View style={styles.center}>
+                  <ActivityIndicator size="large" color="#FFDB58" />
+                  <Text style={{ marginTop: 10, color: '#666' }}>Cargando ruta de entrega...</Text>
+                </View>
+              ) : (
+                <View style={{ flex: 1 }}>
+                  <MapView
+                    style={{ flex: 1 }}
+                    initialRegion={{
+                      latitude: (selectedRouteOrder.business.latitude + selectedRouteOrder.deliveryLat) / 2,
+                      longitude: (selectedRouteOrder.business.longitude + selectedRouteOrder.deliveryLong) / 2,
+                      latitudeDelta: Math.abs(selectedRouteOrder.business.latitude - selectedRouteOrder.deliveryLat) * 2.5 || 0.05,
+                      longitudeDelta: Math.abs(selectedRouteOrder.business.longitude - selectedRouteOrder.deliveryLong) * 2.5 || 0.05,
+                    }}
+                  >
+                    {/* Marcador del Local */}
+                    <Marker
+                      coordinate={{
+                        latitude: selectedRouteOrder.business.latitude,
+                        longitude: selectedRouteOrder.business.longitude
+                      }}
+                      title={selectedRouteOrder.business.name}
+                      description="Punto de Recogida"
+                      pinColor="green"
+                    />
+
+                    {/* Marcador del Cliente */}
+                    <Marker
+                      coordinate={{
+                        latitude: selectedRouteOrder.deliveryLat,
+                        longitude: selectedRouteOrder.deliveryLong
+                      }}
+                      title="Cliente"
+                      description={selectedRouteOrder.deliveryAddress}
+                      pinColor="red"
+                    />
+
+                    {/* Línea de Ruta */}
+                    {routePolyline.length > 0 && (
+                      <Polyline
+                        coordinates={routePolyline}
+                        strokeColor="#6528FF"
+                        strokeWidth={4}
+                      />
+                    )}
+                  </MapView>
+
+                  {/* Panel de Info Flotante */}
+                  <View style={styles.mapInfoPanel}>
+                    <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#333' }}>
+                      Ruta del Pedido #{String(selectedRouteOrder.orderNumber).padStart(4, '0')}
+                    </Text>
+                    <Text style={{ fontSize: 13, color: '#666', marginTop: 4 }}>
+                      <Text style={{ fontWeight: 'bold' }}>De:</Text> {selectedRouteOrder.business.name}
+                    </Text>
+                    <Text style={{ fontSize: 13, color: '#666', marginTop: 2 }} numberOfLines={2}>
+                      <Text style={{ fontWeight: 'bold' }}>Para:</Text> {selectedRouteOrder.deliveryAddress}
+                    </Text>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 6, alignItems: 'center' }}>
+                      <Text style={{ fontSize: 14, color: '#00A86B', fontWeight: 'bold' }}>
+                        Envío: ${selectedRouteOrder.deliveryFee.toFixed(2)}
+                      </Text>
+                      <Text style={{ fontSize: 14, color: '#333', fontWeight: 'bold' }}>
+                        Total: ${selectedRouteOrder.totalAmount.toFixed(2)}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+              )}
+            </>
+          )}
+
+          {/* Botón de Cerrar */}
+          <TouchableOpacity 
+            style={styles.closeMapBtn} 
+            onPress={() => {
+              setShowMapModal(false);
+              setSelectedRouteOrder(null);
+              setRoutePolyline([]);
+            }}
+          >
+            <Ionicons name="close" size={24} color="black" />
+          </TouchableOpacity>
+        </View>
+      </Modal>
+
       {/* --- LA INYECCIÓN TÁCTICA: BOTTOM NAVIGATION BAR --- */}
-      <View style={styles.bottomBar}>
-          
-          <TouchableOpacity 
-            style={styles.tabItem} 
-            onPress={() => setActiveTab('home')}
-          >
-              <Ionicons 
-                name="home" 
-                size={22} 
-                color={activeTab === 'home' ? '#1a1a1a' : '#888'} 
-              />
-              <Text style={[styles.tabText, activeTab === 'home' && { color: '#1a1a1a', fontWeight: 'bold' }]}>
-                Inicio
-              </Text>
-          </TouchableOpacity>
+      {!isEmployee && (
+        <View style={styles.bottomBar}>
+            
+            <TouchableOpacity 
+              style={styles.tabItem} 
+              onPress={() => setActiveTab('home')}
+            >
+                <Ionicons 
+                  name="home" 
+                  size={22} 
+                  color={activeTab === 'home' ? '#1a1a1a' : '#888'} 
+                />
+                <Text style={[styles.tabText, activeTab === 'home' && { color: '#1a1a1a', fontWeight: 'bold' }]}>
+                  Inicio
+                </Text>
+            </TouchableOpacity>
 
-          <TouchableOpacity 
-            style={styles.tabItem} 
-            onPress={() => setActiveTab('favorites')}
-          >
-              <Ionicons 
-                name={activeTab === 'favorites' ? 'star' : 'star-outline'} 
-                size={22} 
-                color={activeTab === 'favorites' ? '#EDB422' : '#888'} 
-              />
-              <Text style={[styles.tabText, activeTab === 'favorites' && { color: '#1a1a1a', fontWeight: 'bold' }]}>
-                Favoritos
-              </Text>
-          </TouchableOpacity>
+            <TouchableOpacity 
+              style={styles.tabItem} 
+              onPress={() => setActiveTab('favorites')}
+            >
+                <Ionicons 
+                  name={activeTab === 'favorites' ? 'star' : 'star-outline'} 
+                  size={22} 
+                  color={activeTab === 'favorites' ? '#EDB422' : '#888'} 
+                />
+                <Text style={[styles.tabText, activeTab === 'favorites' && { color: '#1a1a1a', fontWeight: 'bold' }]}>
+                  Favoritos
+                </Text>
+            </TouchableOpacity>
 
-          <TouchableOpacity 
-            style={styles.tabItem} 
-            onPress={() => setActiveTab('addresses')}
-          >
-              <Ionicons 
-                name={activeTab === 'addresses' ? "location" : "location-outline"} 
-                size={22} 
-                color={activeTab === 'addresses' ? '#EDB422' : '#888'} 
-              />
-              <Text style={[styles.tabText, activeTab === 'addresses' && { color: '#1a1a1a', fontWeight: 'bold' }]}>
-                Direcciones
-              </Text>
-          </TouchableOpacity>
+            <TouchableOpacity 
+              style={styles.tabItem} 
+              onPress={() => setActiveTab('addresses')}
+            >
+                <Ionicons 
+                  name={activeTab === 'addresses' ? "location" : "location-outline"} 
+                  size={22} 
+                  color={activeTab === 'addresses' ? '#EDB422' : '#888'} 
+                />
+                <Text style={[styles.tabText, activeTab === 'addresses' && { color: '#1a1a1a', fontWeight: 'bold' }]}>
+                  Direcciones
+                </Text>
+            </TouchableOpacity>
 
-          <TouchableOpacity 
-            style={styles.tabItem} 
-            onPress={() => router.push("/orders")}
-          >
-              <Ionicons name="receipt-outline" size={22} color="#888" />
-              <Text style={styles.tabText}>Pedidos</Text>
-          </TouchableOpacity>
+            <TouchableOpacity 
+              style={styles.tabItem} 
+              onPress={() => router.push("/orders")}
+            >
+                <Ionicons name="receipt-outline" size={22} color="#888" />
+                <Text style={styles.tabText}>Pedidos</Text>
+            </TouchableOpacity>
 
-          <TouchableOpacity 
-            style={styles.tabItem} 
-            onPress={() => setActiveTab('payments')}
-          >
-              <Ionicons 
-                name={activeTab === 'payments' ? "card" : "card-outline"} 
-                size={22} 
-                color={activeTab === 'payments' ? '#EDB422' : '#888'} 
-              />
-              <Text style={[styles.tabText, activeTab === 'payments' && { color: '#1a1a1a', fontWeight: 'bold' }]}>
-                Métodos Pago
-              </Text>
-          </TouchableOpacity>
+            <TouchableOpacity 
+              style={styles.tabItem} 
+              onPress={() => setActiveTab('payments')}
+            >
+                <Ionicons 
+                  name={activeTab === 'payments' ? "card" : "card-outline"} 
+                  size={22} 
+                  color={activeTab === 'payments' ? '#EDB422' : '#888'} 
+                />
+                <Text style={[styles.tabText, activeTab === 'payments' && { color: '#1a1a1a', fontWeight: 'bold' }]}>
+                  Métodos Pago
+                </Text>
+            </TouchableOpacity>
 
-      </View>
+        </View>
+      )}
     </View>
   );
 }
@@ -559,5 +963,183 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: 'bold',
     color: '#333'
+  },
+
+  // --- ESTILOS PANEL MOTORIZADO ---
+  driverHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: 'white',
+    padding: 15,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#EBEBEB',
+    marginBottom: 15,
+    shadowColor: '#000',
+    shadowOpacity: 0.03,
+    elevation: 2
+  },
+  statusIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#E2E8F0'
+  },
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: 6
+  },
+  statusText: {
+    fontSize: 12,
+    fontWeight: 'bold'
+  },
+  refreshBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F1F5F9',
+    paddingVertical: 10,
+    borderRadius: 12,
+    marginBottom: 20
+  },
+  driverSectionTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 12
+  },
+  emptyDriverBox: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 30,
+    backgroundColor: 'white',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#EBEBEB',
+    borderStyle: 'dashed'
+  },
+  emptyDriverText: {
+    fontSize: 13,
+    color: '#888',
+    marginTop: 8,
+    textAlign: 'center',
+    paddingHorizontal: 20
+  },
+  orderCard: {
+    backgroundColor: 'white',
+    borderRadius: 16,
+    padding: 15,
+    borderWidth: 1,
+    borderColor: '#EBEBEB',
+    shadowColor: '#000',
+    shadowOpacity: 0.03,
+    elevation: 2
+  },
+  orderCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+    paddingBottom: 10,
+    marginBottom: 10
+  },
+  orderTitle: {
+    fontSize: 15,
+    fontWeight: 'bold',
+    color: '#1a1a1a'
+  },
+  statusBadge: {
+    backgroundColor: '#EFF6FF',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6
+  },
+  statusBadgeText: {
+    color: '#2563EB',
+    fontSize: 10,
+    fontWeight: 'bold'
+  },
+  orderCardBody: {
+    marginBottom: 12
+  },
+  orderDetailText: {
+    fontSize: 13,
+    color: '#555',
+    lineHeight: 18,
+    marginBottom: 4
+  },
+  orderCostRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 8,
+    backgroundColor: '#F8FAFC',
+    padding: 8,
+    borderRadius: 8
+  },
+  orderCostText: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#1e293b'
+  },
+  feeText: {
+    fontSize: 14,
+    color: '#64748b'
+  },
+  cardActions: {
+    flexDirection: 'row',
+    gap: 10
+  },
+  actionBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    borderRadius: 10,
+    elevation: 1
+  },
+  actionBtnText: {
+    fontSize: 13,
+    fontWeight: 'bold'
+  },
+
+  // --- MAPA FLOTANTE ---
+  mapInfoPanel: {
+    position: 'absolute',
+    bottom: 30,
+    left: 20,
+    right: 20,
+    backgroundColor: 'white',
+    borderRadius: 16,
+    padding: 15,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    elevation: 8,
+    borderWidth: 1,
+    borderColor: '#E2E8F0'
+  },
+  closeMapBtn: {
+    position: 'absolute',
+    top: 50,
+    left: 20,
+    backgroundColor: 'white',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.2,
+    elevation: 5
   }
 });

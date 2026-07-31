@@ -77,12 +77,12 @@ const CartScreen = () => {
               style={styles.itemImage} 
             />
             <View style={styles.itemDetails}>
-              <Text style={styles.itemTitle} numberOfLines={2}>{item.title.split(' (')[0]}</Text>
-              {item.title.includes('(') && (
+              <Text style={styles.itemTitle} numberOfLines={2}>{item.title}</Text>
+              {item.selectedOptionsText && item.selectedOptionsText.trim() !== '' ? (
                 <Text style={styles.itemOptions} numberOfLines={2}>
-                  {item.title.substring(item.title.indexOf('('))}
+                  {item.selectedOptionsText}
                 </Text>
-              )}
+              ) : null}
               <Text style={styles.itemPrice}>${item.price.toFixed(2)}</Text>
             </View>
             

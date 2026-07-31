@@ -6,11 +6,13 @@ import { Alert } from 'react-native';
 // ⚡ CONTRATO EXTENDIDO Y ESTRICTO
 export interface CartItem {
   id: string;
+  productId?: string;
   title: string;
   price: number;
   image: string;
   quantity: number;
   businessId: string; // ⚡ PROPIEDAD CARDINAL (camelCase)
+  selectedOptionsText?: string;
 }
 
 interface CartState {

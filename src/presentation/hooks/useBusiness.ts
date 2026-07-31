@@ -9,6 +9,7 @@ export const useBusinesses = () => {
     queryKey: ["businesses"],
     queryFn: () => BusinessService.getBusinessesWithImages(),
     staleTime: 0, // Real-time sync with admin panel
+    refetchInterval: 10000, // Refresco automático cada 10s en background
     retry: 1,
     refetchOnWindowFocus: false,
   });
@@ -23,5 +24,6 @@ export const useBusiness = (id: string) => {
     },
     enabled: !!id,
     staleTime: 0, // Real-time sync with admin panel
+    refetchInterval: 10000, // Refresco automático cada 10s en background
   });
 };
