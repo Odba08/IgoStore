@@ -6,6 +6,7 @@ export interface ProductImage {
 export interface BusinessShort {
   id: string;
   name: string;
+  category?: { id: string; name: string };
 }
 
 // Interfaz auxiliar para no causar ciclos de importación complejos
@@ -33,6 +34,7 @@ export interface Producto {
   description: string;
   slug: string;
   stock: number;
+  weight?: number;
   
   options?: ProductOption[];
   tags?: string[]; // Agregué tags que suele ser útil

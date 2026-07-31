@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { LocationSubscription } from "expo-location";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 // La interfaz ahora es una Entidad del Core
 import { LatLng } from "@/core/entities/lat-lng.entity";
@@ -30,6 +31,7 @@ interface LocationState {
   // ✅ LIBRETA DE DIRECCIONES GLOBALES
   savedAddresses: SavedAddress[];
 
+  initStore: () => Promise<void>;
   getLocation: () => Promise<LatLng>;
   watchLocation: () => void;
   clearWatchLocation: () => void;
@@ -55,10 +57,19 @@ export const useLocationStore = create<LocationState>()((set, get) => ({
 
   // ✅ Direcciones iniciales por defecto cargadas en el Store
   savedAddresses: [
-    { id: '1', label: '🏠 Casa', address: 'Zona Norte, Maracaibo', latitude: 10.6800, longitude: -71.6300 },
-    { id: '2', label: '💻 URBE Digital', address: 'Universidad URBE, Prolongación C2', latitude: 10.6750, longitude: -71.6230 },
-    { id: '3', label: '🏢 CUNIBE', address: 'Sede CUNIBE', latitude: 10.6650, longitude: -71.6100 }
+   
   ],
+
+  initStore: async () => {
+    try {
+      const stored = await AsyncStorage.getItem('last_delivery_location');
+      if (stored) {
+        set({ deliveryLocation: JSON.parse(stored) });
+      }
+    } catch (err) {
+      console.warn("Error loading persisted location:", err);
+    }
+  },
 
   getLocation: async () => {
     const location = await getCurrentLocation();
@@ -95,7 +106,16 @@ export const useLocationStore = create<LocationState>()((set, get) => ({
 
   // ⚡ IMPLEMENTACIÓN DE SETTERS PARA MANEJO DE PASO DE DATOS
   setPickupLocation: (location) => set({ pickupLocation: location }),
-  setDeliveryLocation: (location) => set({ deliveryLocation: location }),
+  setDeliveryLocation: (location) => {
+    set({ deliveryLocation: location });
+    if (location) {
+      AsyncStorage.setItem('last_delivery_location', JSON.stringify(location)).catch(err => 
+        console.warn("Error persisting location:", err)
+      );
+    } else {
+      AsyncStorage.removeItem('last_delivery_location').catch(err => {});
+    }
+  },
 
   // ✅ ACCIÓN PARA AGREGAR UNA DIRECCIÓN (Genera ID autoincremental basado en fecha)
   addSavedAddress: (newAddr) => set((state) => ({

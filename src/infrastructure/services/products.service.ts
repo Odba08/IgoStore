@@ -3,6 +3,15 @@ import { getProductByIdApi, getProductsApi } from '../api/products.api';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL;
 
+const resolveImageUrl = (url: string, pathSegment: string) => {
+  if (!url) return '';
+  if (url.startsWith('http')) {
+    const filename = url.split('/').pop();
+    return `${API_URL}/api/files/${pathSegment}/${filename}`;
+  }
+  return `${API_URL}/api/files/${pathSegment}/${url}`;
+};
+
 export class ProductService {
   
   static async getProductById(id: string): Promise<Producto> {
@@ -13,8 +22,8 @@ export class ProductService {
         ...data,
         images: data.images?.map((image: any) => 
             typeof image === 'string' 
-                ? `${API_URL}/api/files/products/${image}`
-                : { ...image, url: `${API_URL}/api/files/products/${image.url}` }
+                ? resolveImageUrl(image, 'products')
+                : { ...image, url: resolveImageUrl(image.url, 'products') }
         ) ?? []
       };
     } catch (error) {
@@ -31,8 +40,8 @@ export class ProductService {
         ...product,
         images: product.images?.map((image: any) => 
             typeof image === 'string' 
-                ? { url: `${API_URL}/api/files/products/${image}` } 
-            : { ...image, url: `${API_URL}/api/files/products/${image.url}` }
+                ? { url: resolveImageUrl(image, 'products') } 
+                : { ...image, url: resolveImageUrl(image.url, 'products') }
         ) ?? []
       }));
     } catch (error) {

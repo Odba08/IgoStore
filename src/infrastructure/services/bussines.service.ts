@@ -4,6 +4,15 @@ import { getBusinesses, getBusinessByIdApi } from "../api/bussines.api";
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL;
 
+const resolveImageUrl = (url: string, pathSegment: string) => {
+  if (!url) return '';
+  if (url.startsWith('http')) {
+    const filename = url.split('/').pop();
+    return `${API_URL}/api/files/${pathSegment}/${filename}`;
+  }
+  return `${API_URL}/api/files/${pathSegment}/${url}`;
+};
+
 export class BusinessService {
   
   static async getBusinessesWithImages(): Promise<Business[]> {
@@ -27,14 +36,14 @@ export class BusinessService {
         
         images: data.images?.map((image: any) => ({
           ...image,
-          url: `${API_URL}/api/files/bussiness/${image.url}`,
+          url: resolveImageUrl(image.url, 'bussiness'),
         })) ?? [],
         
         products: data.products?.map((product: any) => ({
             ...product,
             images: product.images?.map((image: any) => ({
                 ...image,
-                url: `${API_URL}/api/files/products/${image.url}`, 
+                url: resolveImageUrl(image.url, 'products'), 
             })) ?? []
         })) ?? []
       };
@@ -53,7 +62,7 @@ export class BusinessService {
 
       images: business.images?.map((image: any) => ({
         ...image,
-        url: `${API_URL}/api/files/bussiness/${image.url}`,
+        url: resolveImageUrl(image.url, 'bussiness'),
       })) ?? [],
     }));
   }

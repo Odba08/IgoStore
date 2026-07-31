@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   ActivityIndicator, View, StyleSheet, Text, TextInput, 
-  TouchableOpacity, FlatList, Dimensions, Platform, Keyboard, Alert, Linking 
+  TouchableOpacity, FlatList, Dimensions, Platform, Keyboard, Alert, Linking, ScrollView 
 } from 'react-native';
 import MapView, { PROVIDER_GOOGLE, Marker, Polyline } from 'react-native-maps';
 import { Ionicons } from '@expo/vector-icons';
@@ -74,6 +74,8 @@ const MapScreen = () => {
   const [polylineCoords, setPolylineCoords] = useState<any[]>([]);
   const [isCalculatingRoute, setIsCalculatingRoute] = useState(false);
   const [businesses, setBusinesses] = useState<any[]>([]); 
+  const [businessCategoryName, setBusinessCategoryName] = useState<string>("");
+  const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
   
   const [activeExplorerField, setActiveExplorerField] = useState<'pickup' | 'delivery'>('delivery');
 
@@ -86,6 +88,11 @@ const MapScreen = () => {
 
   // Estado local para la etiqueta/nombre de la dirección a guardar
   const [addressLabelInput, setAddressLabelInput] = useState('');
+
+  // Nuevos selectores de pedido
+  const [selectedCategory, setSelectedCategory] = useState<'Comida' | 'Mercado' | 'Compras' | 'Envíos' | 'Salud'>('Comida');
+  const [selectedShippingType, setSelectedShippingType] = useState<'Moto' | 'Carro' | 'Pickup'>('Moto');
+  const [selectedPaymentRecipient, setSelectedPaymentRecipient] = useState<'Pago IGO' | 'Pago Negocio' | 'Mix'>('Pago IGO');
 
   // Inicialización inteligente del mapa (intenta obtener GPS sin bloquear el renderizado)
   useEffect(() => {
@@ -164,6 +171,42 @@ const MapScreen = () => {
     }
   }, [polylineCoords]);
 
+  // Autoselección de categoría según el comercio
+  const firstItem = items[0] as any;
+  const currentBusinessId = isFavorService ? '00000000-0000-0000-0000-000000000000' : (firstItem?.businessId || firstItem?.business_id);
+
+  useEffect(() => {
+    if (currentBusinessId && businesses.length > 0) {
+      const biz = businesses.find(b => b.id === currentBusinessId);
+      if (biz && biz.category) {
+        setBusinessCategoryName(biz.category.name);
+        const catName = biz.category.name.toLowerCase();
+        if (catName.includes('comida') || catName.includes('hamburguesa') || catName.includes('restaurante') || catName.includes('pizza') || catName.includes('sushi') || catName.includes('cafe')) {
+          setSelectedCategory('Comida');
+        } else if (catName.includes('farmacia') || catName.includes('salud') || catName.includes('medica')) {
+          setSelectedCategory('Salud');
+        } else if (catName.includes('supermercado') || catName.includes('mercado') || catName.includes('bodega')) {
+          setSelectedCategory('Mercado');
+        } else if (catName.includes('envio') || catName.includes('delivery') || catName.includes('mensajeria')) {
+          setSelectedCategory('Envíos');
+        } else {
+          setSelectedCategory('Compras');
+        }
+      }
+    }
+  }, [currentBusinessId, businesses]);
+
+  // Recalcular ruta y tarifas cuando cambia el tipo de envío en modo ruta
+  useEffect(() => {
+    if (activeMode === 'route') {
+      const currentOrigin = pickupLocation;
+      const currentDestination = deliveryLocation || targetCoords;
+      if (currentDestination) {
+        executeRouteCalculation(currentOrigin, currentDestination, routeQuote?.businessId);
+      }
+    }
+  }, [selectedShippingType]);
+
   const executeRouteCalculation = async (originPoint: any, destinationPoint: any, alternativeBusinessId?: string) => {
     const firstItem = items[0] as any;
     const businessId = isFavorService ? (alternativeBusinessId || '00000000-0000-0000-0000-000000000000') : (firstItem?.businessId || firstItem?.business_id);
@@ -188,26 +231,15 @@ const MapScreen = () => {
     setIsCalculatingRoute(true);
     try {
       const API_URL = getApiUrl();
-      const ENDPOINT = isFavorService ? `${API_URL}/orders/quote` : `${API_URL}/orders`;
+      const ENDPOINT = `${API_URL}/orders/quote`;
       
-      const orderPayload = isFavorService ? {
+      const quotePayload = {
         businessId: businessId,
-        pickupLat: currentOrigin.latitude, pickupLong: currentOrigin.longitude,
-        deliveryLat: currentDestination.latitude, deliveryLong: currentDestination.longitude,
-      } : {
-        businessId: businessId, 
-        userIdTemp: personalData || 'Cliente Igo',
-        ...(currentOrigin && typeof currentOrigin.latitude === 'number' && !isNaN(currentOrigin.latitude) ? {
-          pickupLat: currentOrigin.latitude,
-          pickupLong: currentOrigin.longitude
-        } : {}),
-        deliveryLat: currentDestination.latitude, deliveryLong: currentDestination.longitude,
-        deliveryAddress: `${currentDestination.address} | Ref: ${addressNotes || ''}`.trim(),
-        items: items.map(item => ({
-          productId: item.id.substring(0, 36), quantity: item.quantity,
-          selectedOptionsText: item.title.includes('(') ? item.title.substring(item.title.indexOf('(') + 1, item.title.lastIndexOf(')')) : 'Sin adicionales',
-          finalUnitPrice: item.price        
-        }))
+        pickupLat: currentOrigin?.latitude,
+        pickupLong: currentOrigin?.longitude,
+        deliveryLat: currentDestination.latitude,
+        deliveryLong: currentDestination.longitude,
+        shippingType: selectedShippingType
       };
 
       const token = await AsyncStorage.getItem('token');
@@ -216,15 +248,19 @@ const MapScreen = () => {
         headers['Authorization'] = `Bearer ${token}`;
       }
 
-      const response = await fetch(ENDPOINT, { method: 'POST', headers, body: JSON.stringify(orderPayload) });
+      const response = await fetch(ENDPOINT, { method: 'POST', headers, body: JSON.stringify(quotePayload) });
       const data = await response.json();
       
       if (!response.ok) throw new Error(data.message || 'Error en cotización');
 
+      const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
       setRouteQuote({
-        orderId: data.orderId || null, distance: data.distance,
-        totalToPay: isFavorService ? null : data.totalToPay, deliveryFee: data.deliveryFee,
-        userLat: currentDestination.latitude, userLong: currentDestination.longitude,
+        orderId: null,
+        distance: data.distance,
+        totalToPay: isFavorService ? null : (subtotal + data.deliveryFee),
+        deliveryFee: data.deliveryFee,
+        userLat: currentDestination.latitude,
+        userLong: currentDestination.longitude,
         businessLat: data.businessLocation?.latitude || currentOrigin?.latitude,
         businessLong: data.businessLocation?.longitude || currentOrigin?.longitude,
         businessId: businessId !== '00000000-0000-0000-0000-000000000000' ? businessId : null
@@ -350,18 +386,119 @@ const MapScreen = () => {
     }
   };
 
-  const dispatchWhatsAppOrder = () => {
+  const handleUseCurrentLocation = async () => {
+    try {
+      const { status } = await ExpoLocation.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert("Permiso Denegado", "Necesitamos acceso al GPS para obtener tu ubicación actual.");
+        return;
+      }
+      setLoadingAddress(true);
+      const loc = await ExpoLocation.getCurrentPositionAsync({ accuracy: ExpoLocation.Accuracy.High });
+      const coords = { latitude: loc.coords.latitude, longitude: loc.coords.longitude };
+      mapRef.current?.animateToRegion({
+        ...coords,
+        latitudeDelta: 0.008,
+        longitudeDelta: 0.008
+      }, 1000);
+      setTargetCoords(coords);
+      const geo = await ExpoLocation.reverseGeocodeAsync(coords);
+      if (geo && geo.length > 0) {
+        const item = geo[0];
+        const formatted = [item.street, item.streetNumber, item.district, item.city].filter(Boolean).join(', ');
+        setAddress(formatted || 'Mi ubicación actual');
+      } else {
+        setAddress('Mi ubicación actual');
+      }
+    } catch (err) {
+      Alert.alert("GPS", "No pudimos obtener tu ubicación actual.");
+    } finally {
+      setLoadingAddress(false);
+    }
+  };
+
+  const dispatchWhatsAppOrder = async () => {
     if (!routeQuote) return;
-    const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
-    const mapsUrlTienda = `https://www.google.com/maps/search/?api=1&query=${routeQuote.businessLat},${routeQuote.businessLong}`;
-    const mapsUrlCliente = `https://www.google.com/maps/search/?api=1&query=${routeQuote.userLat},${routeQuote.userLong}`;
-    let message = `*🍔 NUEVO PEDIDO - IGO STORE* 🛒\n---------------------------------------\n*🆔 Orden ID:* #${routeQuote.orderId || 'N/A'}\n\n*📦 DETALLE DEL PEDIDO:*\n`;
-    items.forEach((item) => { message += `▪️ ${item.quantity}x ${item.title.split(' (')[0]}\n`; });
-    message += `\n👤 *CLIENTE:* ${String(personalData || 'No indicado').trim()}\n📝 *REF:* ${String(addressNotes || 'Sin notas').trim()}\n\n*🏢 RECOGIDA (PUNTO A):*\n📍 GPS: ${mapsUrlTienda}\n\n*📍 ENTREGA (PUNTO B):*\n🏠 Dirección: ${deliveryLocation?.address || 'Ubicación en Mapa'}\n🗺️ GPS: ${mapsUrlCliente}\n---------------------------------------\n💰 *SUBTOTAL:* $${subtotal.toFixed(2)}\n`;
-    const deliveryCalculated = routeQuote.totalToPay ? Math.max(0, routeQuote.totalToPay - subtotal).toFixed(2) : (routeQuote.deliveryFee?.toFixed(2) || '0.00');
-    message += `🛵 *DELIVERY (${routeQuote.distance}):* $${deliveryCalculated}\n⭐️ *TOTAL NETO A PAGAR:* $${routeQuote.totalToPay?.toFixed(2) || '0.00'}\n\n`;
-    Linking.openURL(`https://wa.me/573014215155?text=${encodeURIComponent(message.trim())}`);
-    clearCart(); setPickupLocation(null); setDeliveryLocation(null); router.replace('/');
+    setIsSubmittingOrder(true);
+
+    try {
+      const firstItem = items[0] as any;
+      const businessId = isFavorService ? (routeQuote.businessId || '00000000-0000-0000-0000-000000000000') : (firstItem?.businessId || firstItem?.business_id);
+      
+      const API_URL = getApiUrl();
+      const ENDPOINT = `${API_URL}/orders`;
+
+      const orderPayload = {
+        businessId: businessId, 
+        userIdTemp: personalData || 'Cliente Igo',
+        pickupLat: routeQuote.businessLat,
+        pickupLong: routeQuote.businessLong,
+        deliveryLat: routeQuote.userLat,
+        deliveryLong: routeQuote.userLong,
+        deliveryAddress: `${deliveryLocation?.address || 'Ubicación en Mapa'} | Ref: ${addressNotes || ''}`.trim(),
+        category: selectedCategory,
+        shippingType: selectedShippingType,
+        paymentRecipient: selectedPaymentRecipient,
+        items: items.map(item => ({
+          productId: item.productId || item.id.split('-')[0], 
+          quantity: item.quantity,
+          selectedOptionsText: item.selectedOptionsText || 'Sin adicionales',
+          finalUnitPrice: item.price        
+        }))
+      };
+
+      const token = await AsyncStorage.getItem('token');
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
+      const response = await fetch(ENDPOINT, { 
+        method: 'POST', 
+        headers, 
+        body: JSON.stringify(orderPayload) 
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Error al guardar el pedido en el servidor');
+      }
+
+      const realOrderNumber = data.orderId || 'N/A';
+      const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+      const mapsUrlTienda = `https://www.google.com/maps/search/?api=1&query=${routeQuote.businessLat},${routeQuote.businessLong}`;
+      const mapsUrlCliente = `https://www.google.com/maps/search/?api=1&query=${routeQuote.userLat},${routeQuote.userLong}`;
+      
+      const categoryText = isFavorService ? 'Favor / Envío' : (businessCategoryName || selectedCategory);
+      const shippingEmoji = selectedShippingType === 'Moto' ? '🏍️ Moto' : selectedShippingType === 'Carro' ? '🚗 Carro' : '🛻 Pickup';
+
+      let message = `*🍔 NUEVO PEDIDO - IGO STORE* 🛒\n---------------------------------------\n*🆔 Orden ID:* #${String(realOrderNumber).padStart(4, '0')}\n`;
+      message += `*🏷️ Categoría:* ${categoryText}\n*🛵 Tipo de Envío:* ${shippingEmoji}\n*💳 Canal de Pago:* ${selectedPaymentRecipient}\n---------------------------------------\n*📦 DETALLE DEL PEDIDO:*\n`;
+      
+      items.forEach((item) => { 
+        message += `▪️ ${item.quantity}x ${item.title}`;
+        if (item.selectedOptionsText && item.selectedOptionsText.trim() !== '') {
+          message += `\n   ↳ Opciones: ${item.selectedOptionsText}`;
+        }
+        message += `\n`; 
+      });
+
+      message += `\n👤 *CLIENTE:* ${String(personalData || 'No indicado').trim()}\n📝 *REF:* ${String(addressNotes || 'Sin notas').trim()}\n\n*🏢 RECOGIDA (PUNTO A):*\n📍 GPS: ${mapsUrlTienda}\n\n*📍 ENTREGA (PUNTO B):*\n🏠 Dirección: ${deliveryLocation?.address || 'Ubicación en Mapa'}\n🗺️ GPS: ${mapsUrlCliente}\n---------------------------------------\n💰 *SUBTOTAL:* $${subtotal.toFixed(2)}\n`;
+      const deliveryCalculated = routeQuote.totalToPay ? Math.max(0, routeQuote.totalToPay - subtotal).toFixed(2) : (routeQuote.deliveryFee?.toFixed(2) || '0.00');
+      message += `🛵 *DELIVERY (${routeQuote.distance}):* $${deliveryCalculated}\n⭐️ *TOTAL NETO A PAGAR:* $${routeQuote.totalToPay?.toFixed(2) || '0.00'}\n\n`;
+      
+      Linking.openURL(`https://wa.me/573014215155?text=${encodeURIComponent(message.trim())}`);
+      
+      clearCart(); 
+      setPickupLocation(null); 
+      setDeliveryLocation(null); 
+      router.replace('/');
+
+    } catch (err: any) {
+      Alert.alert("Error de Envío", err.message || "No pudimos enviar tu pedido. Intenta nuevamente.");
+    } finally {
+      setIsSubmittingOrder(false);
+    }
   };
 
   return (
@@ -511,6 +648,46 @@ const MapScreen = () => {
                 </View>
               </View>
 
+              {/* SELECTORES DE PEDIDO */}
+              <View style={{ maxHeight: 160, marginBottom: 12 }}>
+                <ScrollView nestedScrollEnabled={true} showsVerticalScrollIndicator={true}>
+                  
+                  {/* 1. Selector de Tipo de Envío */}
+                  <Text style={styles.selectorLabel}>🛵 Tipo de Envío</Text>
+                  <View style={styles.selectorRow}>
+                    {(['Moto', 'Carro', 'Pickup'] as const).map(type => (
+                      <TouchableOpacity 
+                        key={type} 
+                        style={[styles.selectorChip, selectedShippingType === type && styles.selectorChipActive]}
+                        onPress={() => setSelectedShippingType(type)}
+                      >
+                        <Text style={[styles.selectorChipText, selectedShippingType === type && styles.selectorChipTextActive]}>
+                          {type === 'Moto' ? '🏍️ Moto' : type === 'Carro' ? '🚗 Carro' : '🛻 Pickup'}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+
+                  {/* 2. Selector de Método de Pago */}
+                  <Text style={styles.selectorLabel}>💳 Canal de Pago</Text>
+                  <View style={styles.selectorRow}>
+                    {(['Pago IGO', 'Pago Negocio', 'Mix'] as const).map(mode => (
+                      <TouchableOpacity 
+                        key={mode} 
+                        style={[styles.selectorChip, selectedPaymentRecipient === mode && styles.selectorChipActive]}
+                        onPress={() => setSelectedPaymentRecipient(mode)}
+                      >
+                        <Text style={[styles.selectorChipText, selectedPaymentRecipient === mode && styles.selectorChipTextActive]}>
+                          {mode}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+
+                  {/* El selector manual de Categoría fue removido; la categoría se asigna automáticamente basada en el comercio */}
+                </ScrollView>
+              </View>
+
               {!isFavorService ? (
                 <>
                   <View style={styles.editButtonsContainer}>
@@ -523,8 +700,9 @@ const MapScreen = () => {
                   <TouchableOpacity 
                     style={[
                       styles.whatsappBtn, 
-                      { opacity: !routeQuote ? 0.6 : 1 }
+                      { opacity: (!routeQuote || isSubmittingOrder) ? 0.6 : 1 }
                     ]} 
+                    disabled={!routeQuote || isSubmittingOrder}
                     onPress={() => {
                       if (!routeQuote) {
                         Alert.alert("Cotización faltante", "No se pudo obtener el precio del envío. Por favor, reintenta mover el punto de entrega en el mapa.");
@@ -533,8 +711,14 @@ const MapScreen = () => {
                       dispatchWhatsAppOrder();
                     }}
                   >
-                    <Ionicons name="logo-whatsapp" size={20} color="white" style={{ marginRight: 10 }} />
-                    <Text style={styles.whatsappBtnText}>Enviar Pedido Estructurado</Text>
+                    {isSubmittingOrder ? (
+                      <ActivityIndicator size="small" color="white" />
+                    ) : (
+                      <>
+                        <Ionicons name="logo-whatsapp" size={20} color="white" style={{ marginRight: 10 }} />
+                        <Text style={styles.whatsappBtnText}>Enviar Pedido Estructurado</Text>
+                      </>
+                    )}
                   </TouchableOpacity>
                 </>
               ) : (
@@ -583,6 +767,18 @@ const MapScreen = () => {
                  <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#1A1A1A' }}>Confirma tu dirección de entrega</Text>
                  <Text style={{ fontSize: 13, color: '#666' }}>Arrastra el mapa para ajustar el punto exacto</Text>
               </View>
+
+              <TouchableOpacity 
+                style={styles.currentLocationCta}
+                onPress={handleUseCurrentLocation}
+                disabled={loadingAddress}
+              >
+                <Ionicons name="locate" size={18} color="#6528FF" style={{ marginRight: 6 }} />
+                <Text style={styles.currentLocationCtaText}>
+                  {loadingAddress ? "Buscando GPS..." : "📍 Usar mi ubicación actual (GPS)"}
+                </Text>
+              </TouchableOpacity>
+
               <Text style={styles.addressLabel} numberOfLines={2}>{address}</Text>
               
               <View style={styles.saveAddressContainer}>
@@ -667,5 +863,61 @@ const styles = StyleSheet.create({
   businessMarkerWrapper: { alignItems: 'center', justifyContent: 'center' },
   businessMarkerBubble: { backgroundColor: 'white', paddingHorizontal: 6, paddingVertical: 3, borderRadius: 6, borderWidth: 1, borderColor: '#EDB422', marginBottom: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 1.5, elevation: 2 },
   businessMarkerText: { fontSize: 9, fontWeight: 'bold', color: '#1A1A1A' },
-  businessMarkerPin: { shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 2, elevation: 3 }
+  businessMarkerPin: { shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 2, elevation: 3 },
+  
+  // Nuevos estilos de selectores y GPS CTA
+  currentLocationCta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F3E8FF',
+    borderWidth: 1.5,
+    borderColor: '#6528FF',
+    paddingVertical: 10,
+    borderRadius: 12,
+    marginBottom: 12,
+    shadowColor: '#6528FF',
+    shadowOpacity: 0.1,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
+  },
+  currentLocationCtaText: {
+    color: '#6528FF',
+    fontWeight: 'bold',
+    fontSize: 14,
+  },
+  selectorLabel: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#64748B',
+    textTransform: 'uppercase',
+    marginBottom: 6,
+    marginTop: 4
+  },
+  selectorRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 10
+  },
+  selectorChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: '#F1F5F9',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'transparent'
+  },
+  selectorChipActive: {
+    backgroundColor: '#FFF8E1',
+    borderColor: '#EDB422'
+  },
+  selectorChipText: {
+    fontSize: 12,
+    color: '#64748B',
+    fontWeight: '600'
+  },
+  selectorChipTextActive: {
+    color: '#EDB422',
+    fontWeight: '800'
+  }
 });

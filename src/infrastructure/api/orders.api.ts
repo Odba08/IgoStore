@@ -22,3 +22,15 @@ export const getMyOrdersApi = () => {
 export const getOrderQuoteApi = (payload: any) => {
   return igoApi.post('/orders/quote', payload);
 };
+
+export const getPendingDeliveriesApi = () => {
+  return igoApi.get('/orders/pending-deliveries');
+};
+
+export const updateOrderApi = (id: string, payload: { status?: string; deliveryUserId?: string | null }) => {
+  return igoApi.patch(`/orders/${id}`, payload);
+};
+
+export const getOrderByIdApi = (id: string) => {
+  return igoApi.get(`/orders/${id}`);
+};

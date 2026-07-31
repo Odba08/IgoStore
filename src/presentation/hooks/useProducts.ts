@@ -8,6 +8,7 @@ export const useProduct = (id: string) => {
     queryFn: () => ProductService.getProductById(id),
     enabled: !!id,
     staleTime: 0, // CRÍTICO: En detalle de producto queremos datos frescos (stock) siempre
+    refetchInterval: 10000, // Refresco automático cada 10s en background
   });
 };
 
@@ -16,5 +17,6 @@ export const useAllProducts = () => {
     queryKey: ["products"],
     queryFn: () => ProductService.getProducts(),
     staleTime: 0, // Real-time sync with admin panel status updates
+    refetchInterval: 10000, // Refresco automático cada 10s en background
   });
 };

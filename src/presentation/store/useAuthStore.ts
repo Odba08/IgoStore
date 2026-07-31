@@ -7,6 +7,7 @@ export interface User {
   email: string;
   fullname: string;
   roles: string[];
+  avatarUrl?: string;
 }
 
 interface AuthState {
@@ -17,9 +18,10 @@ interface AuthState {
   login: (email: string, password: string) => Promise<boolean>;
   logout: () => Promise<void>;
   checkAuth: () => Promise<void>;
+  updateUserLocal: (updatedUser: Partial<User>) => Promise<void>;
 }
 
-export const useAuthStore = create<AuthState>((set) => ({
+export const useAuthStore = create<AuthState>((set, get) => ({
   isAuthenticated: false,
   user: null,
   token: null,
@@ -64,6 +66,15 @@ export const useAuthStore = create<AuthState>((set) => ({
       }
     } catch (error) {
       set({ isAuthenticated: false, user: null, token: null, isLoading: false });
+    }
+  },
+
+  updateUserLocal: async (updatedUser) => {
+    const currentUser = get().user;
+    if (currentUser) {
+      const newUser = { ...currentUser, ...updatedUser };
+      await AsyncStorage.setItem('user', JSON.stringify(newUser));
+      set({ user: newUser });
     }
   },
 }));

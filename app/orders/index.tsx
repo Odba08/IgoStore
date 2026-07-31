@@ -28,6 +28,8 @@ export default function MyOrdersScreen() {
 
   useEffect(() => {
     fetchOrders();
+    const interval = setInterval(fetchOrders, 10000); // Actualiza estado de mis pedidos cada 10s
+    return () => clearInterval(interval);
   }, []);
 
   const onRefresh = () => {
