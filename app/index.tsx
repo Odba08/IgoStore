@@ -1,6 +1,8 @@
 import { StatusBar } from "expo-status-bar";
-import { ScrollView, Text, View, FlatList, TouchableOpacity, TextInput, StyleSheet, Image, ActivityIndicator, Alert, Clipboard, Modal } from "react-native";
+import { ScrollView, Text, View, FlatList, TouchableOpacity, TextInput, StyleSheet, Image, ActivityIndicator, Alert, Clipboard, Modal, Platform } from "react-native";
+import { useRef } from 'react';
 import { useRouter } from "expo-router";
+import * as ImagePicker from 'expo-image-picker';
 import { useAllProducts } from "@/presentation/hooks/useProducts";
 import { Ionicons } from "@expo/vector-icons";
 import { useMemo, useState, useEffect } from "react";
@@ -34,7 +36,7 @@ export default function Index() {
   const totalItems = items.reduce((total, item) => total + item.quantity, 0);
 
   // Ubicaciones del store global
-  const { savedAddresses, removeSavedAddress, initStore } = useLocationStore();
+  const { savedAddresses, removeSavedAddress, initStore, getLocation, lastKnowLocation } = useLocationStore();
 
   // 1.5 LÓGICA DE MOTORIZADO / TRABAJADOR
   const isEmployee = user?.roles.includes('empleado') || user?.roles.includes('worker');
@@ -48,6 +50,12 @@ export default function Index() {
   const [routePolyline, setRoutePolyline] = useState<any[]>([]);
   const [loadingRoute, setLoadingRoute] = useState<boolean>(false);
   const [showMapModal, setShowMapModal] = useState<boolean>(false);
+  const mapModalRef = useRef<MapView>(null);
+
+  const [showConfirmModal, setShowConfirmModal] = useState<boolean>(false);
+  const [confirmOrderId, setConfirmOrderId] = useState<string>('');
+  const [deliveryPhotoUri, setDeliveryPhotoUri] = useState<string | null>(null);
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState<boolean>(false);
 
   const fetchDriverData = async () => {
     if (!user) return;
@@ -79,6 +87,7 @@ export default function Index() {
 
   useEffect(() => {
     if (isEmployee) {
+      getLocation(); // Obtener ubicación actual al iniciar
       fetchDriverData();
       // Polling cada 10 segundos
       const interval = setInterval(fetchDriverData, 10000);
@@ -121,7 +130,9 @@ export default function Index() {
       setLoadingRoute(true);
       
       const res = await getOrderQuoteApi({
-        businessId: order.business.id,
+        businessId: order.business?.id || '00000000-0000-0000-0000-000000000000',
+        pickupLat: order.pickupLat,
+        pickupLong: order.pickupLong,
         deliveryLat: order.deliveryLat,
         deliveryLong: order.deliveryLong
       });
@@ -130,18 +141,102 @@ export default function Index() {
         setRoutePolyline(res.data.routePolyline);
       } else {
         setRoutePolyline([
-          { latitude: order.business.latitude, longitude: order.business.longitude },
+          { latitude: order.business?.latitude || order.pickupLat, longitude: order.business?.longitude || order.pickupLong },
           { latitude: order.deliveryLat, longitude: order.deliveryLong }
         ]);
       }
     } catch (err) {
       console.error("Error loading route polyline:", err);
       setRoutePolyline([
-        { latitude: order.business.latitude, longitude: order.business.longitude },
+        { latitude: order.business?.latitude || order.pickupLat || 0, longitude: order.business?.longitude || order.pickupLong || 0 },
         { latitude: order.deliveryLat, longitude: order.deliveryLong }
       ]);
     } finally {
       setLoadingRoute(false);
+    }
+  };
+
+  const handleCompleteOrderClick = (orderId: string) => {
+    setConfirmOrderId(orderId);
+    setDeliveryPhotoUri(null);
+    setShowConfirmModal(true);
+  };
+
+  const handleTakePhoto = async () => {
+    const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
+    if (permissionResult.granted === false) {
+      Alert.alert("Permiso requerido", "Se necesitan permisos para utilizar la cámara.");
+      return;
+    }
+
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      quality: 0.6,
+    });
+
+    if (!result.canceled && result.assets?.[0]?.uri) {
+      setDeliveryPhotoUri(result.assets[0].uri);
+    }
+  };
+
+  const handleSelectPhoto = async () => {
+    const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (permissionResult.granted === false) {
+      Alert.alert("Permiso requerido", "Se necesitan permisos para acceder a la galería.");
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      quality: 0.6,
+    });
+
+    if (!result.canceled && result.assets?.[0]?.uri) {
+      setDeliveryPhotoUri(result.assets[0].uri);
+    }
+  };
+
+  const handleConfirmDelivery = async () => {
+    if (!deliveryPhotoUri || !confirmOrderId) return;
+    
+    try {
+      setIsUploadingPhoto(true);
+      
+      const formData = new FormData();
+      const filename = deliveryPhotoUri.split('/').pop() || 'delivery.jpg';
+      const match = /\.(\w+)$/.exec(filename);
+      const type = match ? `image/${match[1]}` : `image/jpeg`;
+
+      formData.append('file', {
+        uri: deliveryPhotoUri,
+        name: filename,
+        type,
+      } as any);
+
+      const uploadRes = await igoApi.post('/files/products', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+
+      const photoUrl = uploadRes.data?.secureUrl;
+      if (!photoUrl) throw new Error("No se obtuvo la URL de la imagen cargada.");
+
+      await updateOrderApi(confirmOrderId, { status: 'DELIVERED', photoUrl });
+      
+      Alert.alert("Éxito", "Entrega confirmada con comprobante fotográfico.");
+      setShowConfirmModal(false);
+      setDeliveryPhotoUri(null);
+      setConfirmOrderId('');
+      await fetchDriverData();
+
+    } catch (err: any) {
+      console.error("Error confirming delivery with photo:", err);
+      Alert.alert("Error", "No se pudo subir la foto o completar el pedido: " + err.message);
+    } finally {
+      setIsUploadingPhoto(false);
     }
   };
 
@@ -514,7 +609,7 @@ export default function Index() {
                          <Ionicons name="map-outline" size={18} color="#333" style={{ marginRight: 6 }} />
                          <Text style={[styles.actionBtnText, { color: '#333' }]}>Ver Ruta</Text>
                        </TouchableOpacity>
-                       <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#4CD964' }]} onPress={() => handleCompleteOrder(order.id)}>
+                       <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#4CD964' }]} onPress={() => handleCompleteOrderClick(order.id)}>
                          <Ionicons name="checkmark-circle-outline" size={18} color="white" style={{ marginRight: 6 }} />
                          <Text style={[styles.actionBtnText, { color: 'white' }]}>Completar</Text>
                        </TouchableOpacity>
@@ -583,6 +678,47 @@ export default function Index() {
         ) : (
            // HOME NORMAL CLIENTE
            <>
+             {/* ACCESOS RÁPIDOS A SERVICIOS IGO */}
+             <View style={styles.servicesContainer}>
+               <TouchableOpacity 
+                 style={styles.serviceBox}
+                 onPress={() => {
+                   router.push({
+                     pathname: '/map',
+                     params: {
+                       serviceType: 'favor',
+                       mode: 'delivery',
+                     }
+                   });
+                 }}
+               >
+                 <View style={[styles.serviceIconWrapper, { backgroundColor: '#F3E8FF' }]}>
+                   <Ionicons name="gift" size={28} color="#6200EE" />
+                 </View>
+                 <Text style={styles.serviceTitle}>IGO Favor</Text>
+                 <Text style={styles.serviceSub}>Envíos Punto a Punto</Text>
+               </TouchableOpacity>
+
+               <TouchableOpacity 
+                 style={styles.serviceBox}
+                 onPress={() => {
+                   router.push({
+                     pathname: '/map',
+                     params: {
+                       serviceType: 'taxi',
+                       mode: 'delivery',
+                     }
+                   });
+                 }}
+               >
+                 <View style={[styles.serviceIconWrapper, { backgroundColor: '#FFF8E1' }]}>
+                   <Ionicons name="car" size={28} color="#EDB422" />
+                 </View>
+                 <Text style={styles.serviceTitle}>IGO Taxi</Text>
+                 <Text style={styles.serviceSub}>Traslados en Carro</Text>
+               </TouchableOpacity>
+             </View>
+
              <CategoryList onSelectCategory={handleSelectCategory} />
              
              <PromoSlider />
@@ -631,80 +767,105 @@ export default function Index() {
         }}
       >
         <View style={{ flex: 1, backgroundColor: 'white' }}>
-          {selectedRouteOrder && (
-            <>
-              {loadingRoute ? (
-                <View style={styles.center}>
-                  <ActivityIndicator size="large" color="#FFDB58" />
-                  <Text style={{ marginTop: 10, color: '#666' }}>Cargando ruta de entrega...</Text>
-                </View>
-              ) : (
-                <View style={{ flex: 1 }}>
-                  <MapView
-                    style={{ flex: 1 }}
-                    initialRegion={{
-                      latitude: (selectedRouteOrder.business.latitude + selectedRouteOrder.deliveryLat) / 2,
-                      longitude: (selectedRouteOrder.business.longitude + selectedRouteOrder.deliveryLong) / 2,
-                      latitudeDelta: Math.abs(selectedRouteOrder.business.latitude - selectedRouteOrder.deliveryLat) * 2.5 || 0.05,
-                      longitudeDelta: Math.abs(selectedRouteOrder.business.longitude - selectedRouteOrder.deliveryLong) * 2.5 || 0.05,
-                    }}
-                  >
-                    {/* Marcador del Local */}
-                    <Marker
-                      coordinate={{
-                        latitude: selectedRouteOrder.business.latitude,
-                        longitude: selectedRouteOrder.business.longitude
+          {selectedRouteOrder && (() => {
+            const startLat = selectedRouteOrder.business?.latitude || selectedRouteOrder.pickupLat || 0;
+            const startLng = selectedRouteOrder.business?.longitude || selectedRouteOrder.pickupLong || 0;
+            const startName = selectedRouteOrder.business?.name || selectedRouteOrder.pickupAddress || 'Origen (Punto A)';
+            
+            return (
+              <>
+                {loadingRoute ? (
+                  <View style={styles.center}>
+                    <ActivityIndicator size="large" color="#FFDB58" />
+                    <Text style={{ marginTop: 10, color: '#666' }}>Cargando ruta de entrega...</Text>
+                  </View>
+                ) : (
+                  <View style={{ flex: 1 }}>
+                    <MapView
+                      ref={mapModalRef}
+                      style={{ flex: 1 }}
+                      showsUserLocation={true}
+                      initialRegion={{
+                        latitude: (startLat + selectedRouteOrder.deliveryLat) / 2,
+                        longitude: (startLng + selectedRouteOrder.deliveryLong) / 2,
+                        latitudeDelta: Math.abs(startLat - selectedRouteOrder.deliveryLat) * 2.5 || 0.05,
+                        longitudeDelta: Math.abs(startLng - selectedRouteOrder.deliveryLong) * 2.5 || 0.05,
                       }}
-                      title={selectedRouteOrder.business.name}
-                      description="Punto de Recogida"
-                      pinColor="green"
-                    />
-
-                    {/* Marcador del Cliente */}
-                    <Marker
-                      coordinate={{
-                        latitude: selectedRouteOrder.deliveryLat,
-                        longitude: selectedRouteOrder.deliveryLong
-                      }}
-                      title="Cliente"
-                      description={selectedRouteOrder.deliveryAddress}
-                      pinColor="red"
-                    />
-
-                    {/* Línea de Ruta */}
-                    {routePolyline.length > 0 && (
-                      <Polyline
-                        coordinates={routePolyline}
-                        strokeColor="#6528FF"
-                        strokeWidth={4}
+                    >
+                      {/* Marcador del Local/Origen */}
+                      <Marker
+                        coordinate={{
+                          latitude: startLat,
+                          longitude: startLng
+                        }}
+                        title={startName}
+                        description="Punto de Recogida"
+                        pinColor="green"
                       />
-                    )}
-                  </MapView>
 
-                  {/* Panel de Info Flotante */}
-                  <View style={styles.mapInfoPanel}>
-                    <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#333' }}>
-                      Ruta del Pedido #{String(selectedRouteOrder.orderNumber).padStart(4, '0')}
-                    </Text>
-                    <Text style={{ fontSize: 13, color: '#666', marginTop: 4 }}>
-                      <Text style={{ fontWeight: 'bold' }}>De:</Text> {selectedRouteOrder.business.name}
-                    </Text>
-                    <Text style={{ fontSize: 13, color: '#666', marginTop: 2 }} numberOfLines={2}>
-                      <Text style={{ fontWeight: 'bold' }}>Para:</Text> {selectedRouteOrder.deliveryAddress}
-                    </Text>
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 6, alignItems: 'center' }}>
-                      <Text style={{ fontSize: 14, color: '#00A86B', fontWeight: 'bold' }}>
-                        Envío: ${selectedRouteOrder.deliveryFee.toFixed(2)}
+                      {/* Marcador del Cliente */}
+                      <Marker
+                        coordinate={{
+                          latitude: selectedRouteOrder.deliveryLat,
+                          longitude: selectedRouteOrder.deliveryLong
+                        }}
+                        title="Cliente"
+                        description={selectedRouteOrder.deliveryAddress}
+                        pinColor="red"
+                      />
+
+                      {/* Línea de Ruta */}
+                      {routePolyline.length > 0 && (
+                        <Polyline
+                          coordinates={routePolyline}
+                          strokeColor="#6528FF"
+                          strokeWidth={4}
+                        />
+                      )}
+                    </MapView>
+
+                    {/* Botón flotante para centrar en mi ubicación actual (Repartidor) */}
+                    {lastKnowLocation && (
+                      <TouchableOpacity 
+                        style={styles.repartidorLocationBtn} 
+                        onPress={() => {
+                          mapModalRef.current?.animateToRegion({
+                            latitude: lastKnowLocation.latitude,
+                            longitude: lastKnowLocation.longitude,
+                            latitudeDelta: 0.008,
+                            longitudeDelta: 0.008
+                          }, 1000);
+                        }}
+                      >
+                        <Ionicons name="locate" size={24} color="#6528FF" />
+                      </TouchableOpacity>
+                    )}
+
+                    {/* Panel de Info Flotante */}
+                    <View style={styles.mapInfoPanel}>
+                      <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#333' }}>
+                        Ruta del Pedido #{String(selectedRouteOrder.orderNumber).padStart(4, '0')}
                       </Text>
-                      <Text style={{ fontSize: 14, color: '#333', fontWeight: 'bold' }}>
-                        Total: ${selectedRouteOrder.totalAmount.toFixed(2)}
+                      <Text style={{ fontSize: 13, color: '#666', marginTop: 4 }}>
+                        <Text style={{ fontWeight: 'bold' }}>De:</Text> {startName}
                       </Text>
+                      <Text style={{ fontSize: 13, color: '#666', marginTop: 2 }} numberOfLines={2}>
+                        <Text style={{ fontWeight: 'bold' }}>Para:</Text> {selectedRouteOrder.deliveryAddress}
+                      </Text>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 6, alignItems: 'center' }}>
+                        <Text style={{ fontSize: 14, color: '#00A86B', fontWeight: 'bold' }}>
+                          Envío: ${selectedRouteOrder.deliveryFee.toFixed(2)}
+                        </Text>
+                        <Text style={{ fontSize: 14, color: '#333', fontWeight: 'bold' }}>
+                          Total: ${selectedRouteOrder.totalAmount.toFixed(2)}
+                        </Text>
+                      </View>
                     </View>
                   </View>
-                </View>
-              )}
-            </>
-          )}
+                )}
+              </>
+            );
+          })()}
 
           {/* Botón de Cerrar */}
           <TouchableOpacity 
@@ -717,6 +878,85 @@ export default function Index() {
           >
             <Ionicons name="close" size={24} color="black" />
           </TouchableOpacity>
+        </View>
+      </Modal>
+
+      {/* MODAL DE CONFIRMACIÓN DE ENTREGA CON FOTO PARA EL MOTORIZADO */}
+      <Modal
+        visible={showConfirmModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => {
+          if (!isUploadingPhoto) {
+            setShowConfirmModal(false);
+            setDeliveryPhotoUri(null);
+            setConfirmOrderId('');
+          }
+        }}
+      >
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}>
+          <View style={styles.confirmModalContent}>
+            <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#1A1A1A', textAlign: 'center' }}>Confirmar Entrega</Text>
+            <Text style={{ fontSize: 13, color: '#666', textAlign: 'center', marginTop: 6 }}>
+              Por favor, sube o captura una foto del pedido entregado como comprobante.
+            </Text>
+
+            {deliveryPhotoUri ? (
+              <Image source={{ uri: deliveryPhotoUri }} style={styles.photoPreview} />
+            ) : (
+              <View style={styles.photoPlaceholder}>
+                <Ionicons name="camera-outline" size={48} color="#94A3B8" />
+                <Text style={{ fontSize: 12, color: '#94A3B8', marginTop: 8 }}>Sin imagen seleccionada</Text>
+              </View>
+            )}
+
+            <View style={{ flexDirection: 'row', gap: 10, width: '100%', marginBottom: 15 }}>
+              <TouchableOpacity 
+                style={[styles.actionBtn, { flex: 0.5, backgroundColor: '#F1F5F9', borderStyle: 'solid', borderWidth: 1, borderColor: '#CBD5E1', height: 40, borderRadius: 10, justifyContent: 'center', alignItems: 'center' }]} 
+                onPress={handleTakePhoto}
+                disabled={isUploadingPhoto}
+              >
+                <Ionicons name="camera" size={16} color="#475569" style={{ marginRight: 6 }} />
+                <Text style={{ color: '#475569', fontWeight: 'bold', fontSize: 12 }}>Tomar Foto</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity 
+                style={[styles.actionBtn, { flex: 0.5, backgroundColor: '#F1F5F9', borderStyle: 'solid', borderWidth: 1, borderColor: '#CBD5E1', height: 40, borderRadius: 10, justifyContent: 'center', alignItems: 'center' }]} 
+                onPress={handleSelectPhoto}
+                disabled={isUploadingPhoto}
+              >
+                <Ionicons name="image" size={16} color="#475569" style={{ marginRight: 6 }} />
+                <Text style={{ color: '#475569', fontWeight: 'bold', fontSize: 12 }}>Galería</Text>
+              </TouchableOpacity>
+            </View>
+
+            <TouchableOpacity 
+              style={[styles.actionBtn, { width: '100%', backgroundColor: '#4CD964', marginBottom: 10, opacity: (!deliveryPhotoUri || isUploadingPhoto) ? 0.6 : 1, height: 44, borderRadius: 10, justifyContent: 'center', alignItems: 'center', flexDirection: 'row' }]} 
+              onPress={handleConfirmDelivery}
+              disabled={!deliveryPhotoUri || isUploadingPhoto}
+            >
+              {isUploadingPhoto ? (
+                <ActivityIndicator size="small" color="white" />
+              ) : (
+                <>
+                  <Ionicons name="checkmark-circle" size={18} color="white" style={{ marginRight: 6 }} />
+                  <Text style={{ color: 'white', fontWeight: 'bold' }}>Subir y Completar</Text>
+                </>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={[styles.actionBtn, { width: '100%', backgroundColor: '#EF4444', height: 44, borderRadius: 10, justifyContent: 'center', alignItems: 'center' }]} 
+              onPress={() => {
+                setShowConfirmModal(false);
+                setDeliveryPhotoUri(null);
+                setConfirmOrderId('');
+              }}
+              disabled={isUploadingPhoto}
+            >
+              <Text style={{ color: 'white', fontWeight: 'bold' }}>Cerrar</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </Modal>
 
@@ -1141,5 +1381,88 @@ const styles = StyleSheet.create({
     shadowColor: '#000',
     shadowOpacity: 0.2,
     elevation: 5
+  },
+  servicesContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    marginBottom: 20,
+    marginTop: 10,
+    gap: 15,
+  },
+  serviceBox: {
+    flex: 1,
+    backgroundColor: 'white',
+    borderRadius: 16,
+    padding: 15,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 3,
+  },
+  serviceIconWrapper: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  serviceTitle: {
+    fontSize: 15,
+    fontWeight: 'bold',
+    color: '#1A1A1A',
+    marginBottom: 2,
+  },
+  serviceSub: {
+    fontSize: 11,
+    color: '#666',
+    textAlign: 'center',
+  },
+  repartidorLocationBtn: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 120 : 100,
+    right: 15,
+    backgroundColor: 'white',
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.15,
+    elevation: 6,
+    zIndex: 20
+  },
+  confirmModalContent: {
+    backgroundColor: 'white',
+    borderRadius: 20,
+    padding: 24,
+    width: '90%',
+    maxWidth: 400,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 10
+  },
+  photoPlaceholder: {
+    width: '100%',
+    height: 200,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#E2E8F0',
+    borderStyle: 'dashed',
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    marginVertical: 15
+  },
+  photoPreview: {
+    width: '100%',
+    height: 200,
+    borderRadius: 12,
+    marginVertical: 15
   }
 });

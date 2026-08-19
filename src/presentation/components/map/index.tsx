@@ -47,9 +47,10 @@ const MapScreen = () => {
   
   // ⚡ CONTROL DE MULTIMODALIDAD INYECTADO
   const { mode, personalData, addressNotes, serviceType = 'store' } = useLocalSearchParams(); 
-  const isFavorService = serviceType === 'favor';
+  const isTaxiService = serviceType === 'taxi';
+  const isFavorService = serviceType === 'favor' || isTaxiService;
   const isStoreService = serviceType === 'store';
-  const canEditOrigin = isFavorService; // Regla de negocio estricta
+  const canEditOrigin = isFavorService; // Regla de negocio estricta (aplica a Favor y Taxi)
 
   const mapRef = useRef<MapView>(null);
   const debounceTimeout = useRef<any>(null);
@@ -89,10 +90,48 @@ const MapScreen = () => {
   // Estado local para la etiqueta/nombre de la dirección a guardar
   const [addressLabelInput, setAddressLabelInput] = useState('');
 
+  // Tasa BCV y su equivalente
+  const [bcvRate, setBcvRate] = useState<number>(75.54);
+
+  useEffect(() => {
+    const fetchBcvRate = async () => {
+      try {
+        const response = await fetch(`${getApiUrl()}/settings/BCV_RATE`);
+        const data = await response.json();
+        if (data && data.value) {
+          setBcvRate(parseFloat(data.value) || 75.54);
+        }
+      } catch (err) {
+        console.warn("Error fetching BCV rate in MapScreen:", err);
+      }
+    };
+    fetchBcvRate();
+  }, []);
+
   // Nuevos selectores de pedido
   const [selectedCategory, setSelectedCategory] = useState<'Comida' | 'Mercado' | 'Compras' | 'Envíos' | 'Salud'>('Comida');
-  const [selectedShippingType, setSelectedShippingType] = useState<'Moto' | 'Carro' | 'Pickup'>('Moto');
+  const [selectedShippingType, setSelectedShippingType] = useState<'Moto' | 'Carro' | 'Pickup'>(serviceType === 'taxi' ? 'Carro' : 'Moto');
   const [selectedPaymentRecipient, setSelectedPaymentRecipient] = useState<'Pago IGO' | 'Pago Negocio' | 'Mix'>('Pago IGO');
+
+  // Estados para IgoFavor
+  const [packageSize, setPackageSize] = useState<'pequeño' | 'mediano' | 'grande'>('pequeño');
+  const [packageValue, setPackageValue] = useState<string>('');
+  const [debouncedPackageValue, setDebouncedPackageValue] = useState<string>('');
+  const [isInsured, setIsInsured] = useState(false);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedPackageValue(packageValue);
+    }, 800);
+    return () => clearTimeout(handler);
+  }, [packageValue]);
+
+  const selectPackageSize = (size: 'pequeño' | 'mediano' | 'grande') => {
+    setPackageSize(size);
+    if (size === 'grande' && selectedShippingType === 'Moto') {
+      setSelectedShippingType('Carro');
+    }
+  };
 
   // Inicialización inteligente del mapa (intenta obtener GPS sin bloquear el renderizado)
   useEffect(() => {
@@ -114,11 +153,7 @@ const MapScreen = () => {
         setDeliveryLocation({ ...coords, address: 'Mi ubicación actual' });
       }
     }
-
-    if (mode === 'route' && isFavorService && hasDelivery && hasPickup) {
-      executeRouteCalculation(pickupLocation, deliveryLocation);
-    }
-  }, [lastKnowLocation, mode, deliveryLocation, pickupLocation]);
+  }, [lastKnowLocation]); // Solo correr cuando cambia lastKnowLocation (GPS) o al montar
 
   // Descarga de comercios asociados
   useEffect(() => {
@@ -196,7 +231,7 @@ const MapScreen = () => {
     }
   }, [currentBusinessId, businesses]);
 
-  // Recalcular ruta y tarifas cuando cambia el tipo de envío en modo ruta
+  // Recalcular ruta y tarifas cuando cambian opciones de envío, tamaño o valor de paquete o si está asegurado, u origen/destino
   useEffect(() => {
     if (activeMode === 'route') {
       const currentOrigin = pickupLocation;
@@ -205,7 +240,7 @@ const MapScreen = () => {
         executeRouteCalculation(currentOrigin, currentDestination, routeQuote?.businessId);
       }
     }
-  }, [selectedShippingType]);
+  }, [selectedShippingType, packageSize, debouncedPackageValue, isInsured, pickupLocation, deliveryLocation, activeMode]);
 
   const executeRouteCalculation = async (originPoint: any, destinationPoint: any, alternativeBusinessId?: string) => {
     const firstItem = items[0] as any;
@@ -239,7 +274,11 @@ const MapScreen = () => {
         pickupLong: currentOrigin?.longitude,
         deliveryLat: currentDestination.latitude,
         deliveryLong: currentDestination.longitude,
-        shippingType: selectedShippingType
+        shippingType: selectedShippingType,
+        category: isTaxiService ? 'IgoTaxi' : (isFavorService ? 'IgoFavor' : selectedCategory),
+        packageValue: parseFloat(debouncedPackageValue) || 0,
+        packageSize: packageSize,
+        isInsured: isInsured
       };
 
       const token = await AsyncStorage.getItem('token');
@@ -423,7 +462,7 @@ const MapScreen = () => {
 
     try {
       const firstItem = items[0] as any;
-      const businessId = isFavorService ? (routeQuote.businessId || '00000000-0000-0000-0000-000000000000') : (firstItem?.businessId || firstItem?.business_id);
+      const businessId = isFavorService ? '00000000-0000-0000-0000-000000000000' : (firstItem?.businessId || firstItem?.business_id);
       
       const API_URL = getApiUrl();
       const ENDPOINT = `${API_URL}/orders`;
@@ -431,16 +470,20 @@ const MapScreen = () => {
       const orderPayload = {
         businessId: businessId, 
         userIdTemp: personalData || 'Cliente Igo',
-        pickupLat: routeQuote.businessLat,
-        pickupLong: routeQuote.businessLong,
+        pickupLat: routeQuote.businessLat || pickupLocation?.latitude,
+        pickupLong: routeQuote.businessLong || pickupLocation?.longitude,
+        pickupAddress: pickupLocation?.address || 'Dirección de Recogida (Punto A)',
         deliveryLat: routeQuote.userLat,
         deliveryLong: routeQuote.userLong,
         deliveryAddress: `${deliveryLocation?.address || 'Ubicación en Mapa'} | Ref: ${addressNotes || ''}`.trim(),
-        category: selectedCategory,
+        category: isTaxiService ? 'IgoTaxi' : (isFavorService ? 'IgoFavor' : selectedCategory),
         shippingType: selectedShippingType,
         paymentRecipient: selectedPaymentRecipient,
-        items: items.map(item => ({
-          productId: item.productId || item.id.split('-')[0], 
+        packageValue: parseFloat(packageValue) || 0,
+        packageSize: packageSize,
+        isInsured: isInsured,
+        items: isFavorService ? [] : items.map(item => ({
+          productId: item.productId || item.id.substring(0, 36), 
           quantity: item.quantity,
           selectedOptionsText: item.selectedOptionsText || 'Sin adicionales',
           finalUnitPrice: item.price        
@@ -465,27 +508,67 @@ const MapScreen = () => {
       }
 
       const realOrderNumber = data.orderId || 'N/A';
-      const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
-      const mapsUrlTienda = `https://www.google.com/maps/search/?api=1&query=${routeQuote.businessLat},${routeQuote.businessLong}`;
+      const subtotal = isFavorService ? 0 : items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+      const mapsUrlTienda = `https://www.google.com/maps/search/?api=1&query=${routeQuote.businessLat || pickupLocation?.latitude},${routeQuote.businessLong || pickupLocation?.longitude}`;
       const mapsUrlCliente = `https://www.google.com/maps/search/?api=1&query=${routeQuote.userLat},${routeQuote.userLong}`;
       
-      const categoryText = isFavorService ? 'Favor / Envío' : (businessCategoryName || selectedCategory);
-      const shippingEmoji = selectedShippingType === 'Moto' ? '🏍️ Moto' : selectedShippingType === 'Carro' ? '🚗 Carro' : '🛻 Pickup';
+      const serviceLabel = isTaxiService ? 'IGO Taxi' : (isFavorService ? 'IGO Favor' : 'Delivery');
+      const shippingTypeLabel = selectedShippingType === 'Moto' ? 'Moto' : selectedShippingType === 'Carro' ? 'Carro' : 'Pickup';
 
-      let message = `*🍔 NUEVO PEDIDO - IGO STORE* 🛒\n---------------------------------------\n*🆔 Orden ID:* #${String(realOrderNumber).padStart(4, '0')}\n`;
-      message += `*🏷️ Categoría:* ${categoryText}\n*🛵 Tipo de Envío:* ${shippingEmoji}\n*💳 Canal de Pago:* ${selectedPaymentRecipient}\n---------------------------------------\n*📦 DETALLE DEL PEDIDO:*\n`;
-      
-      items.forEach((item) => { 
-        message += `▪️ ${item.quantity}x ${item.title}`;
-        if (item.selectedOptionsText && item.selectedOptionsText.trim() !== '') {
-          message += `\n   ↳ Opciones: ${item.selectedOptionsText}`;
+      let details = '';
+      if (isTaxiService) {
+        details = '▪️ Traslado de pasajero en carro\n';
+      } else if (isFavorService) {
+        details = '▪️ Servicio de encomienda / courier de punto A a punto B\n';
+        if (!isTaxiService) {
+          details += `▪️ Valor Declarado: $${parseFloat(packageValue || '0').toFixed(2)}\n`;
+          details += `▪️ Tamaño del Paquete: ${packageSize.toUpperCase()}\n`;
+          details += `▪️ Asegurado: ${isInsured ? 'SÍ ✅' : 'NO ❌'}\n`;
         }
-        message += `\n`; 
-      });
+      } else {
+        items.forEach((item) => {
+          details += `▪️ ${item.quantity}x ${item.title}`;
+          if (item.selectedOptionsText && item.selectedOptionsText.trim() !== '') {
+            details += `\n   ↳ Opciones: ${item.selectedOptionsText}`;
+          }
+          details += `\n`;
+        });
+      }
 
-      message += `\n👤 *CLIENTE:* ${String(personalData || 'No indicado').trim()}\n📝 *REF:* ${String(addressNotes || 'Sin notas').trim()}\n\n*🏢 RECOGIDA (PUNTO A):*\n📍 GPS: ${mapsUrlTienda}\n\n*📍 ENTREGA (PUNTO B):*\n🏠 Dirección: ${deliveryLocation?.address || 'Ubicación en Mapa'}\n🗺️ GPS: ${mapsUrlCliente}\n---------------------------------------\n💰 *SUBTOTAL:* $${subtotal.toFixed(2)}\n`;
-      const deliveryCalculated = routeQuote.totalToPay ? Math.max(0, routeQuote.totalToPay - subtotal).toFixed(2) : (routeQuote.deliveryFee?.toFixed(2) || '0.00');
-      message += `🛵 *DELIVERY (${routeQuote.distance}):* $${deliveryCalculated}\n⭐️ *TOTAL NETO A PAGAR:* $${routeQuote.totalToPay?.toFixed(2) || '0.00'}\n\n`;
+      const totalToPay = isFavorService ? routeQuote.deliveryFee : (routeQuote.totalToPay || 0);
+      const totalToPayBs = totalToPay * bcvRate;
+      const deliveryCalculated = isFavorService ? routeQuote.deliveryFee : (routeQuote.totalToPay ? Math.max(0, routeQuote.totalToPay - subtotal) : (routeQuote.deliveryFee || 0));
+
+      let message = `*NUEVO SERVICIO - IGO*\n`;
+      message += `---------------------------------------\n`;
+      message += `*Tipo de Servicio:* ${serviceLabel}\n`;
+      message += `*Orden Nº:* #${String(realOrderNumber).padStart(4, '0')}\n`;
+      message += `*Método de Envío:* ${shippingTypeLabel}\n`;
+      message += `*Canal de Pago:* ${selectedPaymentRecipient}\n`;
+      message += `---------------------------------------\n`;
+      message += `*DETALLES DEL SERVICIO:*\n`;
+      message += details;
+      message += `---------------------------------------\n`;
+      message += `*DATOS DE DESPACHO:*\n`;
+      message += `*Cliente:* ${String(personalData || 'Cliente Igo').trim()}\n`;
+      message += `*Indicaciones:* ${String(addressNotes || 'Sin notas de referencia').trim()}\n\n`;
+      
+      message += `*ORIGEN (PUNTO A):*\n`;
+      message += `${pickupLocation?.address || 'Ubicación de Origen'}\n`;
+      message += `📍 GPS: ${mapsUrlTienda}\n\n`;
+      
+      message += `*DESTINO (PUNTO B):*\n`;
+      message += `${deliveryLocation?.address || 'Ubicación de Destino'}\n`;
+      message += `📍 GPS: ${mapsUrlCliente}\n`;
+      message += `---------------------------------------\n`;
+      
+      if (!isFavorService) {
+        message += `*Subtotal:* $${subtotal.toFixed(2)}\n`;
+      }
+      
+      message += `*Tarifa de Envío (${routeQuote.distance}):* $${deliveryCalculated.toFixed(2)}\n`;
+      message += `*Total en USD:* $${totalToPay.toFixed(2)}\n`;
+      message += `*Total en Bs. (Tasa BCV):* Bs. ${totalToPayBs.toFixed(2)} (Tasa: ${bcvRate.toFixed(2)})\n`;
       
       Linking.openURL(`https://wa.me/573014215155?text=${encodeURIComponent(message.trim())}`);
       
@@ -636,104 +719,155 @@ const MapScreen = () => {
                   <Text style={styles.distanceLabel}>Distancia Vial</Text>
                   <Text style={styles.distanceValue}>{routeQuote?.distance || 'Calculando...'}</Text>
                 </View>
-                {!isFavorService ? (
+                {!isFavorService && (
                   <View style={{ alignItems: 'center' }}>
                     <Text style={styles.distanceLabel}>Delivery</Text>
-                    <Text style={[styles.distanceValue, { color: '#FF3B30' }]}>${routeQuote?.totalToPay ? Math.max(0, routeQuote.totalToPay - cartSubtotal).toFixed(2) : (routeQuote?.deliveryFee?.toFixed(2) || '0.00')}</Text>
+                    <Text style={[styles.distanceValue, { color: '#FF3B30' }]}>
+                      ${routeQuote?.totalToPay ? Math.max(0, routeQuote.totalToPay - cartSubtotal).toFixed(2) : (routeQuote?.deliveryFee?.toFixed(2) || '0.00')}
+                    </Text>
                   </View>
-                ) : null}
+                )}
                 <View style={{ alignItems: 'flex-end' }}>
                   <Text style={styles.priceLabel}>{!isFavorService ? "Total Neto a Pagar" : "Costo del Delivery"}</Text>
-                  <Text style={styles.priceValue}>${!isFavorService ? (routeQuote?.totalToPay?.toFixed(2) || '0.00') : (routeQuote?.deliveryFee?.toFixed(2) || '0.00')}</Text>
+                  <Text style={styles.priceValue}>
+                    ${!isFavorService ? (routeQuote?.totalToPay?.toFixed(2) || '0.00') : (routeQuote?.deliveryFee?.toFixed(2) || '0.00')}
+                  </Text>
+                  <Text style={{ fontSize: 12, color: '#27AE60', fontWeight: 'bold', marginTop: 2 }}>
+                    Bs. {((!isFavorService ? (routeQuote?.totalToPay || 0) : (routeQuote?.deliveryFee || 0)) * bcvRate).toFixed(2)}
+                  </Text>
+                  <Text style={{ fontSize: 9, color: '#666', marginTop: 1 }}>
+                    Tasa BCV: {bcvRate.toFixed(2)} Bs
+                  </Text>
                 </View>
               </View>
 
               {/* SELECTORES DE PEDIDO */}
-              <View style={{ maxHeight: 160, marginBottom: 12 }}>
+              <View style={{ maxHeight: 300, marginBottom: 12 }}>
                 <ScrollView nestedScrollEnabled={true} showsVerticalScrollIndicator={true}>
                   
                   {/* 1. Selector de Tipo de Envío */}
                   <Text style={styles.selectorLabel}>🛵 Tipo de Envío</Text>
                   <View style={styles.selectorRow}>
-                    {(['Moto', 'Carro', 'Pickup'] as const).map(type => (
-                      <TouchableOpacity 
-                        key={type} 
-                        style={[styles.selectorChip, selectedShippingType === type && styles.selectorChipActive]}
-                        onPress={() => setSelectedShippingType(type)}
-                      >
-                        <Text style={[styles.selectorChipText, selectedShippingType === type && styles.selectorChipTextActive]}>
-                          {type === 'Moto' ? '🏍️ Moto' : type === 'Carro' ? '🚗 Carro' : '🛻 Pickup'}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
+                    {(['Moto', 'Carro', 'Pickup'] as const)
+                      .filter(type => !isTaxiService || type === 'Carro')
+                      .filter(type => !(isFavorService && !isTaxiService && packageSize === 'grande' && type === 'Moto'))
+                      .map(type => (
+                        <TouchableOpacity 
+                          key={type} 
+                          style={[styles.selectorChip, selectedShippingType === type && styles.selectorChipActive]}
+                          onPress={() => setSelectedShippingType(type)}
+                        >
+                          <Text style={[styles.selectorChipText, selectedShippingType === type && styles.selectorChipTextActive]}>
+                            {type === 'Moto' ? '🏍️ Moto' : type === 'Carro' ? '🚗 Carro' : '🛻 Pickup'}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
                   </View>
 
-                  {/* 2. Selector de Método de Pago */}
-                  <Text style={styles.selectorLabel}>💳 Canal de Pago</Text>
-                  <View style={styles.selectorRow}>
-                    {(['Pago IGO', 'Pago Negocio', 'Mix'] as const).map(mode => (
-                      <TouchableOpacity 
-                        key={mode} 
-                        style={[styles.selectorChip, selectedPaymentRecipient === mode && styles.selectorChipActive]}
-                        onPress={() => setSelectedPaymentRecipient(mode)}
-                      >
-                        <Text style={[styles.selectorChipText, selectedPaymentRecipient === mode && styles.selectorChipTextActive]}>
-                          {mode}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
+                  {isFavorService && !isTaxiService && (
+                    <>
+                      <Text style={styles.selectorLabel}>📦 Tamaño del Paquete</Text>
+                      <View style={styles.selectorRow}>
+                        {(['pequeño', 'mediano', 'grande'] as const).map(size => (
+                          <TouchableOpacity 
+                            key={size} 
+                            style={[styles.selectorChip, packageSize === size && styles.selectorChipActive]}
+                            onPress={() => selectPackageSize(size)}
+                          >
+                            <Text style={[styles.selectorChipText, packageSize === size && styles.selectorChipTextActive]}>
+                              {size === 'pequeño' ? '📦 Pequeño' : size === 'mediano' ? '📦 Mediano' : '📦 Grande'}
+                            </Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
 
-                  {/* El selector manual de Categoría fue removido; la categoría se asigna automáticamente basada en el comercio */}
+                      <Text style={styles.selectorLabel}>💵 Valor Declarado del Paquete ($)</Text>
+                      <TextInput
+                        style={styles.packageValueInput}
+                        placeholder="Ej. 150"
+                        placeholderTextColor="#999"
+                        keyboardType="numeric"
+                        value={packageValue}
+                        onChangeText={(val) => setPackageValue(val.replace(/[^0-9.]/g, ''))}
+                      />
+
+                      <TouchableOpacity 
+                        style={[
+                          styles.insuranceContainer, 
+                          isInsured && styles.insuranceContainerActive
+                        ]}
+                        onPress={() => setIsInsured(!isInsured)}
+                        activeOpacity={0.8}
+                      >
+                        <View style={styles.insuranceLeft}>
+                          <Ionicons 
+                            name={isInsured ? "shield-checkmark-outline" : "shield-outline"} 
+                            size={20} 
+                            color={isInsured ? "#2E7D32" : "#64748B"} 
+                            style={{ marginRight: 8 }} 
+                          />
+                          <Text style={[
+                            styles.insuranceText,
+                            isInsured && styles.insuranceTextActive
+                          ]}>
+                            ¿Desea asegurar el paquete?
+                          </Text>
+                        </View>
+                        <View style={[
+                          styles.insuranceSwitch,
+                          isInsured ? styles.insuranceSwitchOn : styles.insuranceSwitchOff
+                        ]}>
+                          <View style={[
+                            styles.insuranceSwitchKnob,
+                            isInsured ? styles.insuranceSwitchKnobOn : styles.insuranceSwitchKnobOff
+                          ]} />
+                        </View>
+                      </TouchableOpacity>
+                    </>
+                  )}
                 </ScrollView>
               </View>
 
-              {!isFavorService ? (
-                <>
+              <>
+                <TouchableOpacity 
+                  style={[
+                    styles.whatsappBtn, 
+                    { opacity: (!routeQuote || isSubmittingOrder) ? 0.6 : 1 }
+                  ]} 
+                  disabled={!routeQuote || isSubmittingOrder}
+                  onPress={() => {
+                    if (!routeQuote) {
+                      Alert.alert("Cotización faltante", "No se pudo obtener el precio del envío.");
+                      return;
+                    }
+                    dispatchWhatsAppOrder();
+                  }}
+                >
+                  {isSubmittingOrder ? (
+                    <ActivityIndicator size="small" color="white" />
+                  ) : (
+                    <>
+                      <Ionicons name="logo-whatsapp" size={20} color="white" style={{ marginRight: 10 }} />
+                      <Text style={styles.whatsappBtnText}>
+                        {isTaxiService ? "Solicitar Traslado Taxi" : (isFavorService ? "Solicitar Servicio Favor" : "Enviar Pedido Estructurado")}
+                      </Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+
+                {!isFavorService ? (
                   <View style={styles.editButtonsContainer}>
-                    <TouchableOpacity style={[styles.editBtnMini, { flex: 1 }]} onPress={() => { setActiveEditing('delivery'); setActiveExplorerField('delivery'); setSearchQuery(''); }}>
+                    <TouchableOpacity style={[styles.editBtnMini, { flex: 1, marginTop: 10 }]} onPress={() => { setActiveEditing('delivery'); setActiveExplorerField('delivery'); setSearchQuery(''); }}>
                       <Ionicons name="location" size={16} color="#FF3B30" style={{ marginRight: 5 }} />
                       <Text style={styles.editBtnText}>Cambiar Destino de Entrega</Text>
                     </TouchableOpacity>
                   </View>
-                  
-                  <TouchableOpacity 
-                    style={[
-                      styles.whatsappBtn, 
-                      { opacity: (!routeQuote || isSubmittingOrder) ? 0.6 : 1 }
-                    ]} 
-                    disabled={!routeQuote || isSubmittingOrder}
-                    onPress={() => {
-                      if (!routeQuote) {
-                        Alert.alert("Cotización faltante", "No se pudo obtener el precio del envío. Por favor, reintenta mover el punto de entrega en el mapa.");
-                        return;
-                      }
-                      dispatchWhatsAppOrder();
-                    }}
-                  >
-                    {isSubmittingOrder ? (
-                      <ActivityIndicator size="small" color="white" />
-                    ) : (
-                      <>
-                        <Ionicons name="logo-whatsapp" size={20} color="white" style={{ marginRight: 10 }} />
-                        <Text style={styles.whatsappBtnText}>Enviar Pedido Estructurado</Text>
-                      </>
-                    )}
-                  </TouchableOpacity>
-                </>
-              ) : (
-                <>
-                  {routeQuote?.businessId ? (
-                    <TouchableOpacity style={[styles.whatsappBtn, { backgroundColor: '#1A1A1A' }]} onPress={() => router.push({ pathname: "/business/[id]", params: { id: routeQuote.businessId } })}>
-                      <Ionicons name="restaurant" size={20} color="white" style={{ marginRight: 10 }} />
-                      <Text style={styles.whatsappBtnText}>Ver Menú de esta Tienda</Text>
-                    </TouchableOpacity>
-                  ) : null}
+                ) : (
                   <TouchableOpacity style={{ marginTop: 12, alignItems: 'center', paddingVertical: 5 }} onPress={() => { setPolylineCoords([]); setRouteQuote(null); setActiveMode('delivery'); }}>
-                    <Text style={{ color: '#666', fontWeight: 'bold', fontSize: 13 }}>X  Volver a simular rutas libres</Text>
+                    <Text style={{ color: '#666', fontWeight: 'bold', fontSize: 13 }}>X  Ajustar Origen / Destino en Mapa</Text>
                   </TouchableOpacity>
-                </>
-              )}
+                )}
+              </>
             </>
           )}
         </View>
@@ -744,20 +878,101 @@ const MapScreen = () => {
           {isFavorService ? (
             <>
               <View style={styles.tabsContainer}>
-                <TouchableOpacity style={[styles.tabButton, activeExplorerField === 'pickup' ? styles.tabActivePickup : null]} onPress={() => { setActiveExplorerField('pickup'); setAddress(pickupLocation?.address || 'Mueve el mapa...'); }}>
+                <TouchableOpacity 
+                  style={[styles.tabButton, activeExplorerField === 'pickup' ? styles.tabActivePickup : null]} 
+                  onPress={() => { 
+                    setActiveExplorerField('pickup'); 
+                    setAddress(pickupLocation?.address || 'Mueve el mapa...'); 
+                    if (pickupLocation) {
+                      mapRef.current?.animateToRegion({
+                        latitude: pickupLocation.latitude,
+                        longitude: pickupLocation.longitude,
+                        latitudeDelta: 0.008,
+                        longitudeDelta: 0.008
+                      }, 1000);
+                      setTargetCoords({ latitude: pickupLocation.latitude, longitude: pickupLocation.longitude });
+                    }
+                  }}
+                >
                   <Text style={[styles.tabText, activeExplorerField === 'pickup' ? styles.tabTextActive : null]}>🏢 Origen (A)</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={[styles.tabButton, activeExplorerField === 'delivery' ? styles.tabActiveDelivery : null]} onPress={() => { setActiveExplorerField('delivery'); setAddress(deliveryLocation?.address || 'Mueve el mapa...'); }}>
+
+                <TouchableOpacity 
+                  style={[styles.tabButton, activeExplorerField === 'delivery' ? styles.tabActiveDelivery : null]} 
+                  onPress={() => { 
+                    setActiveExplorerField('delivery'); 
+                    setAddress(deliveryLocation?.address || 'Mueve el mapa...'); 
+                    if (deliveryLocation) {
+                      mapRef.current?.animateToRegion({
+                        latitude: deliveryLocation.latitude,
+                        longitude: deliveryLocation.longitude,
+                        latitudeDelta: 0.008,
+                        longitudeDelta: 0.008
+                      }, 1000);
+                      setTargetCoords({ latitude: deliveryLocation.latitude, longitude: deliveryLocation.longitude });
+                    }
+                  }}
+                >
                   <Text style={[styles.tabText, activeExplorerField === 'delivery' ? styles.tabTextActive : null]}>📍 Destino (B)</Text>
                 </TouchableOpacity>
               </View>
               <Text style={styles.addressLabel} numberOfLines={1}>{address}</Text>
-              <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#1A1A1A' }]} onPress={() => {
-                  if (!pickupLocation) return Alert.alert("Falta el Origen", "Selecciona desde dónde sale el envío.");
-                  if (!deliveryLocation) return Alert.alert("Falta el Destino", "Selecciona a dónde llega el envío.");
-                  executeRouteCalculation(pickupLocation, deliveryLocation);
-                  setActiveMode('route'); setActiveEditing(null);
-                }}>
+
+              <TouchableOpacity 
+                style={[styles.actionBtn, { backgroundColor: activeExplorerField === 'pickup' ? '#6200EE' : '#FF3B30', marginBottom: 10 }]} 
+                onPress={() => {
+                  if (!targetCoords) return;
+                  const payload = { latitude: targetCoords.latitude, longitude: targetCoords.longitude, address };
+                  if (activeExplorerField === 'pickup') {
+                    setPickupLocation(payload);
+                    Alert.alert("Origen Establecido", "Se guardó el punto de recogida (Punto A).");
+                    setActiveExplorerField('delivery');
+                    if (deliveryLocation) {
+                      mapRef.current?.animateToRegion({
+                        latitude: deliveryLocation.latitude,
+                        longitude: deliveryLocation.longitude,
+                        latitudeDelta: 0.008,
+                        longitudeDelta: 0.008
+                      }, 1000);
+                    }
+                  } else {
+                    setDeliveryLocation(payload);
+                    Alert.alert("Destino Establecido", "Se guardó el punto de entrega (Punto B).");
+                  }
+                }}
+              >
+                <Text style={[styles.actionBtnText, { color: '#FFF' }]}>
+                  {activeExplorerField === 'pickup' ? "📍 Fijar Origen (A)" : "📍 Fijar Destino (B)"}
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity 
+                style={[styles.actionBtn, { backgroundColor: '#1A1A1A', marginTop: 5 }]} 
+                onPress={() => {
+                  if (targetCoords) {
+                    const payload = { latitude: targetCoords.latitude, longitude: targetCoords.longitude, address };
+                    if (activeExplorerField === 'pickup') {
+                      setPickupLocation(payload);
+                      const currentDest = deliveryLocation;
+                      if (!payload) return Alert.alert("Falta el Origen", "Selecciona desde dónde sale el envío.");
+                      if (!currentDest) return Alert.alert("Falta el Destino", "Selecciona a dónde llega el envío.");
+                      executeRouteCalculation(payload, currentDest);
+                    } else {
+                      setDeliveryLocation(payload);
+                      const currentOrig = pickupLocation;
+                      if (!currentOrig) return Alert.alert("Falta el Origen", "Selecciona desde dónde sale el envío.");
+                      if (!payload) return Alert.alert("Falta el Destino", "Selecciona a dónde llega el envío.");
+                      executeRouteCalculation(currentOrig, payload);
+                    }
+                  } else {
+                    if (!pickupLocation) return Alert.alert("Falta el Origen", "Selecciona desde dónde sale el envío.");
+                    if (!deliveryLocation) return Alert.alert("Falta el Destino", "Selecciona a dónde llega el envío.");
+                    executeRouteCalculation(pickupLocation, deliveryLocation);
+                  }
+                  setActiveMode('route'); 
+                  setActiveEditing(null);
+                }}
+              >
                 <Text style={[styles.actionBtnText, { color: '#FFF' }]}>⚡ Calcular Ruta y Precio de Envío</Text>
               </TouchableOpacity>
             </>
@@ -830,7 +1045,7 @@ const styles = StyleSheet.create({
   resultItem: { flexDirection: 'row', alignItems: 'center', padding: 14, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
   resultText: { flex: 1, fontSize: 13, color: '#334155' },
   backFloatingBtn: { position: 'absolute', top: Platform.OS === 'ios' ? 55 : 35, left: 15, backgroundColor: 'white', width: 48, height: 48, borderRadius: 24, justifyContent: 'center', alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.15, elevation: 6, zIndex: 20 },
-  myLocationFloatingBtn: { position: 'absolute', bottom: Platform.OS === 'ios' ? 260 : 240, right: 15, backgroundColor: 'white', width: 48, height: 48, borderRadius: 24, justifyContent: 'center', alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.15, elevation: 6, zIndex: 20 },
+  myLocationFloatingBtn: { position: 'absolute', top: Platform.OS === 'ios' ? 55 : 35, right: 15, backgroundColor: 'white', width: 48, height: 48, borderRadius: 24, justifyContent: 'center', alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.15, elevation: 6, zIndex: 20 },
   markerFixed: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'center', alignItems: 'center' },
   pinWrapper: { alignItems: 'center', justifyContent: 'center', marginBottom: 44 },
   pinIcon: { shadowColor: '#000', shadowRadius: 4, shadowOpacity: 0.25 },
@@ -919,5 +1134,76 @@ const styles = StyleSheet.create({
   selectorChipTextActive: {
     color: '#EDB422',
     fontWeight: '800'
+  },
+  packageValueInput: {
+    height: 40,
+    backgroundColor: '#F1F5F9',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    fontSize: 14,
+    color: '#1A1A1A',
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0'
+  },
+  insuranceContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#F1F5F9',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginTop: 6,
+    marginBottom: 10,
+    borderWidth: 1.5,
+    borderColor: 'transparent'
+  },
+  insuranceContainerActive: {
+    backgroundColor: '#E8F5E9',
+    borderColor: '#4CAF50'
+  },
+  insuranceLeft: {
+    flexDirection: 'row',
+    alignItems: 'center'
+  },
+  insuranceText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#64748B'
+  },
+  insuranceTextActive: {
+    color: '#2E7D32',
+    fontWeight: '700'
+  },
+  insuranceSwitch: {
+    width: 42,
+    height: 24,
+    borderRadius: 12,
+    padding: 2,
+    justifyContent: 'center'
+  },
+  insuranceSwitchOn: {
+    backgroundColor: '#4CAF50'
+  },
+  insuranceSwitchOff: {
+    backgroundColor: '#CBD5E1'
+  },
+  insuranceSwitchKnob: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 1.5,
+    elevation: 1
+  },
+  insuranceSwitchKnobOn: {
+    alignSelf: 'flex-end'
+  },
+  insuranceSwitchKnobOff: {
+    alignSelf: 'flex-start'
   }
 });
