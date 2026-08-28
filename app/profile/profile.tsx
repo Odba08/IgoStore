@@ -12,14 +12,15 @@ const PROFILE_OPTIONS = [
   { id: '1', title: 'Mis Pedidos', icon: 'receipt-outline' },
   { id: '2', title: 'Métodos de Pago', icon: 'card-outline' },
   { id: '3', title: 'Mis Direcciones', icon: 'location-outline' },
-  { id: '4', title: 'Configuración', icon: 'settings-outline' },
-  { id: '5', title: 'Ayuda y Soporte', icon: 'help-circle-outline' },
+  { id: '4', title: 'Cambiar Contraseña', icon: 'lock-closed-outline' },
+  { id: '5', title: 'Configuración', icon: 'settings-outline' },
+  { id: '6', title: 'Ayuda y Soporte', icon: 'help-circle-outline' },
 ];
 
 const ProfileScreen = () => {
   const router = useRouter();
   const { expand } = useLocalSearchParams();
-  const { user, logout, updateUserLocal } = useAuthStore();
+  const { user, logout, updateUserLocal, changePassword } = useAuthStore();
   
   // ✅ Extraemos las direcciones del store de Zustand y la acción de eliminar
   const { savedAddresses, removeSavedAddress } = useLocationStore();
@@ -33,6 +34,12 @@ const ProfileScreen = () => {
   const [editName, setEditName] = useState(user?.fullname || '');
   const [editEmail, setEditEmail] = useState(user?.email || '');
   const [updating, setUpdating] = useState(false);
+
+  // Estados de cambio de contraseña
+  const [passwordModalVisible, setPasswordModalVisible] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  const [updatingPassword, setUpdatingPassword] = useState(false);
 
   useEffect(() => {
     if (expand === 'addresses') {
@@ -122,6 +129,38 @@ const ProfileScreen = () => {
     }
   };
 
+  const handleChangePassword = async () => {
+    if (!newPassword || !confirmNewPassword) {
+      Alert.alert("Campos vacíos", "Por favor ingresa la nueva contraseña y confírmala.");
+      return;
+    }
+    if (newPassword.length < 6) {
+      Alert.alert("Contraseña corta", "La contraseña debe tener al menos 6 caracteres.");
+      return;
+    }
+    if (newPassword !== confirmNewPassword) {
+      Alert.alert("Error", "Las contraseñas no coinciden.");
+      return;
+    }
+
+    try {
+      setUpdatingPassword(true);
+      const success = await changePassword(newPassword);
+      if (success) {
+        Alert.alert("Éxito", "Contraseña cambiada correctamente.");
+        setNewPassword('');
+        setConfirmNewPassword('');
+        setPasswordModalVisible(false);
+      } else {
+        Alert.alert("Error", "No se pudo cambiar la contraseña.");
+      }
+    } catch (err: any) {
+      Alert.alert("Error", "Ocurrió un error al intentar cambiar la contraseña.");
+    } finally {
+      setUpdatingPassword(false);
+    }
+  };
+
   const handleOptionPress = (optionTitle: string) => {
     if (optionTitle === 'Mis Pedidos') {
       router.push('/orders' as any);
@@ -129,6 +168,8 @@ const ProfileScreen = () => {
       setShowAddresses(!showAddresses);
     } else if (optionTitle === 'Métodos de Pago') {
       setShowPayments(!showPayments);
+    } else if (optionTitle === 'Cambiar Contraseña') {
+      setPasswordModalVisible(true);
     } else {
       Alert.alert(optionTitle, "Próximamente disponible.");
     }
@@ -329,6 +370,62 @@ const ProfileScreen = () => {
                   <ActivityIndicator size="small" color="#FFF" />
                 ) : (
                   <Text style={styles.saveBtnText}>Guardar</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* MODAL DE CAMBIO DE CONTRASEÑA */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={passwordModalVisible}
+        onRequestClose={() => setPasswordModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <Text style={styles.modalTitle}>Cambiar Contraseña</Text>
+
+            <TextInput
+              style={styles.textInput}
+              placeholder="Nueva Contraseña"
+              value={newPassword}
+              onChangeText={setNewPassword}
+              secureTextEntry
+            />
+
+            <TextInput
+              style={styles.textInput}
+              placeholder="Confirmar Nueva Contraseña"
+              value={confirmNewPassword}
+              onChangeText={setConfirmNewPassword}
+              secureTextEntry
+            />
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity 
+                style={[styles.modalBtn, styles.cancelBtn]} 
+                onPress={() => {
+                  setNewPassword('');
+                  setConfirmNewPassword('');
+                  setPasswordModalVisible(false);
+                }}
+                disabled={updatingPassword}
+              >
+                <Text style={styles.cancelBtnText}>Cancelar</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity 
+                style={[styles.modalBtn, styles.saveBtn]} 
+                onPress={handleChangePassword}
+                disabled={updatingPassword}
+              >
+                {updatingPassword ? (
+                  <ActivityIndicator size="small" color="#FFF" />
+                ) : (
+                  <Text style={styles.saveBtnText}>Actualizar</Text>
                 )}
               </TouchableOpacity>
             </View>

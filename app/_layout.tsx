@@ -21,7 +21,7 @@ function RootLayoutNav() {
     if (!navigationState?.key) return;
 
     // Engañamos a TypeScript convirtiendo el segmento a un string genérico
-    const inAuthGroup = (segments[0] as string) === 'login';
+    const inAuthGroup = (segments[0] as string) === 'login' || (segments[0] as string) === 'register';
 
     const timeoutId = setTimeout(() => {
       if (!isAuthenticated && !inAuthGroup) {
@@ -46,6 +46,7 @@ function RootLayoutNav() {
     >
       <Stack.Screen name="index" options={{ headerShown: false }} />
       <Stack.Screen name="login" options={{ headerShown: false, animation: "fade" }} />
+      <Stack.Screen name="register" options={{ headerShown: false, animation: "slide_from_right" }} />
       <Stack.Screen name="loading" options={{ animation: "slide_from_right", headerShown: false }} />
       <Stack.Screen name="permissions" options={{ headerShown: false }} />
       <Stack.Screen name="map" options={{ headerShown: false }} />

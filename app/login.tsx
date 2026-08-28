@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, 
   Image, KeyboardAvoidingView, Platform, ScrollView, Dimensions 
@@ -6,16 +6,47 @@ import {
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@/presentation/store/useAuthStore';
+import * as WebBrowser from 'expo-web-browser';
+import * as Google from 'expo-auth-session/providers/google';
+
+WebBrowser.maybeCompleteAuthSession();
 
 export default function LoginScreen() {
   const router = useRouter();
-  const { login } = useAuthStore();
+  const { login, loginWithGoogle } = useAuthStore();
   
   const [email, setEmail] = useState('oscar@igo.com'); 
   const [password, setPassword] = useState('admin123');
   const [showPassword, setShowPassword] = useState(false);
-
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Configuración de Google OAuth en Expo
+  // Nota: Para usar en producción, reemplaza con tus credenciales de Google Cloud Console.
+  const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
+    clientId: process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID_WEB || 'YOUR_WEB_CLIENT_ID.apps.googleusercontent.com', 
+    iosClientId: process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID_IOS || 'YOUR_IOS_CLIENT_ID.apps.googleusercontent.com',
+    androidClientId: process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID_ANDROID || 'YOUR_ANDROID_CLIENT_ID.apps.googleusercontent.com',
+  });
+
+  useEffect(() => {
+    if (response?.type === 'success') {
+      const { id_token } = response.params;
+      if (id_token) {
+        handleGoogleLogin(id_token);
+      }
+    }
+  }, [response]);
+
+  const handleGoogleLogin = async (idToken: string) => {
+    setIsSubmitting(true);
+    const success = await loginWithGoogle(idToken);
+    setIsSubmitting(false);
+    if (success) {
+      router.replace('/');
+    } else {
+      Alert.alert('Error', 'No se pudo iniciar sesión con Google.');
+    }
+  };
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -56,7 +87,7 @@ export default function LoginScreen() {
   />
   
   {/* Si quieres que diga Igo Lat debajo de la imagen */}
-  <Text style={styles.appName}>Igo Lat</Text>
+  <Text style={styles.appName}>IGO APP</Text>
 </View>
     
 
@@ -109,7 +140,11 @@ export default function LoginScreen() {
 
           {/* BOTONES SOCIALES (Estética geométrica de la maqueta) */}
           <View style={styles.socialContainer}>
-             <TouchableOpacity style={[styles.socialBtn, { backgroundColor: '#EF4444' }]}>
+             <TouchableOpacity 
+               style={[styles.socialBtn, { backgroundColor: '#EF4444' }]}
+               onPress={() => promptAsync()}
+               disabled={!request}
+             >
                 <Ionicons name="logo-google" size={20} color="#FFF" />
              </TouchableOpacity>
              <TouchableOpacity style={[styles.socialBtn, { backgroundColor: '#F59E0B' }]}>
@@ -123,6 +158,16 @@ export default function LoginScreen() {
           <Text style={styles.footerText}>
             Inicia sesión con tu <Text style={{fontWeight: 'bold', color: '#1A1A1A'}}>red social</Text>
           </Text>
+
+          {/* REGISTRO DE USUARIO */}
+          <TouchableOpacity 
+            style={styles.registerContainer} 
+            onPress={() => router.push('/register' as any)}
+          >
+            <Text style={styles.registerText}>
+              ¿No tienes cuenta? <Text style={styles.registerTextBold}>Regístrate aquí</Text>
+            </Text>
+          </TouchableOpacity>
 
         </View>
 
@@ -228,4 +273,17 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   footerText: { textAlign: 'center', color: '#64748B', fontSize: 13, marginTop: 10 },
+  registerContainer: {
+    marginTop: 25,
+    alignItems: 'center',
+    paddingVertical: 5,
+  },
+  registerText: {
+    fontSize: 14,
+    color: '#64748B',
+  },
+  registerTextBold: {
+    fontWeight: 'bold',
+    color: '#1A1A1A',
+  },
 });
