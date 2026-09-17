@@ -12,6 +12,7 @@ import PrincipalHeader from "@/presentation/components/headers/header";
 import { CategoryList } from "@/presentation/components/categoryList/categoryList";
 import { PromoSlider } from "@/presentation/components/promoSlider/PromoSlider";
 import { BusinessCard } from "@/presentation/components/businessCard/businessCard";
+import { BusinessCardSkeleton } from "@/presentation/components/shared/Skeleton";
 import { useFavoritesStore } from "@/presentation/store/useFavoriteStore";
 import { useCartStore } from "@/presentation/store/useCartStore";
 import { useLocationStore } from "@/presentation/store/useLocationStore";
@@ -731,14 +732,25 @@ export default function Index() {
                     </TouchableOpacity>
                 </View>
 
-                <FlatList
+                {loadingBusiness ? (
+                  <View style={{ flexDirection: 'row', paddingHorizontal: 15, gap: 12 }}>
+                    <View style={{ width: 260 }}>
+                      <BusinessCardSkeleton />
+                    </View>
+                    <View style={{ width: 260 }}>
+                      <BusinessCardSkeleton />
+                    </View>
+                  </View>
+                ) : (
+                  <FlatList
                     horizontal
                     data={businesses?.slice(0, 4)}
                     keyExtractor={(item) => item.id}
                     renderItem={({ item }) => <BusinessCard business={item} />}
                     contentContainerStyle={{ paddingHorizontal: 15 }}
                     showsHorizontalScrollIndicator={false}
-                />
+                  />
+                )}
              </View>
            </>
         )}

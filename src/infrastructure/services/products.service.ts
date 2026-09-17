@@ -5,11 +5,11 @@ const API_URL = process.env.EXPO_PUBLIC_API_URL;
 
 const resolveImageUrl = (url: string, pathSegment: string) => {
   if (!url) return '';
-  if (url.startsWith('http')) {
-    const filename = url.split('/').pop();
-    return `${API_URL}/api/files/${pathSegment}/${filename}`;
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    return url;
   }
-  return `${API_URL}/api/files/${pathSegment}/${url}`;
+  const baseUrl = API_URL?.endsWith('/api') ? API_URL : `${API_URL}/api`;
+  return `${baseUrl}/files/${pathSegment}/${url}`;
 };
 
 export class ProductService {

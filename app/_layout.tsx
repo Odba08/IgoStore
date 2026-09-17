@@ -4,6 +4,7 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { useAuthStore } from "@/presentation/store/useAuthStore";
+import { usePushNotifications } from "@/presentation/hooks/usePushNotifications";
 
 const queryClient = new QueryClient();
 
@@ -12,6 +13,9 @@ function RootLayoutNav() {
   const segments = useSegments();
   const { isAuthenticated, checkAuth } = useAuthStore();
   const navigationState = useRootNavigationState(); // <-- Obtenemos el estado de la navegación
+
+  // Inicializar servicio y listeners de Notificaciones Push
+  usePushNotifications();
 
   useEffect(() => {
     checkAuth();

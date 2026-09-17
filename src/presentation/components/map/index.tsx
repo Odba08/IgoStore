@@ -11,17 +11,13 @@ import { useCartStore } from '@/presentation/store/useCartStore';
 // ✅ Importación con alias seguro
 import * as ExpoLocation from 'expo-location';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { SecureStorage } from '@/infrastructure/storage/secure-storage';
 
 const { width, height } = Dimensions.get('window');
 
-// ⚡ RESOLUCIÓN DINÁMICA DE URL DEL BACKEND (Android Emulator vs iOS vs Dispositivo Físico)
 const getApiUrl = () => {
   const envUrl = process.env.EXPO_PUBLIC_API_URL;
-  if (envUrl) return envUrl.endsWith('/api') ? envUrl : `${envUrl}/api`;
-  
-  // IP de respaldo según la plataforma
-  const defaultHost = Platform.OS === 'android' ? 'http://10.0.2.2:3000' : 'http://192.168.31.236:3000';
-  return `${defaultHost}/api`;
+  return envUrl?.endsWith('/api') ? envUrl : `${envUrl}/api`;
 };
 
 // ⚡ MOTOR DE DECODIFICACIÓN GEOMÉTRICA
@@ -281,7 +277,7 @@ const MapScreen = () => {
         isInsured: isInsured
       };
 
-      const token = await AsyncStorage.getItem('token');
+      const token = await SecureStorage.getItem('token');
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       if (token) {
         headers['Authorization'] = `Bearer ${token}`;
@@ -490,7 +486,7 @@ const MapScreen = () => {
         }))
       };
 
-      const token = await AsyncStorage.getItem('token');
+      const token = await SecureStorage.getItem('token');
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       if (token) {
         headers['Authorization'] = `Bearer ${token}`;

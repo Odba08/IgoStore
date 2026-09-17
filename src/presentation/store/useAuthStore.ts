@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { SecureStorage } from '@/infrastructure/storage/secure-storage';
 import { igoApi } from '@/infrastructure/api/igo.api';
 
 export interface User {
@@ -35,8 +35,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const response = await igoApi.post('/auth/login', { email, password });
       const { user, token } = response.data;
 
-      await AsyncStorage.setItem('token', token);
-      await AsyncStorage.setItem('user', JSON.stringify(user));
+      await SecureStorage.setItem('token', token);
+      await SecureStorage.setItem('user', JSON.stringify(user));
 
       set({
         isAuthenticated: true,
@@ -66,8 +66,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const response = await igoApi.post('/auth/google', { token: googleToken });
       const { user, token } = response.data;
 
-      await AsyncStorage.setItem('token', token);
-      await AsyncStorage.setItem('user', JSON.stringify(user));
+      await SecureStorage.setItem('token', token);
+      await SecureStorage.setItem('user', JSON.stringify(user));
 
       set({
         isAuthenticated: true,
@@ -95,15 +95,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   logout: async () => {
-    await AsyncStorage.removeItem('token');
-    await AsyncStorage.removeItem('user');
+    await SecureStorage.removeItem('token');
+    await SecureStorage.removeItem('user');
     set({ isAuthenticated: false, user: null, token: null, isLoading: false });
   },
 
   checkAuth: async () => {
     try {
-      const token = await AsyncStorage.getItem('token');
-      const userJson = await AsyncStorage.getItem('user');
+      const token = await SecureStorage.getItem('token');
+      const userJson = await SecureStorage.getItem('user');
       if (token && userJson) {
         const user = JSON.parse(userJson);
         set({ isAuthenticated: true, user, token, isLoading: false });
@@ -119,7 +119,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const currentUser = get().user;
     if (currentUser) {
       const newUser = { ...currentUser, ...updatedUser };
-      await AsyncStorage.setItem('user', JSON.stringify(newUser));
+      await SecureStorage.setItem('user', JSON.stringify(newUser));
       set({ user: newUser });
     }
   },
