@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   View, Text, StyleSheet, ScrollView, TouchableOpacity, 
   Image, Alert, TextInput 
@@ -7,11 +7,28 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { useCartStore } from '../../src/presentation/store/useCartStore';
-import { useLocationStore } from '../../src/presentation/store/useLocationStore';
+import { useCartStore } from '@/presentation/store/useCartStore';
+import { useLocationStore } from '@/presentation/store/useLocationStore';
+import { igoApi } from '@/infrastructure/api/igo.api';
 
 const CartScreen = () => {
   const router = useRouter();
+
+  const [bcvRate, setBcvRate] = useState<number>(75.54);
+
+  useEffect(() => {
+    const fetchBcvRate = async () => {
+      try {
+        const response = await igoApi.get('/settings/BCV_RATE');
+        if (response.data && response.data.value) {
+          setBcvRate(parseFloat(response.data.value) || 75.54);
+        }
+      } catch (err) {
+        console.warn("Error fetching BCV rate:", err);
+      }
+    };
+    fetchBcvRate();
+  }, []);
 
   const { items, removeItem, updateQuantity } = useCartStore();
   const deliveryLocation = useLocationStore((state: any) => state.deliveryLocation);
@@ -24,7 +41,8 @@ const CartScreen = () => {
   const [addressNotes, setAddressNotes] = useState('');
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
 
-  const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  const cartItems = items || [];
+  const subtotal = cartItems.reduce((sum, item) => sum + (parseFloat(String(item.price)) || 0) * (item.quantity || 1), 0);
 
   const handleSelectSavedAddress = (addressItem: any) => {
     setSelectedAddressId(addressItem.id);
@@ -36,7 +54,7 @@ const CartScreen = () => {
   };
 
   const handleNavigateToRouteCalculation = () => {
-    if (items.length === 0) return;
+    if (cartItems.length === 0) return;
     
     if (
       !deliveryLocation || 
@@ -70,7 +88,7 @@ const CartScreen = () => {
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-        {items.map((item) => (
+        {cartItems.map((item) => (
           <View key={item.id} style={styles.cartItem}>
             <Image 
               source={{ uri: (item.image && item.image.trim() !== '') ? item.image : 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=200&q=80' }} 
@@ -83,7 +101,7 @@ const CartScreen = () => {
                   {item.selectedOptionsText}
                 </Text>
               ) : null}
-              <Text style={styles.itemPrice}>${item.price.toFixed(2)}</Text>
+              <Text style={styles.itemPrice}>${(parseFloat(String(item.price)) || 0).toFixed(2)}</Text>
             </View>
             
             <View style={styles.actionContainer}>
@@ -103,7 +121,7 @@ const CartScreen = () => {
           </View>
         ))}
 
-        {items.length > 0 && (
+        {cartItems.length > 0 && (
           <>
             <View style={styles.logisticsCard}>
               <Text style={styles.cardSectionTitle}>¿A dónde lo enviamos?</Text>
@@ -173,6 +191,13 @@ const CartScreen = () => {
                 <Text style={styles.summaryLabel}>Subtotal de Productos</Text>
                 <Text style={styles.summaryValue}>${subtotal.toFixed(2)}</Text>
               </View>
+              <View style={[styles.summaryRow, { marginTop: 8 }]}>
+                <Text style={[styles.summaryLabel, { color: '#27AE60', fontWeight: 'bold' }]}>Equivalente en Bs</Text>
+                <Text style={[styles.summaryValue, { color: '#27AE60', fontWeight: 'bold' }]}>Bs. {(subtotal * bcvRate).toFixed(2)}</Text>
+              </View>
+              <Text style={{ fontSize: 11, color: '#666', marginTop: 8, fontStyle: 'italic' }}>
+                Tasa Oficial BCV: {bcvRate.toFixed(2)} Bs/$
+              </Text>
               <Text style={styles.infoFooterTexto}>*La tarifa de envío se calculará automáticamente con las coordenadas viales en la siguiente pantalla.</Text>
             </View>
           </>
@@ -181,9 +206,9 @@ const CartScreen = () => {
 
       <View style={styles.footer}>
         <TouchableOpacity 
-          style={[styles.checkoutBtn, items.length === 0 && { backgroundColor: '#FFDB58' }]} 
+          style={[styles.checkoutBtn, cartItems.length === 0 && { backgroundColor: '#FFDB58' }]} 
           onPress={() => {
-            if (items.length === 0) {
+            if (cartItems.length === 0) {
               router.replace('/');
             } else {
               handleNavigateToRouteCalculation();
@@ -191,7 +216,7 @@ const CartScreen = () => {
           }}
         >
           <Text style={styles.checkoutBtnText}>
-            {items.length === 0 ? "Añade productos para continuar" : "Calcular Envío y Proceder"}
+            {cartItems.length === 0 ? "Añade productos para continuar" : "Calcular Envío y Proceder"}
           </Text>
         </TouchableOpacity>
       </View>

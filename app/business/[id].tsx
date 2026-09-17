@@ -4,10 +4,10 @@ import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 
-// HOOKS
 import { useMenuCategories } from '@/presentation/hooks/useMenuCategories';
 import { useBusiness } from '@/presentation/hooks/useBusiness';
 import { useCartStore } from '@/presentation/store/useCartStore';
+import { Skeleton, ProductCardSkeleton } from '@/presentation/components/shared/Skeleton';
 
 export default function BusinessDetailScreen() {
   const { id } = useLocalSearchParams();
@@ -53,8 +53,8 @@ export default function BusinessDetailScreen() {
   const getProductImage = (image: any) => {
     if (!image) return require('../../assets/images/adaptive-icon.png');
     if (image.url.startsWith('http')) return { uri: image.url };
-    const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.1.XX:3000/api'; 
-    return { uri: `${API_URL}/files/product/${image.url}` };
+    const API_URL = process.env.EXPO_PUBLIC_API_URL; 
+    return { uri: `${API_URL}/api/files/product/${image.url}` };
   };
 
   // --- MEMORIZAMOS EL HEADER ---
@@ -146,8 +146,21 @@ export default function BusinessDetailScreen() {
 
   if (loadingBusiness || loadingCategories) {
     return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" color="#FFDB58" />
+      <View style={styles.container}>
+        <StatusBar style="light" />
+        <Stack.Screen options={{ headerShown: false }} />
+        <View style={styles.imageContainer}>
+          <Skeleton width="100%" height="100%" borderRadius={0} />
+        </View>
+        <View style={styles.floatingInfoCard}>
+          <Skeleton width="60%" height={24} borderRadius={6} />
+          <Skeleton width="40%" height={14} borderRadius={4} style={{ marginTop: 10 }} />
+        </View>
+        <View style={{ paddingHorizontal: 20 }}>
+          <ProductCardSkeleton />
+          <ProductCardSkeleton />
+          <ProductCardSkeleton />
+        </View>
       </View>
     );
   }
@@ -214,7 +227,7 @@ export default function BusinessDetailScreen() {
                             const finalPrice = Number(calculatedPrice) || 0; // Obligamos a que sea 'number' puro
                             const imageUri = prodImage.uri ? prodImage.uri : '';
 
-                            // 3. INYECTAMOS EN ZUSTAND
+                            // 3. INYECTAMOS EN ZUSTAND (dispara feedback háptico automáticamente)
                             addItem({
                                 id: item.id, 
                                 title: item.title,
@@ -223,9 +236,6 @@ export default function BusinessDetailScreen() {
                                 quantity: 1,
                                 businessId: business.id
                             });
-
-                            // 4. ÉXITO
-                            Alert.alert("🛒 Carrito", `${item.title} añadido al carrito`);
                         }}
                     >
                         <Ionicons name="add" size={20} color="white" />
@@ -265,7 +275,7 @@ const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   imageContainer: { width: '100%', height: 220 },
   headerImage: { width: '100%', height: '100%' },
-  overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.1)' },
+  overlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.1)' },
   
   backButton: {
     position: 'absolute', top: 50, left: 20, zIndex: 10, backgroundColor: 'white',

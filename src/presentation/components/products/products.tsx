@@ -11,8 +11,9 @@ import { StatusBar } from 'expo-status-bar';
 import { useBusinesses } from '@/presentation/hooks/useBusiness'; 
 
 import { useFavoritesStore } from '@/presentation/store/useFavoriteStore';
-import { Business } from '@/core/entities/bussines.entity';
 import { useCartStore } from '@/presentation/store/useCartStore';
+import { Business } from '@/core/entities/bussines.entity';
+import { BusinessCardSkeleton } from '@/presentation/components/shared/Skeleton';
 
 export default function Productos() {
   const router = useRouter();
@@ -109,7 +110,25 @@ export default function Productos() {
   };
 
   if (isLoading) {
-    return <View style={styles.center}><ActivityIndicator size="large" color="#FFDB58"/></View>;
+    return (
+      <View style={styles.mainContainer}>
+        <StatusBar style="dark" />
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.iconBtn}>
+            <Ionicons name="chevron-back-outline" size={24} color="#000" />
+          </TouchableOpacity>
+          <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#000', flex: 1, textAlign: 'center' }}>
+            Tiendas
+          </Text>
+          <View style={{ width: 44 }} />
+        </View>
+        <ScrollView contentContainerStyle={{ padding: 20 }}>
+          <BusinessCardSkeleton />
+          <BusinessCardSkeleton />
+          <BusinessCardSkeleton />
+        </ScrollView>
+      </View>
+    );
   }
 
   return (
@@ -242,7 +261,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'black'
   },
   favImage: { width: '100%', height: '100%', opacity: 0.7 },
-  favOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.3)' },
+  favOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.3)' },
   favTitle: {
     position: 'absolute', bottom: 15, left: 10, right: 10,
     color: 'white', fontWeight: 'bold', fontSize: 16, 

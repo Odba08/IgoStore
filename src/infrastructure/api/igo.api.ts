@@ -1,7 +1,7 @@
 import axios from 'axios';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { SecureStorage } from '../storage/secure-storage';
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000';
+const API_URL = process.env.EXPO_PUBLIC_API_URL;
 
 export const igoApi = axios.create({
   baseURL: `${API_URL}/api`,
@@ -9,7 +9,7 @@ export const igoApi = axios.create({
 });
 
 igoApi.interceptors.request.use(async (config) => {
-  const token = await AsyncStorage.getItem('token');
+  const token = await SecureStorage.getItem('token');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }

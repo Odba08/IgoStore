@@ -27,7 +27,7 @@ export const getPendingDeliveriesApi = () => {
   return igoApi.get('/orders/pending-deliveries');
 };
 
-export const updateOrderApi = (id: string, payload: { status?: string; deliveryUserId?: string | null }) => {
+export const updateOrderApi = (id: string, payload: any) => {
   return igoApi.patch(`/orders/${id}`, payload);
 };
 
