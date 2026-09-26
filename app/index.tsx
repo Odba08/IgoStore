@@ -19,7 +19,7 @@ import { useLocationStore } from "@/presentation/store/useLocationStore";
 import { useAuthStore } from "@/presentation/store/useAuthStore";
 import { igoApi } from "@/infrastructure/api/igo.api";
 import { getPendingDeliveriesApi, updateOrderApi, getOrderQuoteApi } from "@/infrastructure/api/orders.api";
-import MapView, { Marker, Polyline } from 'react-native-maps';
+import MapView, { Marker, Polyline, UrlTile } from 'react-native-maps';
 
 export default function Index() {
   const router = useRouter();
@@ -796,6 +796,7 @@ export default function Index() {
                     <MapView
                       ref={mapModalRef}
                       style={{ flex: 1 }}
+                      mapType={Platform.OS === 'android' ? 'none' : 'standard'}
                       showsUserLocation={true}
                       initialRegion={{
                         latitude: (startLat + selectedRouteOrder.deliveryLat) / 2,
@@ -804,6 +805,14 @@ export default function Index() {
                         longitudeDelta: Math.abs(startLng - selectedRouteOrder.deliveryLong) * 2.5 || 0.05,
                       }}
                     >
+                      {Platform.OS === 'android' && (
+                        <UrlTile
+                          urlTemplate="https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}"
+                          maximumZ={20}
+                          flipY={false}
+                          zIndex={-1}
+                        />
+                      )}
                       {/* Marcador del Local/Origen */}
                       <Marker
                         coordinate={{

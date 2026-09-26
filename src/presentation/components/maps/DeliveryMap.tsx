@@ -1,6 +1,6 @@
 import React, { useRef, useEffect } from 'react';
-import { View, StyleSheet, Text } from 'react-native';
-import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
+import { View, StyleSheet, Text, Platform } from 'react-native';
+import MapView, { Marker, Polyline, PROVIDER_GOOGLE, UrlTile } from 'react-native-maps';
 import { Ionicons } from '@expo/vector-icons';
 
 // Definimos la estructura de un punto de coordenada
@@ -38,7 +38,8 @@ export const DeliveryMap = ({ origin, destination, distanceKm, routePolyline }: 
     <View style={styles.container}>
       <MapView
         ref={mapRef}
-        provider={PROVIDER_GOOGLE}
+        provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
+        mapType={Platform.OS === 'android' ? 'none' : 'standard'}
         style={styles.map}
         scrollEnabled={true}
         zoomEnabled={true}
@@ -51,6 +52,14 @@ export const DeliveryMap = ({ origin, destination, distanceKm, routePolyline }: 
           longitudeDelta: 0.05,
         }}
       >
+        {Platform.OS === 'android' && (
+          <UrlTile
+            urlTemplate="https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}"
+            maximumZ={20}
+            flipY={false}
+            zIndex={-1}
+          />
+        )}
         <Marker coordinate={origin} title="Tú">
           <View style={styles.markerContainer}>
             <Ionicons name="person" size={15} color="white" />
