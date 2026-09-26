@@ -9,3 +9,5 @@ export const getProduct = axios.create({
 export const getProductMenuByIdApi = (id: string) => getProduct.get(`/menu-category/${id}`);
 
 export const getMenuCategoriesApi = () => getProduct.get('/menu-category');
+
+export const getMenuCategoriesByBusinessApi = (businessId: string) => getProduct.get(`/menu-category/business/${businessId}`);

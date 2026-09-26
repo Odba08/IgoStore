@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { useAuthStore } from "@/presentation/store/useAuthStore";
 import { usePushNotifications } from "@/presentation/hooks/usePushNotifications";
+import { getSocket } from "@/infrastructure/services/socket.service";
 
 const queryClient = new QueryClient();
 
@@ -19,6 +20,11 @@ function RootLayoutNav() {
 
   useEffect(() => {
     checkAuth();
+    try {
+      getSocket();
+    } catch (e) {
+      console.warn("Error initializing socket:", e);
+    }
   }, []);
 
   useEffect(() => {

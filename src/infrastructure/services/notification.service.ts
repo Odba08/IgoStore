@@ -1,72 +1,72 @@
 import { Platform } from 'react-native';
 import * as Device from 'expo-device';
-import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
 import { igoApi } from '../api/igo.api';
-
-// Configurar cómo se presentan las notificaciones cuando la app está abierta en primer plano
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
-});
+import { SafeNotifications, isExpoGo } from './expo-notifications-safe';
 
 export class NotificationService {
   /**
    * Solicita permisos de notificación y obtiene el token de Expo
    */
   static async registerForPushNotificationsAsync(): Promise<string | null> {
-    let token: string | null = null;
-
-    if (Platform.OS === 'android') {
-      await Notifications.setNotificationChannelAsync('orders', {
-        name: 'Pedidos y Estados',
-        importance: Notifications.AndroidImportance.MAX,
-        vibrationPattern: [0, 250, 250, 250],
-        lightColor: '#FF6B00',
-        sound: 'default',
-      });
-      await Notifications.setNotificationChannelAsync('default', {
-        name: 'General',
-        importance: Notifications.AndroidImportance.DEFAULT,
-        sound: 'default',
-      });
+    if (!SafeNotifications) {
+      if (isExpoGo && Platform.OS === 'android') {
+        console.log(
+          'ℹ️ [NotificationService] En Android con Expo Go las notificaciones remotas no están disponibles. Se requiere un Development Build (npx expo run:android).'
+        );
+      }
+      return null;
     }
 
-    if (Device.isDevice) {
-      const { status: existingStatus } = await Notifications.getPermissionsAsync();
-      let finalStatus = existingStatus;
+    let token: string | null = null;
 
-      if (existingStatus !== 'granted') {
-        const { status } = await Notifications.requestPermissionsAsync();
-        finalStatus = status;
+    try {
+      if (Platform.OS === 'android') {
+        await SafeNotifications.setNotificationChannelAsync('orders', {
+          name: 'Pedidos y Estados',
+          importance: SafeNotifications.AndroidImportance?.MAX ?? 5,
+          vibrationPattern: [0, 250, 250, 250],
+          lightColor: '#FF6B00',
+          sound: 'default',
+        });
+        await SafeNotifications.setNotificationChannelAsync('default', {
+          name: 'General',
+          importance: SafeNotifications.AndroidImportance?.DEFAULT ?? 3,
+          sound: 'default',
+        });
       }
 
-      if (finalStatus !== 'granted') {
-        console.warn('Permiso de notificaciones push no otorgado por el usuario.');
-        return null;
-      }
+      if (Device.isDevice) {
+        const { status: existingStatus } = await SafeNotifications.getPermissionsAsync();
+        let finalStatus = existingStatus;
 
-      const projectId =
-        Constants?.expoConfig?.extra?.eas?.projectId ??
-        Constants?.easConfig?.projectId ??
-        'b9c166b2-882e-40a2-9911-38e6f6611840';
+        if (existingStatus !== 'granted') {
+          const { status } = await SafeNotifications.requestPermissionsAsync();
+          finalStatus = status;
+        }
 
-      try {
-        const pushTokenData = await Notifications.getExpoPushTokenAsync({
+        if (finalStatus !== 'granted') {
+          console.warn('Permiso de notificaciones push no otorgado por el usuario.');
+          return null;
+        }
+
+        const projectId =
+          Constants?.expoConfig?.extra?.eas?.projectId ??
+          Constants?.easConfig?.projectId ??
+          'b9c166b2-882e-40a2-9911-38e6f6611840';
+
+        const pushTokenData = await SafeNotifications.getExpoPushTokenAsync({
           projectId,
         });
-        token = pushTokenData.data;
-        console.log('📲 [NotificationService] Expo Push Token obtenido:', token);
-      } catch (err) {
-        console.error('Error al obtener Expo Push Token:', err);
+        token = pushTokenData?.data ?? null;
+        if (token) {
+          console.log('📲 [NotificationService] Expo Push Token obtenido:', token);
+        }
+      } else {
+        console.log('Se requiere un dispositivo físico para recibir notificaciones push.');
       }
-    } else {
-      console.log('Se requiere un dispositivo físico para recibir notificaciones push.');
+    } catch (err) {
+      console.warn('Error en registerForPushNotificationsAsync:', err);
     }
 
     return token;
@@ -89,14 +89,19 @@ export class NotificationService {
    * Enviar una notificación local inmediata (para pruebas o avisos in-app)
    */
   static async scheduleLocalNotification(title: string, body: string, data: any = {}) {
-    await Notifications.scheduleNotificationAsync({
-      content: {
-        title,
-        body,
-        data,
-        sound: true,
-      },
-      trigger: null, // inmediato
-    });
+    if (!SafeNotifications) return;
+    try {
+      await SafeNotifications.scheduleNotificationAsync({
+        content: {
+          title,
+          body,
+          data,
+          sound: true,
+        },
+        trigger: null,
+      });
+    } catch (err) {
+      console.warn('Error en scheduleLocalNotification:', err);
+    }
   }
 }

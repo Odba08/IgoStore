@@ -3,7 +3,7 @@ import {
   ActivityIndicator, View, StyleSheet, Text, TextInput, 
   TouchableOpacity, FlatList, Dimensions, Platform, Keyboard, Alert, Linking, ScrollView 
 } from 'react-native';
-import MapView, { PROVIDER_GOOGLE, Marker, Polyline } from 'react-native-maps';
+import MapView, { PROVIDER_GOOGLE, Marker, Polyline, UrlTile } from 'react-native-maps';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router'; 
 import { useLocationStore } from '@/presentation/store/useLocationStore';
@@ -12,6 +12,8 @@ import { useCartStore } from '@/presentation/store/useCartStore';
 import * as ExpoLocation from 'expo-location';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SecureStorage } from '@/infrastructure/storage/secure-storage';
+import StorePaymentModal from '@/presentation/components/shared/StorePaymentModal';
+import { getSocket } from '@/infrastructure/services/socket.service';
 
 const { width, height } = Dimensions.get('window');
 
@@ -73,6 +75,7 @@ const MapScreen = () => {
   const [businesses, setBusinesses] = useState<any[]>([]); 
   const [businessCategoryName, setBusinessCategoryName] = useState<string>("");
   const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
+  const [showStorePaymentModal, setShowStorePaymentModal] = useState(false);
   
   const [activeExplorerField, setActiveExplorerField] = useState<'pickup' | 'delivery'>('delivery');
 
@@ -102,6 +105,26 @@ const MapScreen = () => {
       }
     };
     fetchBcvRate();
+  }, []);
+
+  // Repartidores activos en tiempo real vía WebSockets
+  const [activeDrivers, setActiveDrivers] = useState<any[]>([]);
+
+  useEffect(() => {
+    try {
+      const socket = getSocket();
+      const handleDrivers = (drivers: any[]) => {
+        if (Array.isArray(drivers)) {
+          setActiveDrivers(drivers);
+        }
+      };
+      socket.on('drivers:locations', handleDrivers);
+      return () => {
+        socket.off('drivers:locations', handleDrivers);
+      };
+    } catch (err) {
+      console.warn('Error al conectar WebSockets en MapScreen:', err);
+    }
   }, []);
 
   // Nuevos selectores de pedido
@@ -239,11 +262,20 @@ const MapScreen = () => {
   }, [selectedShippingType, packageSize, debouncedPackageValue, isInsured, pickupLocation, deliveryLocation, activeMode]);
 
   const executeRouteCalculation = async (originPoint: any, destinationPoint: any, alternativeBusinessId?: string) => {
+    // Si estamos en proceso de enviar o ya no hay items en carrito de tienda, no recalcular
+    if (isSubmittingOrder) return;
+    if (!isFavorService && items.length === 0) return;
+
     const firstItem = items[0] as any;
     const businessId = isFavorService ? (alternativeBusinessId || '00000000-0000-0000-0000-000000000000') : (firstItem?.businessId || firstItem?.business_id);
 
     const currentOrigin = originPoint || pickupLocation;
     const currentDestination = destinationPoint || deliveryLocation || targetCoords;
+
+    if (!isFavorService && !businessId && !currentOrigin?.latitude) {
+      console.log("Esperando datos de comercio u origen para cotizar...");
+      return;
+    }
 
     if (
       !currentDestination || 
@@ -326,8 +358,7 @@ const MapScreen = () => {
         }
       }
     } catch (error: any) {
-      console.error(error);
-      Alert.alert("Error de Consulta", "No pudimos trazar la ruta seleccionada.");
+      console.warn("Advertencia en cálculo de ruta:", error.message || error);
     } finally { 
       setIsCalculatingRoute(false); 
     }
@@ -580,12 +611,80 @@ const MapScreen = () => {
     }
   };
 
+  const handleSubmitStoreOrder = async (paymentData: { paymentReference: string; paymentCaptureUrl: string }) => {
+    if (!routeQuote) throw new Error('No se pudo obtener la cotización del envío');
+
+    const firstItem = items[0] as any;
+    const businessId = firstItem?.businessId || firstItem?.business_id;
+    const API_URL = getApiUrl();
+    const ENDPOINT = `${API_URL}/orders`;
+
+    const orderPayload = {
+      businessId: businessId, 
+      userIdTemp: personalData || 'Cliente Igo',
+      pickupLat: routeQuote.businessLat || pickupLocation?.latitude,
+      pickupLong: routeQuote.businessLong || pickupLocation?.longitude,
+      pickupAddress: pickupLocation?.address || 'Dirección de Recogida (Punto A)',
+      deliveryLat: routeQuote.userLat,
+      deliveryLong: routeQuote.userLong,
+      deliveryAddress: `${deliveryLocation?.address || 'Ubicación en Mapa'} | Ref: ${addressNotes || ''}`.trim(),
+      category: selectedCategory,
+      shippingType: selectedShippingType,
+      paymentRecipient: selectedPaymentRecipient,
+      packageValue: parseFloat(packageValue) || 0,
+      packageSize: packageSize,
+      isInsured: isInsured,
+      paymentMethod: 'pago_movil',
+      paymentReference: paymentData.paymentReference,
+      paymentCaptureUrl: paymentData.paymentCaptureUrl,
+      items: items.map(item => ({
+        productId: item.productId || item.id.substring(0, 36), 
+        quantity: item.quantity,
+        selectedOptionsText: item.selectedOptionsText || 'Sin adicionales',
+        finalUnitPrice: item.price        
+      }))
+    };
+
+    const token = await SecureStorage.getItem('token');
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    setIsSubmittingOrder(true);
+    try {
+      const response = await fetch(ENDPOINT, { 
+        method: 'POST', 
+        headers, 
+        body: JSON.stringify(orderPayload) 
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Error al procesar el pedido en el servidor');
+      }
+
+      return { orderId: data.orderId || data.id };
+    } finally {
+      setIsSubmittingOrder(false);
+    }
+  };
+
+  const handleOrderSuccessFinished = () => {
+    setShowStorePaymentModal(false);
+    clearCart();
+    setPickupLocation(null);
+    setDeliveryLocation(null);
+    router.replace('/');
+  };
+
   return (
     <View style={styles.container}>
       <MapView
         ref={mapRef} 
         style={styles.map} 
         provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
+        mapType={Platform.OS === 'android' ? 'none' : 'standard'}
         initialRegion={{ 
           latitude: initialCoords.latitude, 
           longitude: initialCoords.longitude, 
@@ -596,6 +695,14 @@ const MapScreen = () => {
         showsUserLocation={true} 
         showsMyLocationButton={false}
       >
+        {Platform.OS === 'android' && (
+          <UrlTile
+            urlTemplate="https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}"
+            maximumZ={20}
+            flipY={false}
+            zIndex={-1}
+          />
+        )}
         {/* PINES DORADOS PARA COMERCIOS */}
         {businesses.map((bus) => {
           const lat = parseFloat(bus.latitude), lng = parseFloat(bus.longitude);
@@ -636,6 +743,22 @@ const MapScreen = () => {
         {activeMode === 'route' && polylineCoords.length >= 2 ? (
           <Polyline coordinates={polylineCoords} strokeColor="#6200EE" strokeWidth={5} />
         ) : null}
+
+        {/* Repartidores activos en tiempo real vía WebSockets */}
+        {activeDrivers.map((driver, idx) => {
+          const lat = driver.latitude || driver.lat;
+          const lng = driver.longitude || driver.lng;
+          if (!lat || !lng) return null;
+          return (
+            <Marker
+              key={driver.socketId || driver.userId || `driver-${idx}`}
+              coordinate={{ latitude: Number(lat), longitude: Number(lng) }}
+              title={driver.name || 'Repartidor Igo'}
+              description={driver.vehicle ? `Vehículo: ${driver.vehicle}` : 'Repartidor en línea'}
+              pinColor="#10B981"
+            />
+          );
+        })}
       </MapView>
 
       {(activeMode !== 'route' || activeEditing) ? (
@@ -828,6 +951,7 @@ const MapScreen = () => {
                 <TouchableOpacity 
                   style={[
                     styles.whatsappBtn, 
+                    isStoreService && { backgroundColor: '#10B981' },
                     { opacity: (!routeQuote || isSubmittingOrder) ? 0.6 : 1 }
                   ]} 
                   disabled={!routeQuote || isSubmittingOrder}
@@ -836,16 +960,29 @@ const MapScreen = () => {
                       Alert.alert("Cotización faltante", "No se pudo obtener el precio del envío.");
                       return;
                     }
-                    dispatchWhatsAppOrder();
+                    if (isStoreService) {
+                      setShowStorePaymentModal(true);
+                    } else {
+                      dispatchWhatsAppOrder();
+                    }
                   }}
                 >
                   {isSubmittingOrder ? (
                     <ActivityIndicator size="small" color="white" />
                   ) : (
                     <>
-                      <Ionicons name="logo-whatsapp" size={20} color="white" style={{ marginRight: 10 }} />
+                      <Ionicons 
+                        name={isStoreService ? "card-outline" : "logo-whatsapp"} 
+                        size={20} 
+                        color="white" 
+                        style={{ marginRight: 10 }} 
+                      />
                       <Text style={styles.whatsappBtnText}>
-                        {isTaxiService ? "Solicitar Traslado Taxi" : (isFavorService ? "Solicitar Servicio Favor" : "Enviar Pedido Estructurado")}
+                        {isTaxiService 
+                          ? "Solicitar Traslado Taxi" 
+                          : (isFavorService 
+                            ? "Solicitar Servicio Favor" 
+                            : `Pagar Pedido ($${(cartSubtotal + (routeQuote?.deliveryFee || 0)).toFixed(2)})`)}
                       </Text>
                     </>
                   )}
@@ -1024,6 +1161,19 @@ const MapScreen = () => {
           )}
         </View>
       ) : null}
+
+      {isStoreService && (
+        <StorePaymentModal
+          visible={showStorePaymentModal}
+          onClose={() => setShowStorePaymentModal(false)}
+          onOrderFinished={handleOrderSuccessFinished}
+          business={businesses.find(b => b.id === currentBusinessId)}
+          totalAmountUsd={cartSubtotal + (routeQuote?.deliveryFee || 0)}
+          totalAmountBs={(cartSubtotal + (routeQuote?.deliveryFee || 0)) * bcvRate}
+          bcvRate={bcvRate}
+          onSubmitOrder={handleSubmitStoreOrder}
+        />
+      )}
     </View>
   );
 };
@@ -1032,7 +1182,11 @@ export default MapScreen;
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FFF' },
-  map: { width: width, height: height },
+  map: { 
+    ...StyleSheet.absoluteFill,
+    width: '100%',
+    height: '100%'
+  },
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   searchContainer: { position: 'absolute', top: Platform.OS === 'ios' ? 115 : 95, left: 15, right: 15, zIndex: 10 },
   inputWrapper: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'white', paddingHorizontal: 15, height: 50, borderRadius: 12, shadowColor: '#000', shadowOpacity: 0.15, elevation: 6 },

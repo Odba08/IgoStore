@@ -1,20 +1,20 @@
 
 import { MenuCategory } from "@/core/entities/menu-category.entity";
-import { getMenuCategoriesApi } from "../api/menu-category.api";
-
+import { getMenuCategoriesByBusinessApi, getMenuCategoriesApi } from "../api/menu-category.api";
 
 export const getMenuCategoriesByBusiness = async (businessId: string): Promise<MenuCategory[]> => {
     try {
-        const { data } = await getMenuCategoriesApi();
-
-        const filteredCategories = data.filter(
-            (category: MenuCategory) => category.business.id === businessId
-        );
-
-        return filteredCategories;
+        const { data } = await getMenuCategoriesByBusinessApi(businessId);
+        return data;
     } catch (error) {
-        console.error('Error in getMenuCategoriesByBusiness:', error);
-        throw error;
+        // Fallback a getMenuCategoriesApi si el endpoint de negocio no responde
+        try {
+            const { data } = await getMenuCategoriesApi();
+            return data.filter((c: any) => c.business?.id === businessId);
+        } catch (e) {
+            console.error('Error in getMenuCategoriesByBusiness:', error);
+            return [];
+        }
     }
 };
 
