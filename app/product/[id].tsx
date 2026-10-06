@@ -114,10 +114,17 @@ export default function ProductDetailScreen() {
         </View>
 
         <View style={styles.detailsContainer}>
-            {/* Tags / Etiquetas */}
-            {product.tags && product.tags.length > 0 && (
+            {/* Tags / Categoría */}
+            {((product.menuCategory?.name) || (product.tags && product.tags.length > 0)) && (
               <View style={styles.tagContainer}>
-                {product.tags.map((tag: string, index: number) => (
+                {product.menuCategory?.name && (
+                  <View style={[styles.tagPill, { backgroundColor: '#EBF3FF', borderColor: '#C2D9FF', borderWidth: 1 }]}>
+                    <Text style={[styles.tagText, { color: '#0055FF', fontWeight: '600' }]}>
+                      📂 {product.menuCategory.name}
+                    </Text>
+                  </View>
+                )}
+                {product.tags?.map((tag: string, index: number) => (
                   <View key={index} style={styles.tagPill}>
                     <Text style={styles.tagText}>{tag}</Text>
                   </View>

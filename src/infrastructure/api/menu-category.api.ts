@@ -1,13 +1,7 @@
-import axios from "axios";
+import { igoApi } from "./igo.api";
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL;
+export const getProductMenuByIdApi = (id: string) => igoApi.get(`/menu-category/${id}`);
 
-export const getProduct = axios.create({
-  baseURL: `${API_URL}/api/`
-});
+export const getMenuCategoriesApi = () => igoApi.get('/menu-category');
 
-export const getProductMenuByIdApi = (id: string) => getProduct.get(`/menu-category/${id}`);
-
-export const getMenuCategoriesApi = () => getProduct.get('/menu-category');
-
-export const getMenuCategoriesByBusinessApi = (businessId: string) => getProduct.get(`/menu-category/business/${businessId}`);
+export const getMenuCategoriesByBusinessApi = (businessId: string) => igoApi.get(`/menu-category/business/${businessId}`);

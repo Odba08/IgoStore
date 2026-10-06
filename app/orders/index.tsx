@@ -70,9 +70,9 @@ export default function MyOrdersScreen() {
         <View style={[styles.badge, { backgroundColor: color + '20' }]}>
           <Text style={[styles.badgeText, { color }]}>{label}</Text>
         </View>
-        <View style={[styles.badge, { backgroundColor: isPaid ? '#10B98120' : '#EF444420' }]}>
-          <Text style={[styles.badgeText, { color: isPaid ? '#10B981' : '#EF4444' }]}>
-            {isPaid ? 'Pagado' : 'No pagado'}
+        <View style={[styles.badge, { backgroundColor: isPaid ? '#10B98120' : '#F59E0B20' }]}>
+          <Text style={[styles.badgeText, { color: isPaid ? '#10B981' : '#F59E0B' }]}>
+            {isPaid ? 'Pagado' : 'En revisión'}
           </Text>
         </View>
       </View>
