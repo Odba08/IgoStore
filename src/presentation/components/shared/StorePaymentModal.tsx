@@ -79,10 +79,43 @@ export default function StorePaymentModal({
     }
   }, [orderSuccess?.orderId]);
 
-  const paymentBank = business?.paymentBank || '0102 - Banco de Venezuela';
-  const paymentPhone = business?.paymentPhone || '0412-1234567';
-  const paymentId = business?.paymentId || business?.rif || 'V-12345678';
-  const paymentAccountName = business?.paymentAccountName || business?.legalName || business?.name || 'Comercio Igo';
+  const [igoSettings, setIgoSettings] = useState<any>(null);
+
+  useEffect(() => {
+    const fetchIgoSettings = async () => {
+      try {
+        const envUrl = process.env.EXPO_PUBLIC_API_URL;
+        const apiUrl = envUrl?.endsWith('/api') ? envUrl : `${envUrl}/api`;
+        const res = await fetch(`${apiUrl}/settings`);
+        if (res.ok) {
+          const data = await res.json();
+          setIgoSettings(data);
+        }
+      } catch (err) {
+        // Fallback silently to defaults
+      }
+    };
+    fetchIgoSettings();
+  }, []);
+
+  const isFavorOrIgo = !business?.id || business?.id === '00000000-0000-0000-0000-000000000000' || !business?.paymentBank;
+
+  const paymentBank = isFavorOrIgo
+    ? (igoSettings?.IGO_PAGO_MOVIL_BANK || '0102 - Banco de Venezuela')
+    : (business?.paymentBank || igoSettings?.IGO_PAGO_MOVIL_BANK || '0102 - Banco de Venezuela');
+
+  const paymentPhone = isFavorOrIgo
+    ? (igoSettings?.IGO_PAGO_MOVIL_PHONE || '0412-1234567')
+    : (business?.paymentPhone || igoSettings?.IGO_PAGO_MOVIL_PHONE || '0412-1234567');
+
+  const paymentId = isFavorOrIgo
+    ? (igoSettings?.IGO_PAGO_MOVIL_ID || 'V-12345678')
+    : (business?.paymentId || business?.rif || igoSettings?.IGO_PAGO_MOVIL_ID || 'V-12345678');
+
+  const paymentAccountName = isFavorOrIgo
+    ? (igoSettings?.IGO_PAGO_MOVIL_NAME || 'IGO Delivery C.A.')
+    : (business?.paymentAccountName || business?.legalName || business?.name || igoSettings?.IGO_PAGO_MOVIL_NAME || 'IGO Delivery C.A.');
+
 
   const copyToClipboard = async (text: string, label: string) => {
     try {

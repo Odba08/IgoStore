@@ -19,7 +19,9 @@ import { useLocationStore } from "@/presentation/store/useLocationStore";
 import { useAuthStore } from "@/presentation/store/useAuthStore";
 import { igoApi } from "@/infrastructure/api/igo.api";
 import { getPendingDeliveriesApi, updateOrderApi, getOrderQuoteApi } from "@/infrastructure/api/orders.api";
+import { getSocket } from "@/infrastructure/services/socket.service";
 import MapView, { Marker, Polyline, UrlTile } from 'react-native-maps';
+
 
 export default function Index() {
   const router = useRouter();
@@ -63,9 +65,14 @@ export default function Index() {
     try {
       // Obtener el estado de servicio del empleado
       const userRes = await igoApi.get(`/users/${user.id}`);
-      setEmployeeStatus(userRes.data.employeeStatus || 'inactive');
+      const st = userRes.data.employeeStatus || 'inactive';
+      setEmployeeStatus(st);
+      if (st === 'active') {
+        registerDriverSocket('active');
+      }
 
       // Obtener los pedidos pendientes sin motorizado
+
       const pendingRes = await getPendingDeliveriesApi();
       setPendingOrders(pendingRes.data);
 
@@ -241,6 +248,30 @@ export default function Index() {
     }
   };
 
+  const registerDriverSocket = (status = 'active') => {
+    if (!user) return;
+    try {
+      const socket = getSocket();
+      if (socket) {
+        socket.emit('driver:register', {
+          userId: user.id,
+          name: user.fullName || user.email,
+          vehicle: (user as any).vehicle || 'Moto',
+          phone: (user as any).phoneNumber || '',
+          employeeStatus: status,
+        });
+        if (lastKnowLocation) {
+          socket.emit('driver:location_update', {
+            latitude: lastKnowLocation.latitude,
+            longitude: lastKnowLocation.longitude,
+          });
+        }
+      }
+    } catch (err) {
+      console.warn('Error registrando driver en socket:', err);
+    }
+  };
+
   const handleChangeStatus = () => {
     Alert.alert(
       "Cambiar Estado de Servicio",
@@ -252,6 +283,7 @@ export default function Index() {
             try {
               await igoApi.patch(`/users/${user?.id}`, { employeeStatus: 'active' });
               setEmployeeStatus('active');
+              registerDriverSocket('active');
             } catch (err) {
               Alert.alert("Error", "No se pudo cambiar el estado.");
             }
@@ -263,6 +295,7 @@ export default function Index() {
             try {
               await igoApi.patch(`/users/${user?.id}`, { employeeStatus: 'break' });
               setEmployeeStatus('break');
+              registerDriverSocket('break');
             } catch (err) {
               Alert.alert("Error", "No se pudo cambiar el estado.");
             }
@@ -274,6 +307,7 @@ export default function Index() {
             try {
               await igoApi.patch(`/users/${user?.id}`, { employeeStatus: 'inactive' });
               setEmployeeStatus('inactive');
+              registerDriverSocket('inactive');
             } catch (err) {
               Alert.alert("Error", "No se pudo cambiar el estado.");
             }
@@ -286,6 +320,7 @@ export default function Index() {
       ]
     );
   };
+
 
   // 2. FUNCIÓN DE NAVEGACIÓN CLIENTE
   const handleSelectCategory = (id: string, name: string) => {
