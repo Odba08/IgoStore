@@ -1,5 +1,6 @@
 import { StatusBar } from "expo-status-bar";
 import { ScrollView, Text, View, FlatList, TouchableOpacity, TextInput, StyleSheet, Image, ActivityIndicator, Alert, Clipboard, Modal, Platform } from "react-native";
+import { Image as ExpoImage } from "expo-image";
 import { useRef } from 'react';
 import { useRouter } from "expo-router";
 import * as ImagePicker from 'expo-image-picker';
@@ -729,7 +730,11 @@ export default function Index() {
                  }}
                >
                  <View style={[styles.serviceIconWrapper, { backgroundColor: '#F3E8FF' }]}>
-                   <Ionicons name="gift" size={28} color="#6200EE" />
+                   <ExpoImage 
+                     source={require('../assets/Icons/igo-iconos-categorias/igo-cat-igo-favor.svg')} 
+                     style={{ width: 44, height: 44 }} 
+                     contentFit="contain" 
+                   />
                  </View>
                  <Text style={styles.serviceTitle}>IGO Favor</Text>
                  <Text style={styles.serviceSub}>Envíos Punto a Punto</Text>
@@ -748,7 +753,11 @@ export default function Index() {
                  }}
                >
                  <View style={[styles.serviceIconWrapper, { backgroundColor: '#FFF8E1' }]}>
-                   <Ionicons name="car" size={28} color="#EDB422" />
+                   <ExpoImage 
+                     source={require('../assets/Icons/igo-iconos-categorias/igo-cat-taxi.svg')} 
+                     style={{ width: 44, height: 44 }} 
+                     contentFit="contain" 
+                   />
                  </View>
                  <Text style={styles.serviceTitle}>IGO Taxi</Text>
                  <Text style={styles.serviceSub}>Traslados en Carro</Text>
