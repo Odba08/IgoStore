@@ -1,7 +1,7 @@
 import { io, Socket } from 'socket.io-client';
 
 const getSocketUrl = (): string => {
-  const envUrl = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.31.236:3000';
+  const envUrl = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.31.237:3000';
   return envUrl.replace(/\/api\/?$/, '');
 };
 
