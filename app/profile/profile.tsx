@@ -275,7 +275,7 @@ const ProfileScreen = () => {
                       <Ionicons name="wallet-outline" size={18} color="#EDB422" style={{ marginRight: 10 }} />
                       <View style={{ flex: 1 }}>
                         <Text style={styles.paymentLabel}>Binance Pay</Text>
-                        <Text style={styles.paymentText}>Email: ingo@gmail.com</Text>
+                        <Text style={styles.paymentText}>Email: igo@gmail.com</Text>
                       </View>
                     </View>
 
@@ -283,7 +283,7 @@ const ProfileScreen = () => {
                       <Ionicons name="send-outline" size={18} color="#EDB422" style={{ marginRight: 10 }} />
                       <View style={{ flex: 1 }}>
                         <Text style={styles.paymentLabel}>Zelle</Text>
-                        <Text style={styles.paymentText}>Email: ingo@gmail.com</Text>
+                        <Text style={styles.paymentText}>Email: igo@gmail.com</Text>
                       </View>
                     </View>
                   </View>

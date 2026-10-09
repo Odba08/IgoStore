@@ -533,13 +533,13 @@ export default function Index() {
                  </View>
                  <View style={styles.paymentCardBody}>
                    <Text style={styles.paymentDetailLine}>
-                     <Text style={{ fontWeight: 'bold' }}>Email:</Text> ingo@gmail.com
+                     <Text style={{ fontWeight: 'bold' }}>Email:</Text> igo@gmail.com
                    </Text>
                  </View>
                  <TouchableOpacity 
                    style={styles.copyButton}
                    onPress={() => {
-                     Clipboard.setString("ingo@gmail.com");
+                     Clipboard.setString("igo@gmail.com");
                      Alert.alert("Copiado", "Email de Binance copiado al portapapeles.");
                    }}
                  >
@@ -556,13 +556,13 @@ export default function Index() {
                  </View>
                  <View style={styles.paymentCardBody}>
                    <Text style={styles.paymentDetailLine}>
-                     <Text style={{ fontWeight: 'bold' }}>Email:</Text> ingo@gmail.com
+                     <Text style={{ fontWeight: 'bold' }}>Email:</Text> igo@gmail.com
                    </Text>
                  </View>
                  <TouchableOpacity 
                    style={styles.copyButton}
                    onPress={() => {
-                     Clipboard.setString("ingo@gmail.com");
+                     Clipboard.setString("igo@gmail.com");
                      Alert.alert("Copiado", "Email de Zelle copiado al portapapeles.");
                    }}
                  >
