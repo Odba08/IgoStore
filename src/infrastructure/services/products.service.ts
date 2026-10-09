@@ -1,14 +1,14 @@
 import { Producto } from '@/core/entities/productos.entity';
 import { getProductByIdApi, getProductsApi } from '../api/products.api';
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL;
-
 const resolveImageUrl = (url: string, pathSegment: string) => {
   if (!url) return '';
   if (url.startsWith('http://') || url.startsWith('https://')) {
     return url;
   }
-  const baseUrl = API_URL?.endsWith('/api') ? API_URL : `${API_URL}/api`;
+  const envUrl = process.env.EXPO_PUBLIC_API_URL || 'https://igoback.onrender.com';
+  const cleanBase = envUrl.trim().replace(/\/+$/, '');
+  const baseUrl = cleanBase.endsWith('/api') ? cleanBase : `${cleanBase}/api`;
   return `${baseUrl}/files/${pathSegment}/${url}`;
 };
 
