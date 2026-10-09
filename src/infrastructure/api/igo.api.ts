@@ -23,3 +23,18 @@ igoApi.interceptors.request.use(async (config) => {
   }
   return config;
 });
+
+igoApi.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    console.warn('⚠️ [igoApi Network Error]', {
+      url: error.config?.url,
+      baseURL: error.config?.baseURL,
+      fullUrl: `${error.config?.baseURL || ''}${error.config?.url || ''}`,
+      status: error.response?.status,
+      message: error.message,
+      data: error.response?.data,
+    });
+    return Promise.reject(error);
+  },
+);
