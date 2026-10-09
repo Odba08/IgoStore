@@ -10,12 +10,18 @@ const getApiBaseUrl = (): string => {
 export const igoApi = axios.create({
   baseURL: getApiBaseUrl(),
   timeout: 30000,
+  adapter: 'fetch',
+  headers: {
+    Accept: 'application/json',
+    'Content-Type': 'application/json',
+  },
 });
 
 igoApi.interceptors.request.use(async (config) => {
   try {
     const token = await SecureStorage.getItem('token');
-    if (token) {
+    if (token && token !== 'null' && token !== 'undefined') {
+      config.headers = config.headers || ({} as any);
       config.headers.Authorization = `Bearer ${token}`;
     }
   } catch {
