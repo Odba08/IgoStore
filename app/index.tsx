@@ -33,6 +33,15 @@ export default function Index() {
   const { data: businesses, isLoading: loadingBusiness, error } = useBusinesses();
   const { data: products, isLoading: productsLoading } = useAllProducts();
 
+  const sortedBusinesses = useMemo(() => {
+    if (!businesses) return [];
+    return [...businesses].sort((a, b) => {
+      if (a.isOfficialStore && !b.isOfficialStore) return -1;
+      if (!a.isOfficialStore && b.isOfficialStore) return 1;
+      return 0;
+    });
+  }, [businesses]);
+
   const [searchText, setSearchText] = useState('');
   const [activeTab, setActiveTab] = useState<'home' | 'favorites' | 'addresses' | 'payments'>('home');
 
@@ -844,7 +853,7 @@ export default function Index() {
                 ) : (
                   <FlatList
                     horizontal
-                    data={businesses?.slice(0, 4)}
+                    data={sortedBusinesses.slice(0, 6)}
                     keyExtractor={(item) => item.id}
                     renderItem={({ item }) => <BusinessCard business={item} />}
                     contentContainerStyle={{ paddingHorizontal: 15 }}
