@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   ActivityIndicator, View, StyleSheet, Text, TextInput, 
-  TouchableOpacity, FlatList, Dimensions, Platform, Keyboard, Alert, Linking, ScrollView 
+  TouchableOpacity, FlatList, Dimensions, Platform, Keyboard, Alert, Linking, ScrollView, Modal 
 } from 'react-native';
 import MapView, { PROVIDER_GOOGLE, Marker, Polyline, UrlTile } from 'react-native-maps';
 import { Ionicons } from '@expo/vector-icons';
@@ -296,6 +296,8 @@ const MapScreen = () => {
       const API_URL = getApiUrl();
       const ENDPOINT = `${API_URL}/orders/quote`;
       
+      const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+
       const quotePayload = {
         businessId: businessId,
         pickupLat: currentOrigin?.latitude,
@@ -306,7 +308,8 @@ const MapScreen = () => {
         category: isTaxiService ? 'IgoTaxi' : (isFavorService ? 'IgoFavor' : selectedCategory),
         packageValue: parseFloat(debouncedPackageValue) || 0,
         packageSize: packageSize,
-        isInsured: isInsured
+        isInsured: isInsured,
+        subtotal: subtotal
       };
 
       const token = await SecureStorage.getItem('token');
@@ -320,7 +323,6 @@ const MapScreen = () => {
       
       if (!response.ok) throw new Error(data.message || 'Error en cotización');
 
-      const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
       setRouteQuote({
         orderId: null,
         distance: data.distance,
@@ -1503,5 +1505,24 @@ const styles = StyleSheet.create({
   },
   insuranceSwitchKnobOff: {
     alignSelf: 'flex-start'
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20
+  },
+  modalContent: {
+    width: '100%',
+    maxWidth: 420,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    elevation: 8
   }
 });

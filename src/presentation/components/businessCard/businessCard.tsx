@@ -38,11 +38,22 @@ export const BusinessCard = ({ business }: Props) => {
           <Text style={styles.timeText}>30-45 min</Text>
         </View>
 
-        {/* Badge de Rating (Nuevo - Arriba a la derecha) */}
+        {/* Badge de Rating Real (Arriba a la derecha) */}
         <View style={styles.ratingBadge}>
             <Ionicons name="star" size={10} color="black" />
-            <Text style={styles.ratingText}>4.5</Text>
+            <Text style={styles.ratingText}>
+              {business.rating ? Number(business.rating).toFixed(1) : '5.0'}
+              {business.reviewsCount && business.reviewsCount > 0 ? ` (${business.reviewsCount})` : ''}
+            </Text>
         </View>
+
+        {/* Badge de Tienda Oficial IGO */}
+        {business.isOfficialStore && (
+          <View style={styles.officialBadge}>
+            <Ionicons name="shield-checkmark" size={12} color="#000" />
+            <Text style={styles.officialBadgeText}>Oficial IGO</Text>
+          </View>
+        )}
       </View>
       
       {/* 2. INFORMACIÓN */}
@@ -50,20 +61,30 @@ export const BusinessCard = ({ business }: Props) => {
         {/* Título y Verificado */}
         <View style={styles.row}>
             <Text style={styles.title} numberOfLines={1}>{business.name}</Text>
-            {/* Opcional: Icono de verificado */}
-            {/* <Ionicons name="checkmark-circle" size={14} color="#00A86B" /> */}
+            {business.isOfficialStore && (
+              <Ionicons name="checkmark-circle" size={16} color="#00A86B" style={{ marginLeft: 4 }} />
+            )}
         </View>
 
         <Text style={styles.subtitle} numberOfLines={1}>
-           Restaurante destacado • Internacional
+           {business.category?.name ? `${business.category.name} • ` : ''}Disponible para entrega
         </Text>
         
-        {/* Línea de "Envío Gratis" con estilo píldora */}
+        {/* Línea de Entrega Dinámica */}
         <View style={styles.footerRow}>
-           <View style={styles.deliveryBadge}>
-              <Ionicons name="bicycle" size={12} color="#00A86B" />
-              <Text style={styles.deliveryText}>Envío Gratis</Text>
-           </View>
+           {business.freeDeliveryAbove && business.freeDeliveryAbove > 0 ? (
+             <View style={styles.deliveryBadge}>
+                <Ionicons name="bicycle" size={12} color="#00A86B" />
+                <Text style={styles.deliveryText}>
+                  Envío Gratis &gt; ${business.freeDeliveryAbove}
+                </Text>
+             </View>
+           ) : (
+             <View style={[styles.deliveryBadge, { backgroundColor: '#F3F4F6' }]}>
+                <Ionicons name="bicycle" size={12} color="#4B5563" />
+                <Text style={[styles.deliveryText, { color: '#4B5563' }]}>Envío IGO</Text>
+             </View>
+           )}
         </View>
       </View>
     </TouchableOpacity>
@@ -121,6 +142,26 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     flexDirection: 'row', alignItems: 'center', gap: 4,
     shadowColor: "#000", shadowOpacity: 0.1, elevation: 2
+  },
+  officialBadge: {
+    position: 'absolute',
+    top: 10,
+    left: 10,
+    backgroundColor: '#FCD116',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    shadowColor: "#000",
+    shadowOpacity: 0.15,
+    elevation: 3,
+  },
+  officialBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#000',
   },
   ratingText: { fontSize: 11, fontWeight: 'bold' },
 

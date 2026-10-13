@@ -19,9 +19,10 @@ import { useCartStore } from "@/presentation/store/useCartStore";
 import { useLocationStore } from "@/presentation/store/useLocationStore";
 import { useAuthStore } from "@/presentation/store/useAuthStore";
 import { igoApi } from "@/infrastructure/api/igo.api";
-import { getPendingDeliveriesApi, updateOrderApi, getOrderQuoteApi } from "@/infrastructure/api/orders.api";
+import { getPendingDeliveriesApi, updateOrderApi, getOrderQuoteApi, getMyOrdersApi } from "@/infrastructure/api/orders.api";
 import { getSocket } from "@/infrastructure/services/socket.service";
 import MapView, { Marker, Polyline, UrlTile } from 'react-native-maps';
+import { ActiveOrderFloatingWidget } from "@/presentation/components/ActiveOrderFloatingWidget";
 
 
 export default function Index() {
@@ -101,6 +102,52 @@ export default function Index() {
       // Polling cada 10 segundos
       const interval = setInterval(fetchDriverData, 10000);
       return () => clearInterval(interval);
+    }
+  }, [isEmployee]);
+
+  // 1.6 PEDIDO ACTIVO PARA CLIENTES (Widget flotante estilo Quik)
+  const [clientActiveOrder, setClientActiveOrder] = useState<any | null>(null);
+
+  const fetchClientOrders = async () => {
+    if (isEmployee) return;
+    try {
+      const res = await getMyOrdersApi();
+      if (Array.isArray(res.data) && res.data.length > 0) {
+        // Encontrar la orden más reciente activa (no cancelada y entregada sólo si aún no ha sido calificada)
+        const active = res.data.find(
+          (o: any) =>
+            o.status !== 'CANCELLED' &&
+            (o.status !== 'DELIVERED' || !o.businessRating)
+        );
+        setClientActiveOrder(active || null);
+      } else {
+        setClientActiveOrder(null);
+      }
+    } catch {
+      // Ignorar error temporal de red
+    }
+  };
+
+  useEffect(() => {
+    if (!isEmployee) {
+      fetchClientOrders();
+      const interval = setInterval(fetchClientOrders, 8000);
+
+      const socket = getSocket();
+      const handleLiveOrderUpdate = () => {
+        fetchClientOrders();
+      };
+
+      socket.on('order:updated', handleLiveOrderUpdate);
+      socket.on('order:payment_verified', handleLiveOrderUpdate);
+      socket.on('order:driver_assigned', handleLiveOrderUpdate);
+
+      return () => {
+        clearInterval(interval);
+        socket.off('order:updated', handleLiveOrderUpdate);
+        socket.off('order:payment_verified', handleLiveOrderUpdate);
+        socket.off('order:driver_assigned', handleLiveOrderUpdate);
+      };
     }
   }, [isEmployee]);
 
@@ -256,7 +303,7 @@ export default function Index() {
       if (socket) {
         socket.emit('driver:register', {
           userId: user.id,
-          name: user.fullName || user.email,
+          name: (user as any).fullName || user.fullname || user.email,
           vehicle: (user as any).vehicle || 'Moto',
           phone: (user as any).phoneNumber || '',
           employeeStatus: status,
@@ -367,6 +414,15 @@ export default function Index() {
     <View style={styles.mainContainer}>
       <StatusBar style='dark' />
       <PrincipalHeader />
+
+      {/* WIDGET FLOTANTE DE PEDIDO EN VIVO (ESTILO QUIK) */}
+      {!isEmployee && clientActiveOrder && (
+        <ActiveOrderFloatingWidget
+          order={clientActiveOrder}
+          currentUser={user}
+          onRefreshOrders={fetchClientOrders}
+        />
+      )}
 
       <ScrollView contentContainerStyle={{ paddingBottom: isEmployee ? 60 : 160 }} showsVerticalScrollIndicator={false}>
         
