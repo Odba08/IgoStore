@@ -23,6 +23,8 @@ import { getPendingDeliveriesApi, updateOrderApi, getOrderQuoteApi, getMyOrdersA
 import { getSocket } from "@/infrastructure/services/socket.service";
 import MapView, { Marker, Polyline, UrlTile } from 'react-native-maps';
 import { ActiveOrderFloatingWidget } from "@/presentation/components/ActiveOrderFloatingWidget";
+import { OrderChatModal } from "@/presentation/components/OrderChatModal";
+import { uploadImage } from "@/infrastructure/services/imageUpload.service";
 
 
 export default function Index() {
@@ -70,6 +72,19 @@ export default function Index() {
   const [confirmOrderId, setConfirmOrderId] = useState<string>('');
   const [deliveryPhotoUri, setDeliveryPhotoUri] = useState<string | null>(null);
   const [isUploadingPhoto, setIsUploadingPhoto] = useState<boolean>(false);
+  const [driverChatOrder, setDriverChatOrder] = useState<any | null>(null);
+  const [showDriverChatModal, setShowDriverChatModal] = useState<boolean>(false);
+
+  const handleMarkArrived = async (orderId: string) => {
+    try {
+      await updateOrderApi(orderId, { status: 'ARRIVED' });
+      Alert.alert("¡Aviso enviado! 📍", "Se le notificó al cliente que ya llegaste al destino.");
+      await fetchDriverData();
+    } catch (err: any) {
+      console.error("Error marking order arrived:", err);
+      Alert.alert("Error", "No se pudo actualizar el estado: " + (err.message || 'Error de conexión'));
+    }
+  };
 
   const fetchDriverData = async () => {
     if (!user) return;
@@ -269,24 +284,7 @@ export default function Index() {
     try {
       setIsUploadingPhoto(true);
       
-      const formData = new FormData();
-      const filename = deliveryPhotoUri.split('/').pop() || 'delivery.jpg';
-      const match = /\.(\w+)$/.exec(filename);
-      const type = match ? `image/${match[1]}` : `image/jpeg`;
-
-      formData.append('file', {
-        uri: deliveryPhotoUri,
-        name: filename,
-        type,
-      } as any);
-
-      const uploadRes = await igoApi.post('/files/products', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      });
-
-      const photoUrl = uploadRes.data?.secureUrl;
+      const photoUrl = await uploadImage(deliveryPhotoUri, 'entrega_comprobante.jpg');
       if (!photoUrl) throw new Error("No se obtuvo la URL de la imagen cargada.");
 
       await updateOrderApi(confirmOrderId, { status: 'DELIVERED', photoUrl });
@@ -299,7 +297,7 @@ export default function Index() {
 
     } catch (err: any) {
       console.error("Error confirming delivery with photo:", err);
-      Alert.alert("Error", "No se pudo subir la foto o completar el pedido: " + err.message);
+      Alert.alert("Error", "No se pudo subir la foto o completar el pedido: " + (err.message || 'Error desconocido'));
     } finally {
       setIsUploadingPhoto(false);
     }
@@ -706,14 +704,48 @@ export default function Index() {
                        </View>
                      </View>
 
-                     <View style={styles.cardActions}>
-                       <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#F1F5F9' }]} onPress={() => handleOpenMap(order)}>
-                         <Ionicons name="map-outline" size={18} color="#333" style={{ marginRight: 6 }} />
+                     <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
+                       <TouchableOpacity style={[styles.actionBtn, { flex: 1, backgroundColor: '#F1F5F9' }]} onPress={() => handleOpenMap(order)}>
+                         <Ionicons name="map-outline" size={16} color="#333" style={{ marginRight: 4 }} />
                          <Text style={[styles.actionBtnText, { color: '#333' }]}>Ver Ruta</Text>
                        </TouchableOpacity>
-                       <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#4CD964' }]} onPress={() => handleCompleteOrderClick(order.id)}>
-                         <Ionicons name="checkmark-circle-outline" size={18} color="white" style={{ marginRight: 6 }} />
-                         <Text style={[styles.actionBtnText, { color: 'white' }]}>Completar</Text>
+
+                       <TouchableOpacity
+                         style={[styles.actionBtn, { flex: 1, backgroundColor: '#EFF6FF', borderWidth: 1, borderColor: '#BFDBFE' }]}
+                         onPress={() => {
+                           setDriverChatOrder(order);
+                           setShowDriverChatModal(true);
+                         }}
+                       >
+                         <Ionicons name="chatbubbles" size={16} color="#2563EB" style={{ marginRight: 4 }} />
+                         <Text style={[styles.actionBtnText, { color: '#2563EB' }]}>Chat Cliente</Text>
+                       </TouchableOpacity>
+                     </View>
+
+                     <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+                       {order.status !== 'ARRIVED' ? (
+                         <TouchableOpacity
+                           style={[styles.actionBtn, { flex: 1, backgroundColor: '#EC4899' }]}
+                           onPress={() => handleMarkArrived(order.id)}
+                         >
+                           <Ionicons name="location" size={16} color="white" style={{ marginRight: 4 }} />
+                           <Text style={[styles.actionBtnText, { color: 'white' }]}>¡Ya llegué! 📍</Text>
+                         </TouchableOpacity>
+                       ) : (
+                         <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#FDF2F8', borderRadius: 10, paddingVertical: 8, borderWidth: 1, borderColor: '#FBCFE8' }}>
+                           <Ionicons name="checkmark-done" size={16} color="#DB2777" style={{ marginRight: 4 }} />
+                           <Text style={{ fontSize: 12, fontWeight: 'bold', color: '#DB2777' }}>Llegada 📍</Text>
+                         </View>
+                       )}
+
+                       <TouchableOpacity
+                         style={[styles.actionBtn, { flex: 1, backgroundColor: '#10B981' }]}
+                         onPress={() => handleCompleteOrderClick(order.id)}
+                       >
+                         <Ionicons name="camera" size={16} color="white" style={{ marginRight: 4 }} />
+                         <Text style={[styles.actionBtnText, { color: 'white' }]}>
+                           {order.status === 'ARRIVED' ? 'Entregar y Foto' : 'Completar'}
+                         </Text>
                        </TouchableOpacity>
                      </View>
                    </View>
@@ -1159,6 +1191,19 @@ export default function Index() {
             </TouchableOpacity>
 
         </View>
+      )}
+
+      {/* MODAL DE CHAT MOTORIZADO <-> CLIENTE */}
+      {driverChatOrder && (
+        <OrderChatModal
+          visible={showDriverChatModal}
+          onClose={() => {
+            setShowDriverChatModal(false);
+            setDriverChatOrder(null);
+          }}
+          order={driverChatOrder}
+          currentUser={user}
+        />
       )}
     </View>
   );

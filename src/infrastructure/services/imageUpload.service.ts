@@ -44,47 +44,60 @@ export const takePhotoWithCamera = async (): Promise<string | null> => {
   return null;
 };
 
-export const uploadReceiptImage = async (imageUri: string): Promise<string> => {
-  try {
-    const filename = imageUri.split('/').pop() || 'comprobante_pago.jpg';
-    const match = /\.(\w+)$/.exec(filename);
-    const type = match ? `image/${match[1]}` : 'image/jpeg';
+export const uploadImage = async (imageUri: string, defaultName = 'upload.jpg'): Promise<string> => {
+  if (!imageUri) throw new Error('No se proporcionó imagen');
 
-    // 1. Intentar subir directo a ImgBB con apiKey
+  const filename = imageUri.split('/').pop() || defaultName;
+  const match = /\.(\w+)$/.exec(filename);
+  const type = match ? `image/${match[1].toLowerCase()}` : 'image/jpeg';
+
+  // 1. Intentar subir directo a ImgBB via native fetch
+  try {
     const imgbbApiKey = '6dfbf7cb3ce7d636c4e9b06b5a89624e';
-    const formData = new FormData();
-    formData.append('image', {
+    const form = new FormData();
+    form.append('image', {
       uri: imageUri,
       name: filename,
       type,
     } as any);
 
-    const res = await axios.post(`https://api.imgbb.com/1/upload?key=${imgbbApiKey}`, formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
+    const res = await fetch(`https://api.imgbb.com/1/upload?key=${imgbbApiKey}`, {
+      method: 'POST',
+      body: form,
     });
-
-    if (res.data && res.data.success && res.data.data) {
-      return res.data.data.url || res.data.data.display_url;
+    const resData = await res.json();
+    if (resData && resData.success && resData.data) {
+      return resData.data.url || resData.data.display_url;
     }
   } catch (err) {
-    console.warn('Fallo subida directa a ImgBB, usando fallback backend:', err);
+    console.warn('Fallo subida directa a ImgBB con fetch, usando backend:', err);
   }
 
-  // 2. Fallback a endpoint del backend
-  const backendFormData = new FormData();
-  const filename = imageUri.split('/').pop() || 'comprobante_pago.jpg';
-  const match = /\.(\w+)$/.exec(filename);
-  const type = match ? `image/${match[1]}` : 'image/jpeg';
+  // 2. Fallback a endpoint del backend via native fetch (evita bug de Axios boundary en React Native)
+  try {
+    const backendForm = new FormData();
+    backendForm.append('file', {
+      uri: imageUri,
+      name: filename,
+      type,
+    } as any);
 
-  backendFormData.append('file', {
-    uri: imageUri,
-    name: filename,
-    type,
-  } as any);
+    const backendUrl = `${API_URL || 'https://igoback.onrender.com'}/api/files/products`;
+    const backendRes = await fetch(backendUrl, {
+      method: 'POST',
+      body: backendForm,
+    });
+    const backendData = await backendRes.json();
+    if (backendData && backendData.secureUrl) {
+      return backendData.secureUrl;
+    }
+    throw new Error(backendData?.message || 'Error en la respuesta del backend');
+  } catch (err: any) {
+    console.error('Error final al subir imagen:', err);
+    throw new Error(err.message || 'No se pudo subir la imagen.');
+  }
+};
 
-  const backendRes = await axios.post(`${API_URL}/api/files/products`, backendFormData, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-  });
-
-  return backendRes.data.secureUrl;
+export const uploadReceiptImage = async (imageUri: string): Promise<string> => {
+  return uploadImage(imageUri, 'comprobante_pago.jpg');
 };

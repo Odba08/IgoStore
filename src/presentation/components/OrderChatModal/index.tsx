@@ -46,6 +46,24 @@ export const OrderChatModal = ({
 
   const orderId = order?.id;
   const driver = order?.deliveryUser;
+  const client = order?.user;
+
+  // Detectar si el usuario actual que tiene la app abierta es el motorizado/repartidor
+  const isDriverUser =
+    currentUser?.roles?.includes('empleado') ||
+    currentUser?.roles?.includes('motorizado') ||
+    currentUser?.roles?.includes('repartidor') ||
+    currentUser?.roles?.includes('worker') ||
+    currentUser?.roles?.includes('driver');
+
+  const myRole = isDriverUser ? 'driver' : 'client';
+  const otherPartyName = isDriverUser
+    ? (client?.fullName || client?.fullname || 'Cliente IGO')
+    : (driver?.fullName || driver?.fullname || 'Motorizado IGO');
+
+  const otherPartyPhone = isDriverUser
+    ? (client?.phone || client?.phoneNumber || order?.contactPhone)
+    : (driver?.phone || driver?.phoneNumber);
 
   // Cargar historial inicial de mensajes
   useEffect(() => {
@@ -83,9 +101,9 @@ export const OrderChatModal = ({
 
     const newMsg: ChatMessage = {
       id: `${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
-      senderId: currentUser?.id || 'client',
-      senderName: currentUser?.fullName || currentUser?.fullname || 'Cliente',
-      senderRole: 'client',
+      senderId: currentUser?.id || myRole,
+      senderName: currentUser?.fullName || currentUser?.fullname || (isDriverUser ? 'Motorizado IGO' : 'Cliente'),
+      senderRole: myRole,
       text,
       timestamp: new Date().toISOString(),
     };
@@ -113,24 +131,31 @@ export const OrderChatModal = ({
   };
 
   const handleSharePhone = () => {
-    const phone = currentUser?.phone || currentUser?.telefono;
+    const phone = currentUser?.phone || currentUser?.telefono || currentUser?.phoneNumber;
     if (phone) {
       handleSendMessage(`📱 Mi número de contacto es: ${phone}`);
     } else {
       Alert.prompt
-        ? Alert.prompt('Compartir Teléfono', 'Ingresa tu número para enviárselo al conductor:', (val) => {
+        ? Alert.prompt('Compartir Teléfono', 'Ingresa tu número para enviarlo en el chat:', (val) => {
             if (val) handleSendMessage(`📱 Mi número de contacto es: ${val}`);
           })
         : handleSendMessage('📱 Por favor indícame tu número para comunicarme contigo.');
     }
   };
 
-  const quickReplies = [
-    '👋 Ya salgo a recibirte',
-    '🚪 ¿Por cuál portón estás?',
-    '🏠 Casa con portón negro',
-    '📍 Estoy en la entrada principal',
-  ];
+  const quickReplies = isDriverUser
+    ? [
+        '🛵 Ya voy en camino con tu pedido',
+        '📍 ¡Ya llegué! Estoy afuera esperándote',
+        '🚪 Por favor, ¿puedes salir a la entrada?',
+        '📞 Te estoy llamando a tu teléfono',
+      ]
+    : [
+        '👋 Ya salgo a recibirte',
+        '🚪 ¿Por cuál portón estás?',
+        '🏠 Casa con portón negro',
+        '📍 Estoy en la entrada principal',
+      ];
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
@@ -142,15 +167,19 @@ export const OrderChatModal = ({
           {/* Header */}
           <View style={styles.header}>
             <View style={styles.headerInfo}>
-              <View style={styles.avatarCircle}>
-                <Ionicons name="bicycle" size={20} color="#000" />
+              <View style={[styles.avatarCircle, { backgroundColor: isDriverUser ? '#E0F2FE' : '#FEF3C7' }]}>
+                <Ionicons
+                  name={isDriverUser ? 'person' : 'bicycle'}
+                  size={20}
+                  color={isDriverUser ? '#0284C7' : '#D97706'}
+                />
               </View>
               <View>
                 <Text style={styles.driverName}>
-                  {driver?.fullName || 'Motorizado IGO'}
+                  {otherPartyName}
                 </Text>
                 <Text style={styles.orderSubtitle}>
-                  Orden #{String(order?.orderNumber || '').padStart(4, '0')} • En Vivo
+                  Orden #{String(order?.orderNumber || '').padStart(4, '0')} • {isDriverUser ? 'Cliente' : 'Repartidor'}
                 </Text>
               </View>
             </View>
@@ -164,13 +193,13 @@ export const OrderChatModal = ({
           <View style={styles.quickActionsBar}>
             <TouchableOpacity style={styles.sharePhoneBtn} onPress={handleSharePhone}>
               <Ionicons name="call" size={14} color="#000" style={{ marginRight: 4 }} />
-              <Text style={styles.sharePhoneText}>Compartir Teléfono</Text>
+              <Text style={styles.sharePhoneText}>Compartir Mi Teléfono</Text>
             </TouchableOpacity>
 
-            {driver?.phone && (
+            {otherPartyPhone && (
               <TouchableOpacity
                 style={styles.callDriverBtn}
-                onPress={() => Linking.openURL(`tel:${driver.phone}`)}
+                onPress={() => Linking.openURL(`tel:${otherPartyPhone}`)}
               >
                 <Ionicons name="call-outline" size={14} color="#333" style={{ marginRight: 4 }} />
                 <Text style={styles.callDriverText}>Llamar</Text>
@@ -186,15 +215,32 @@ export const OrderChatModal = ({
             contentContainerStyle={styles.messagesList}
             onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
             renderItem={({ item }) => {
-              const isMe = item.senderRole === 'client';
+              const isSupport = item.senderRole === 'soporte' || item.senderRole === 'admin';
+              const isMe =
+                item.senderId === currentUser?.id ||
+                (isDriverUser
+                  ? item.senderRole === 'driver' || item.senderRole === 'motorizado'
+                  : item.senderRole === 'client');
+
               return (
                 <View
                   style={[
                     styles.messageBubble,
-                    isMe ? styles.myMessageBubble : styles.otherMessageBubble,
+                    isSupport
+                      ? { alignSelf: 'center', backgroundColor: '#FEF3C7', borderWidth: 1, borderColor: '#F59E0B', maxWidth: '88%' }
+                      : isMe
+                      ? styles.myMessageBubble
+                      : styles.otherMessageBubble,
                   ]}
                 >
-                  {!isMe && <Text style={styles.senderLabel}>{item.senderName}</Text>}
+                  <Text
+                    style={[
+                      styles.senderLabel,
+                      isSupport && { color: '#B45309', fontWeight: 'bold' },
+                    ]}
+                  >
+                    {isSupport ? '🛡️ Soporte IGO' : isMe ? 'Tú' : item.senderName || (item.senderRole === 'driver' ? 'Motorizado' : 'Cliente')}
+                  </Text>
                   <Text style={[styles.messageText, isMe && styles.myMessageText]}>
                     {item.text}
                   </Text>
@@ -211,7 +257,9 @@ export const OrderChatModal = ({
               <View style={styles.emptyContainer}>
                 <Ionicons name="chatbubbles-outline" size={40} color="#9CA3AF" />
                 <Text style={styles.emptyText}>
-                  Inicia la conversación con tu conductor aquí.
+                  {isDriverUser
+                    ? 'Inicia la conversación con el cliente aquí.'
+                    : 'Inicia la conversación con tu conductor aquí.'}
                 </Text>
               </View>
             }
@@ -234,7 +282,7 @@ export const OrderChatModal = ({
           <View style={styles.inputContainer}>
             <TextInput
               style={styles.input}
-              placeholder="Escribe un mensaje al motorizado..."
+              placeholder={isDriverUser ? 'Escribe un mensaje al cliente...' : 'Escribe un mensaje al motorizado...'}
               placeholderTextColor="#9CA3AF"
               value={inputText}
               onChangeText={setInputText}

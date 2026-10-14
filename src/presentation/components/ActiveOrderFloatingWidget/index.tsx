@@ -19,14 +19,6 @@ interface ActiveOrderFloatingWidgetProps {
   onRefreshOrders?: () => void;
 }
 
-const STEPS = [
-  { key: 'PAYMENT', label: 'Pago', icon: 'card-outline' },
-  { key: 'PREPARING', label: 'Cocina', icon: 'restaurant-outline' },
-  { key: 'ON_WAY', label: 'En Camino', icon: 'bicycle-outline' },
-  { key: 'ARRIVED', label: 'Llegó', icon: 'location-outline' },
-  { key: 'DELIVERED', label: 'Entregado', icon: 'checkmark-circle-outline' },
-];
-
 export const ActiveOrderFloatingWidget = ({
   order,
   currentUser,
@@ -39,8 +31,47 @@ export const ActiveOrderFloatingWidget = ({
 
   if (!order) return null;
 
+  const category = order.category || 'General';
+  const isTaxi = category === 'IgoTaxi' || order.shippingType === 'Carro';
+  const isFavor = category === 'IgoFavor';
+  const isFood = category === 'Comida' || category === 'Restaurantes';
+
   const status = order.status || 'PENDING';
   const isPaid = order.isPaid;
+  const driver = order.deliveryUser;
+
+  // Pasos dinámicos según el tipo de servicio
+  const steps = isTaxi
+    ? [
+        { key: 'REQUEST', label: 'Solicitud', icon: 'car-sport-outline' },
+        { key: 'ASSIGNED', label: 'Asignado', icon: 'person-outline' },
+        { key: 'ON_WAY', label: 'En Viaje', icon: 'navigate-outline' },
+        { key: 'ARRIVED', label: 'Llegó', icon: 'location-outline' },
+        { key: 'DELIVERED', label: 'Completado', icon: 'checkmark-circle-outline' },
+      ]
+    : isFavor
+    ? [
+        { key: 'REQUEST', label: 'Solicitud', icon: 'cube-outline' },
+        { key: 'ASSIGNED', label: 'Buscando', icon: 'archive-outline' },
+        { key: 'ON_WAY', label: 'En Ruta', icon: 'bicycle-outline' },
+        { key: 'ARRIVED', label: 'Llegó', icon: 'location-outline' },
+        { key: 'DELIVERED', label: 'Entregado', icon: 'checkmark-circle-outline' },
+      ]
+    : isFood
+    ? [
+        { key: 'PAYMENT', label: 'Pago', icon: 'card-outline' },
+        { key: 'PREPARING', label: 'Cocina', icon: 'restaurant-outline' },
+        { key: 'ON_WAY', label: 'En Camino', icon: 'bicycle-outline' },
+        { key: 'ARRIVED', label: 'Llegó', icon: 'location-outline' },
+        { key: 'DELIVERED', label: 'Entregado', icon: 'checkmark-circle-outline' },
+      ]
+    : [
+        { key: 'PAYMENT', label: 'Pago', icon: 'card-outline' },
+        { key: 'PREPARING', label: 'Empaque', icon: 'bag-handle-outline' },
+        { key: 'ON_WAY', label: 'En Camino', icon: 'bicycle-outline' },
+        { key: 'ARRIVED', label: 'Llegó', icon: 'location-outline' },
+        { key: 'DELIVERED', label: 'Entregado', icon: 'checkmark-circle-outline' },
+      ];
 
   // Determinar paso actual (0 a 4)
   let currentStepIndex = 0;
@@ -53,39 +84,114 @@ export const ActiveOrderFloatingWidget = ({
   } else if (status === 'PAID' || status === 'PREPARING' || status === 'READY') {
     currentStepIndex = 1;
   } else {
-    // PENDING
-    currentStepIndex = isPaid ? 1 : 0;
+    // PENDING / CREATED
+    if (isTaxi || isFavor) {
+      currentStepIndex = driver ? 1 : 0;
+    } else {
+      currentStepIndex = isPaid ? 1 : 0;
+    }
   }
 
-  // Título dinámico explicativo estilo Quik
-  let statusMessage = 'Tu pago está en verificación...';
+  // Título dinámico explicativo adaptado a cada categoría
+  let statusMessage = 'Procesando tu solicitud...';
   let statusColor = '#F59E0B';
 
-  switch (currentStepIndex) {
-    case 0:
-      statusMessage = 'Verificando pago...';
-      statusColor = '#F59E0B';
-      break;
-    case 1:
-      statusMessage = 'Negocio preparando tu pedido 👨‍🍳';
-      statusColor = '#3B82F6';
-      break;
-    case 2:
-      statusMessage = 'Repartidor en camino a tu puerta 🛵';
-      statusColor = '#8B5CF6';
-      break;
-    case 3:
-      statusMessage = '¡El repartidor ha llegado! 📍';
-      statusColor = '#10B981';
-      break;
-    case 4:
-      statusMessage = 'Pedido entregado ✅';
-      statusColor = '#059669';
-      break;
+  if (isTaxi) {
+    switch (currentStepIndex) {
+      case 0:
+        statusMessage = 'Buscando conductor cercano 🚕...';
+        statusColor = '#F59E0B';
+        break;
+      case 1:
+        statusMessage = 'Conductor asignado, en camino al punto A 📍';
+        statusColor = '#3B82F6';
+        break;
+      case 2:
+        statusMessage = 'En viaje hacia tu destino 🛣️';
+        statusColor = '#8B5CF6';
+        break;
+      case 3:
+        statusMessage = '¡Tu taxi ha llegado a la ubicación! 📍';
+        statusColor = '#EC4899';
+        break;
+      case 4:
+        statusMessage = 'Viaje completado exitosamente ✅';
+        statusColor = '#059669';
+        break;
+    }
+  } else if (isFavor) {
+    switch (currentStepIndex) {
+      case 0:
+        statusMessage = 'Solicitud de encomienda recibida 📦';
+        statusColor = '#F59E0B';
+        break;
+      case 1:
+        statusMessage = 'Mensajero en camino a recoger el paquete 🛵';
+        statusColor = '#3B82F6';
+        break;
+      case 2:
+        statusMessage = 'Mensajero en ruta con tu paquete 📦';
+        statusColor = '#8B5CF6';
+        break;
+      case 3:
+        statusMessage = '¡El mensajero llegó al destino! 📍';
+        statusColor = '#EC4899';
+        break;
+      case 4:
+        statusMessage = 'Encomienda entregada con éxito ✅';
+        statusColor = '#059669';
+        break;
+    }
+  } else if (isFood) {
+    switch (currentStepIndex) {
+      case 0:
+        statusMessage = isPaid ? 'Pago recibido, confirmando con restaurante...' : 'Verificando pago móvil...';
+        statusColor = '#F59E0B';
+        break;
+      case 1:
+        statusMessage = 'Restaurante preparando tu comida 👨‍🍳';
+        statusColor = '#3B82F6';
+        break;
+      case 2:
+        statusMessage = 'Repartidor en camino a tu puerta 🛵';
+        statusColor = '#8B5CF6';
+        break;
+      case 3:
+        statusMessage = '¡El repartidor ha llegado con tu comida! 📍';
+        statusColor = '#EC4899';
+        break;
+      case 4:
+        statusMessage = 'Comida entregada ¡Buen provecho! ✅';
+        statusColor = '#059669';
+        break;
+    }
+  } else {
+    // Tiendas generales (Mercado, Farmacia, etc.)
+    switch (currentStepIndex) {
+      case 0:
+        statusMessage = isPaid ? 'Pago verificado exitosamente 💳' : 'Verificando pago móvil...';
+        statusColor = '#F59E0B';
+        break;
+      case 1:
+        statusMessage = 'Tienda preparando y empacando tu pedido 🛍️';
+        statusColor = '#3B82F6';
+        break;
+      case 2:
+        statusMessage = 'Repartidor en camino a tu dirección 🛵';
+        statusColor = '#8B5CF6';
+        break;
+      case 3:
+        statusMessage = '¡El repartidor ha llegado a tu ubicación! 📍';
+        statusColor = '#EC4899';
+        break;
+      case 4:
+        statusMessage = 'Pedido entregado con éxito ✅';
+        statusColor = '#059669';
+        break;
+    }
   }
 
   const businessName = order.business?.name || order.category || 'Pedido IGO';
-  const driver = order.deliveryUser;
 
   return (
     <View style={styles.cardContainer}>
@@ -115,7 +221,7 @@ export const ActiveOrderFloatingWidget = ({
 
       {/* Stepper flotante con bolitas interconectadas estilo Quik */}
       <View style={styles.stepperContainer}>
-        {STEPS.map((step, idx) => {
+        {steps.map((step: any, idx: number) => {
           const isCompleted = idx < currentStepIndex;
           const isCurrent = idx === currentStepIndex;
           const isPending = idx > currentStepIndex;
@@ -155,7 +261,7 @@ export const ActiveOrderFloatingWidget = ({
               </View>
 
               {/* Línea conectora entre círculos */}
-              {idx < STEPS.length - 1 && (
+              {idx < steps.length - 1 && (
                 <View
                   style={[
                     styles.connectorLine,
