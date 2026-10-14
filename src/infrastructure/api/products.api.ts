@@ -1,11 +1,5 @@
-import axios from "axios";
+import { igoApi } from "./igo.api";
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL;
+export const getProductByIdApi = (id: string) => igoApi.get(`/products/${id}`);
 
-export const getProduct = axios.create({
-  baseURL: `${API_URL}/api/`
-});
-
-export const getProductByIdApi = (id: string) => getProduct.get(`/products/${id}`);
-
-export const getProductsApi = () => getProduct.get('/products');
+export const getProductsApi = () => igoApi.get('/products');

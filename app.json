@@ -16,6 +16,11 @@
         "backgroundColor": "#ffffff"
       },
       "package": "com.odba08.IgoStore",
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyByeMkbGjpm9bNaUs-eFoQXUwH2xq2DcyI"
+        }
+      },
       "permissions": [
         "ACCESS_COARSE_LOCATION",
         "ACCESS_FINE_LOCATION",

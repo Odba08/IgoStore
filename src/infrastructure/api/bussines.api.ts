@@ -1,12 +1,5 @@
-import axios from "axios";
+import { igoApi } from "./igo.api";
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL;
+export const getBusinesses = () => igoApi.get('/business');
 
-export const getBussines = axios.create({
-  baseURL: `${API_URL}/api`,
-  timeout: 5000,
-});
-
-export const getBusinesses = () => getBussines.get('/business');
-
-export const getBusinessByIdApi = (id: string) => getBussines.get(`/business/${id}`);
+export const getBusinessByIdApi = (id: string) => igoApi.get(`/business/${id}`);

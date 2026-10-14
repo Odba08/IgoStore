@@ -19,11 +19,11 @@ const PrincipalHeader = () => {
   const handleLocationPress = () => {
     if (isEmployee) return;
     if (locationStatus === "GRANTED"){
-      router.replace('./map');
-    } else if (locationStatus !== "CHECKING") {
-      router.replace('./permissions');    
+      router.push('/map' as any);
+    } else {
+      router.push('/permissions' as any);    
     }
-  }
+  };
 
   return (
     <View style={styles.header}>

@@ -17,10 +17,13 @@ export interface Business {
   images: Image[];
   description?: string; // Opcional, pero recomendado
   
-  // --- EL CAMBIO CLAVE ---
-  // Antes solo tenías el ID, ahora el backend te da el objeto completo
   category?: GlobalCategory; 
   categoryId?: string; // Déjalo por si acaso alguna parte vieja lo usa
   
+  rating?: number;
+  reviewsCount?: number;
+  freeDeliveryAbove?: number;
+  isOfficialStore?: boolean;
+
   products: Producto[];
 }

@@ -1,5 +1,6 @@
 import { StatusBar } from "expo-status-bar";
 import { ScrollView, Text, View, FlatList, TouchableOpacity, TextInput, StyleSheet, Image, ActivityIndicator, Alert, Clipboard, Modal, Platform } from "react-native";
+import { Image as ExpoImage } from "expo-image";
 import { useRef } from 'react';
 import { useRouter } from "expo-router";
 import * as ImagePicker from 'expo-image-picker';
@@ -18,18 +19,30 @@ import { useCartStore } from "@/presentation/store/useCartStore";
 import { useLocationStore } from "@/presentation/store/useLocationStore";
 import { useAuthStore } from "@/presentation/store/useAuthStore";
 import { igoApi } from "@/infrastructure/api/igo.api";
-import { getPendingDeliveriesApi, updateOrderApi, getOrderQuoteApi } from "@/infrastructure/api/orders.api";
+import { getPendingDeliveriesApi, updateOrderApi, getOrderQuoteApi, getMyOrdersApi, getOrderByIdApi, getActiveOrderId } from "@/infrastructure/api/orders.api";
 import { getSocket } from "@/infrastructure/services/socket.service";
 import MapView, { Marker, Polyline, UrlTile } from 'react-native-maps';
+import { ActiveOrderFloatingWidget } from "@/presentation/components/ActiveOrderFloatingWidget";
+import { OrderChatModal } from "@/presentation/components/OrderChatModal";
+import { uploadImage } from "@/infrastructure/services/imageUpload.service";
 
 
 export default function Index() {
   const router = useRouter();
-  const { user } = useAuthStore();
+  const { user, logout } = useAuthStore();
 
   // 1. CARGA DE DATOS CLIENTE
   const { data: businesses, isLoading: loadingBusiness, error } = useBusinesses();
   const { data: products, isLoading: productsLoading } = useAllProducts();
+
+  const sortedBusinesses = useMemo(() => {
+    if (!businesses) return [];
+    return [...businesses].sort((a, b) => {
+      if (a.isOfficialStore && !b.isOfficialStore) return -1;
+      if (!a.isOfficialStore && b.isOfficialStore) return 1;
+      return 0;
+    });
+  }, [businesses]);
 
   const [searchText, setSearchText] = useState('');
   const [activeTab, setActiveTab] = useState<'home' | 'favorites' | 'addresses' | 'payments'>('home');
@@ -59,6 +72,19 @@ export default function Index() {
   const [confirmOrderId, setConfirmOrderId] = useState<string>('');
   const [deliveryPhotoUri, setDeliveryPhotoUri] = useState<string | null>(null);
   const [isUploadingPhoto, setIsUploadingPhoto] = useState<boolean>(false);
+  const [driverChatOrder, setDriverChatOrder] = useState<any | null>(null);
+  const [showDriverChatModal, setShowDriverChatModal] = useState<boolean>(false);
+
+  const handleMarkArrived = async (orderId: string) => {
+    try {
+      await updateOrderApi(orderId, { status: 'ARRIVED' });
+      Alert.alert("¡Aviso enviado! 📍", "Se le notificó al cliente que ya llegaste al destino.");
+      await fetchDriverData();
+    } catch (err: any) {
+      console.error("Error marking order arrived:", err);
+      Alert.alert("Error", "No se pudo actualizar el estado: " + (err.message || 'Error de conexión'));
+    }
+  };
 
   const fetchDriverData = async () => {
     if (!user) return;
@@ -84,8 +110,13 @@ export default function Index() {
         ord.status !== 'CANCELLED'
       );
       setMyAssignedOrders(myAssigned);
-    } catch (err) {
-      console.error("Error loading driver dashboard:", err);
+    } catch (err: any) {
+      if (err?.response?.status === 401) {
+        console.warn("⚠️ Sesión de empleado expirada o no autorizada (401). Limpiando sesión...");
+        await logout();
+      } else {
+        console.error("Error loading driver dashboard:", err);
+      }
     }
   };
 
@@ -102,6 +133,70 @@ export default function Index() {
       return () => clearInterval(interval);
     }
   }, [isEmployee]);
+
+  // 1.6 PEDIDO ACTIVO PARA CLIENTES (Widget flotante estilo Quik)
+  const [clientActiveOrder, setClientActiveOrder] = useState<any | null>(null);
+
+  const fetchClientOrders = async () => {
+    try {
+      const res = await getMyOrdersApi();
+      if (Array.isArray(res.data) && res.data.length > 0) {
+        // Encontrar la orden más reciente activa (no cancelada y entregada sólo si aún no ha sido calificada)
+        const active = res.data.find(
+          (o: any) =>
+            o.status !== 'CANCELLED' &&
+            (o.status !== 'DELIVERED' || !o.businessRating)
+        );
+        if (active) {
+          setClientActiveOrder(active);
+          return;
+        }
+      }
+
+      // Respaldo directo en el dispositivo (pedidos invitados o locales)
+      const localActiveId = await getActiveOrderId();
+      if (localActiveId) {
+        try {
+          const singleRes = await getOrderByIdApi(localActiveId);
+          if (
+            singleRes.data &&
+            singleRes.data.status !== 'CANCELLED' &&
+            (singleRes.data.status !== 'DELIVERED' || !singleRes.data.businessRating)
+          ) {
+            setClientActiveOrder(singleRes.data);
+            return;
+          }
+        } catch {
+          // ignore
+        }
+      }
+
+      setClientActiveOrder(null);
+    } catch {
+      // Ignorar error temporal de red
+    }
+  };
+
+  useEffect(() => {
+    fetchClientOrders();
+    const interval = setInterval(fetchClientOrders, 8000);
+
+    const socket = getSocket();
+    const handleLiveOrderUpdate = () => {
+      fetchClientOrders();
+    };
+
+    socket.on('order:updated', handleLiveOrderUpdate);
+    socket.on('order:payment_verified', handleLiveOrderUpdate);
+    socket.on('order:driver_assigned', handleLiveOrderUpdate);
+
+    return () => {
+      clearInterval(interval);
+      socket.off('order:updated', handleLiveOrderUpdate);
+      socket.off('order:payment_verified', handleLiveOrderUpdate);
+      socket.off('order:driver_assigned', handleLiveOrderUpdate);
+    };
+  }, []);
 
   const handleClaimOrder = async (orderId: string) => {
     try {
@@ -212,24 +307,7 @@ export default function Index() {
     try {
       setIsUploadingPhoto(true);
       
-      const formData = new FormData();
-      const filename = deliveryPhotoUri.split('/').pop() || 'delivery.jpg';
-      const match = /\.(\w+)$/.exec(filename);
-      const type = match ? `image/${match[1]}` : `image/jpeg`;
-
-      formData.append('file', {
-        uri: deliveryPhotoUri,
-        name: filename,
-        type,
-      } as any);
-
-      const uploadRes = await igoApi.post('/files/products', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      });
-
-      const photoUrl = uploadRes.data?.secureUrl;
+      const photoUrl = await uploadImage(deliveryPhotoUri, 'entrega_comprobante.jpg');
       if (!photoUrl) throw new Error("No se obtuvo la URL de la imagen cargada.");
 
       await updateOrderApi(confirmOrderId, { status: 'DELIVERED', photoUrl });
@@ -242,7 +320,7 @@ export default function Index() {
 
     } catch (err: any) {
       console.error("Error confirming delivery with photo:", err);
-      Alert.alert("Error", "No se pudo subir la foto o completar el pedido: " + err.message);
+      Alert.alert("Error", "No se pudo subir la foto o completar el pedido: " + (err.message || 'Error desconocido'));
     } finally {
       setIsUploadingPhoto(false);
     }
@@ -255,7 +333,7 @@ export default function Index() {
       if (socket) {
         socket.emit('driver:register', {
           userId: user.id,
-          name: user.fullName || user.email,
+          name: (user as any).fullName || user.fullname || user.email,
           vehicle: (user as any).vehicle || 'Moto',
           phone: (user as any).phoneNumber || '',
           employeeStatus: status,
@@ -366,6 +444,15 @@ export default function Index() {
     <View style={styles.mainContainer}>
       <StatusBar style='dark' />
       <PrincipalHeader />
+
+      {/* WIDGET FLOTANTE DE PEDIDO EN VIVO (ESTILO QUIK) */}
+      {clientActiveOrder && (
+        <ActiveOrderFloatingWidget
+          order={clientActiveOrder}
+          currentUser={user}
+          onRefreshOrders={fetchClientOrders}
+        />
+      )}
 
       <ScrollView contentContainerStyle={{ paddingBottom: isEmployee ? 60 : 160 }} showsVerticalScrollIndicator={false}>
         
@@ -532,13 +619,13 @@ export default function Index() {
                  </View>
                  <View style={styles.paymentCardBody}>
                    <Text style={styles.paymentDetailLine}>
-                     <Text style={{ fontWeight: 'bold' }}>Email:</Text> ingo@gmail.com
+                     <Text style={{ fontWeight: 'bold' }}>Email:</Text> igo@gmail.com
                    </Text>
                  </View>
                  <TouchableOpacity 
                    style={styles.copyButton}
                    onPress={() => {
-                     Clipboard.setString("ingo@gmail.com");
+                     Clipboard.setString("igo@gmail.com");
                      Alert.alert("Copiado", "Email de Binance copiado al portapapeles.");
                    }}
                  >
@@ -555,13 +642,13 @@ export default function Index() {
                  </View>
                  <View style={styles.paymentCardBody}>
                    <Text style={styles.paymentDetailLine}>
-                     <Text style={{ fontWeight: 'bold' }}>Email:</Text> ingo@gmail.com
+                     <Text style={{ fontWeight: 'bold' }}>Email:</Text> igo@gmail.com
                    </Text>
                  </View>
                  <TouchableOpacity 
                    style={styles.copyButton}
                    onPress={() => {
-                     Clipboard.setString("ingo@gmail.com");
+                     Clipboard.setString("igo@gmail.com");
                      Alert.alert("Copiado", "Email de Zelle copiado al portapapeles.");
                    }}
                  >
@@ -640,14 +727,48 @@ export default function Index() {
                        </View>
                      </View>
 
-                     <View style={styles.cardActions}>
-                       <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#F1F5F9' }]} onPress={() => handleOpenMap(order)}>
-                         <Ionicons name="map-outline" size={18} color="#333" style={{ marginRight: 6 }} />
+                     <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
+                       <TouchableOpacity style={[styles.actionBtn, { flex: 1, backgroundColor: '#F1F5F9' }]} onPress={() => handleOpenMap(order)}>
+                         <Ionicons name="map-outline" size={16} color="#333" style={{ marginRight: 4 }} />
                          <Text style={[styles.actionBtnText, { color: '#333' }]}>Ver Ruta</Text>
                        </TouchableOpacity>
-                       <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#4CD964' }]} onPress={() => handleCompleteOrderClick(order.id)}>
-                         <Ionicons name="checkmark-circle-outline" size={18} color="white" style={{ marginRight: 6 }} />
-                         <Text style={[styles.actionBtnText, { color: 'white' }]}>Completar</Text>
+
+                       <TouchableOpacity
+                         style={[styles.actionBtn, { flex: 1, backgroundColor: '#EFF6FF', borderWidth: 1, borderColor: '#BFDBFE' }]}
+                         onPress={() => {
+                           setDriverChatOrder(order);
+                           setShowDriverChatModal(true);
+                         }}
+                       >
+                         <Ionicons name="chatbubbles" size={16} color="#2563EB" style={{ marginRight: 4 }} />
+                         <Text style={[styles.actionBtnText, { color: '#2563EB' }]}>Chat Cliente</Text>
+                       </TouchableOpacity>
+                     </View>
+
+                     <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+                       {order.status !== 'ARRIVED' ? (
+                         <TouchableOpacity
+                           style={[styles.actionBtn, { flex: 1, backgroundColor: '#EC4899' }]}
+                           onPress={() => handleMarkArrived(order.id)}
+                         >
+                           <Ionicons name="location" size={16} color="white" style={{ marginRight: 4 }} />
+                           <Text style={[styles.actionBtnText, { color: 'white' }]}>¡Ya llegué! 📍</Text>
+                         </TouchableOpacity>
+                       ) : (
+                         <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#FDF2F8', borderRadius: 10, paddingVertical: 8, borderWidth: 1, borderColor: '#FBCFE8' }}>
+                           <Ionicons name="checkmark-done" size={16} color="#DB2777" style={{ marginRight: 4 }} />
+                           <Text style={{ fontSize: 12, fontWeight: 'bold', color: '#DB2777' }}>Llegada 📍</Text>
+                         </View>
+                       )}
+
+                       <TouchableOpacity
+                         style={[styles.actionBtn, { flex: 1, backgroundColor: '#10B981' }]}
+                         onPress={() => handleCompleteOrderClick(order.id)}
+                       >
+                         <Ionicons name="camera" size={16} color="white" style={{ marginRight: 4 }} />
+                         <Text style={[styles.actionBtnText, { color: 'white' }]}>
+                           {order.status === 'ARRIVED' ? 'Entregar y Foto' : 'Completar'}
+                         </Text>
                        </TouchableOpacity>
                      </View>
                    </View>
@@ -729,7 +850,11 @@ export default function Index() {
                  }}
                >
                  <View style={[styles.serviceIconWrapper, { backgroundColor: '#F3E8FF' }]}>
-                   <Ionicons name="gift" size={28} color="#6200EE" />
+                   <ExpoImage 
+                     source={require('../assets/Icons/igo-iconos-categorias/igo-cat-igo-favor.svg')} 
+                     style={{ width: 44, height: 44 }} 
+                     contentFit="contain" 
+                   />
                  </View>
                  <Text style={styles.serviceTitle}>IGO Favor</Text>
                  <Text style={styles.serviceSub}>Envíos Punto a Punto</Text>
@@ -748,7 +873,11 @@ export default function Index() {
                  }}
                >
                  <View style={[styles.serviceIconWrapper, { backgroundColor: '#FFF8E1' }]}>
-                   <Ionicons name="car" size={28} color="#EDB422" />
+                   <ExpoImage 
+                     source={require('../assets/Icons/igo-iconos-categorias/igo-cat-taxi.svg')} 
+                     style={{ width: 44, height: 44 }} 
+                     contentFit="contain" 
+                   />
                  </View>
                  <Text style={styles.serviceTitle}>IGO Taxi</Text>
                  <Text style={styles.serviceSub}>Traslados en Carro</Text>
@@ -779,7 +908,7 @@ export default function Index() {
                 ) : (
                   <FlatList
                     horizontal
-                    data={businesses?.slice(0, 4)}
+                    data={sortedBusinesses.slice(0, 6)}
                     keyExtractor={(item) => item.id}
                     renderItem={({ item }) => <BusinessCard business={item} />}
                     contentContainerStyle={{ paddingHorizontal: 15 }}
@@ -1085,6 +1214,19 @@ export default function Index() {
             </TouchableOpacity>
 
         </View>
+      )}
+
+      {/* MODAL DE CHAT MOTORIZADO <-> CLIENTE */}
+      {driverChatOrder && (
+        <OrderChatModal
+          visible={showDriverChatModal}
+          onClose={() => {
+            setShowDriverChatModal(false);
+            setDriverChatOrder(null);
+          }}
+          order={driverChatOrder}
+          currentUser={user}
+        />
       )}
     </View>
   );

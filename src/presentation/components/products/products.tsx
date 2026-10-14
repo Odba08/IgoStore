@@ -28,13 +28,20 @@ export default function Productos() {
   // 3. ESTADO LOCAL (Buscador)
   const [searchText, setSearchText] = useState('');
 
-  // 4. FILTRADO (Buscador)
+  // 4. FILTRADO (Buscador y Tienda Oficial al principio)
   const filteredBusinesses = useMemo(() => {
     if (!businesses) return [];
-    if (!searchText) return businesses;
-    return businesses.filter(b => 
-      b.name.toLowerCase().includes(searchText.toLowerCase())
-    );
+    let list = [...businesses];
+    if (searchText) {
+      list = list.filter(b => 
+        b.name.toLowerCase().includes(searchText.toLowerCase())
+      );
+    }
+    return list.sort((a, b) => {
+      if (a.isOfficialStore && !b.isOfficialStore) return -1;
+      if (!a.isOfficialStore && b.isOfficialStore) return 1;
+      return 0;
+    });
   }, [businesses, searchText]);
 
   // 5. FILTRADO (Favoritos)
@@ -75,10 +82,21 @@ export default function Productos() {
         </TouchableOpacity>
 
         <View style={styles.cardInfo}>
-           <Text style={styles.cardTitle}>{item.name}</Text>
+           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+             <Text style={styles.cardTitle}>{item.name}</Text>
+             {item.isOfficialStore && (
+               <View style={{ backgroundColor: '#FFF8E1', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, borderWidth: 1, borderColor: '#EDB422' }}>
+                 <Text style={{ fontSize: 10, fontWeight: '800', color: '#B45309' }}>OFICIAL IGO</Text>
+               </View>
+             )}
+           </View>
            <View style={styles.cardMeta}>
               <Ionicons name="star" size={14} color="#FFD700" />
-              <Text style={styles.metaText}> 4.5 • 30 min • Envío Gratis</Text>
+              <Text style={styles.metaText}>
+                {item.rating ? Number(item.rating).toFixed(1) : 'Nuevo'}
+                {item.reviewsCount ? ` (${item.reviewsCount})` : ''}
+                {item.freeDeliveryAbove ? ` • Envío Gratis > $${item.freeDeliveryAbove}` : ''}
+              </Text>
            </View>
         </View>
       </TouchableOpacity>

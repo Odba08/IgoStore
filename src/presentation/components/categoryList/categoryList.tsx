@@ -23,8 +23,6 @@ export const CATEGORY_ICONS_MAP: Record<string, any> = {
   bebidas: require('../../../../assets/Icons/igo-iconos-categorias/igo-cat-bebidas.svg'),
   mascotas: require('../../../../assets/Icons/igo-iconos-categorias/igo-cat-mascotas.svg'),
   veterinaria: require('../../../../assets/Icons/igo-iconos-categorias/igo-cat-mascotas.svg'),
-  envios: require('../../../../assets/Icons/igo-iconos-categorias/igo-cat-express.svg'),
-  envíos: require('../../../../assets/Icons/igo-iconos-categorias/igo-cat-express.svg'),
   express: require('../../../../assets/Icons/igo-iconos-categorias/igo-cat-express.svg'),
   mensajeria: require('../../../../assets/Icons/igo-iconos-categorias/igo-cat-express.svg'),
   mensajería: require('../../../../assets/Icons/igo-iconos-categorias/igo-cat-express.svg'),

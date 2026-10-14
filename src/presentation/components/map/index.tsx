@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   ActivityIndicator, View, StyleSheet, Text, TextInput, 
-  TouchableOpacity, FlatList, Dimensions, Platform, Keyboard, Alert, Linking, ScrollView 
+  TouchableOpacity, FlatList, Dimensions, Platform, Keyboard, Alert, Linking, ScrollView, Modal 
 } from 'react-native';
 import MapView, { PROVIDER_GOOGLE, Marker, Polyline, UrlTile } from 'react-native-maps';
 import { Ionicons } from '@expo/vector-icons';
@@ -14,6 +14,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SecureStorage } from '@/infrastructure/storage/secure-storage';
 import StorePaymentModal from '@/presentation/components/shared/StorePaymentModal';
 import { getSocket } from '@/infrastructure/services/socket.service';
+import { saveRecentOrderId } from '@/infrastructure/api/orders.api';
 
 const { width, height } = Dimensions.get('window');
 
@@ -296,6 +297,8 @@ const MapScreen = () => {
       const API_URL = getApiUrl();
       const ENDPOINT = `${API_URL}/orders/quote`;
       
+      const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+
       const quotePayload = {
         businessId: businessId,
         pickupLat: currentOrigin?.latitude,
@@ -306,7 +309,8 @@ const MapScreen = () => {
         category: isTaxiService ? 'IgoTaxi' : (isFavorService ? 'IgoFavor' : selectedCategory),
         packageValue: parseFloat(debouncedPackageValue) || 0,
         packageSize: packageSize,
-        isInsured: isInsured
+        isInsured: isInsured,
+        subtotal: subtotal
       };
 
       const token = await SecureStorage.getItem('token');
@@ -320,7 +324,6 @@ const MapScreen = () => {
       
       if (!response.ok) throw new Error(data.message || 'Error en cotización');
 
-      const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
       setRouteQuote({
         orderId: null,
         distance: data.distance,
@@ -611,11 +614,69 @@ const MapScreen = () => {
     }
   };
 
-  const handleSubmitStoreOrder = async (paymentData: { paymentReference: string; paymentCaptureUrl: string }) => {
-    if (!routeQuote) throw new Error('No se pudo obtener la cotización del envío');
+  const [showTaxiModal, setShowTaxiModal] = useState(false);
+  const [taxiSuccessData, setTaxiSuccessData] = useState<any | null>(null);
 
+  const handleSubmitTaxiOrder = async () => {
+    if (!routeQuote) throw new Error('No se pudo obtener la cotización del traslado');
+
+    const API_URL = getApiUrl();
+    const ENDPOINT = `${API_URL}/orders`;
+
+    const orderPayload = {
+      businessId: '00000000-0000-0000-0000-000000000000', 
+      userIdTemp: personalData || 'Pasajero IGO Taxi',
+      pickupLat: routeQuote.businessLat || pickupLocation?.latitude,
+      pickupLong: routeQuote.businessLong || pickupLocation?.longitude,
+      pickupAddress: pickupLocation?.address || 'Punto de Partida (Punto A)',
+      deliveryLat: routeQuote.userLat,
+      deliveryLong: routeQuote.userLong,
+      deliveryAddress: `${deliveryLocation?.address || 'Destino en Mapa'} | Ref: ${addressNotes || ''}`.trim(),
+      category: 'IgoTaxi',
+      shippingType: 'Carro',
+      paymentRecipient: 'Pago Conductor',
+      paymentMethod: 'PAGO_CONDUCTOR',
+      items: []
+    };
+
+    const token = await SecureStorage.getItem('token');
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    setIsSubmittingOrder(true);
+    try {
+      const response = await fetch(ENDPOINT, { 
+        method: 'POST', 
+        headers, 
+        body: JSON.stringify(orderPayload) 
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Error al solicitar el traslado en taxi');
+      }
+
+      const createdId = data.orderId || data.id;
+      if (createdId) {
+        await saveRecentOrderId(createdId);
+      }
+
+      setTaxiSuccessData(data);
+    } catch (err: any) {
+      Alert.alert("Error", err.message || "No se pudo solicitar el traslado.");
+    } finally {
+      setIsSubmittingOrder(false);
+    }
+  };
+
+  const handleSubmitStoreOrder = async (paymentData: { paymentReference: string; paymentCaptureUrl: string }) => {
+    if (!routeQuote) throw new Error('No se pudo obtener la cotización');
+
+    const isFavor = isFavorService && !isTaxiService;
     const firstItem = items[0] as any;
-    const businessId = firstItem?.businessId || firstItem?.business_id;
+    const businessId = isFavor ? '00000000-0000-0000-0000-000000000000' : (firstItem?.businessId || firstItem?.business_id);
     const API_URL = getApiUrl();
     const ENDPOINT = `${API_URL}/orders`;
 
@@ -628,16 +689,16 @@ const MapScreen = () => {
       deliveryLat: routeQuote.userLat,
       deliveryLong: routeQuote.userLong,
       deliveryAddress: `${deliveryLocation?.address || 'Ubicación en Mapa'} | Ref: ${addressNotes || ''}`.trim(),
-      category: selectedCategory,
+      category: isFavor ? 'IgoFavor' : selectedCategory,
       shippingType: selectedShippingType,
-      paymentRecipient: selectedPaymentRecipient,
+      paymentRecipient: isFavor ? 'Pago IGO' : selectedPaymentRecipient,
       packageValue: parseFloat(packageValue) || 0,
       packageSize: packageSize,
       isInsured: isInsured,
       paymentMethod: 'pago_movil',
       paymentReference: paymentData.paymentReference,
       paymentCaptureUrl: paymentData.paymentCaptureUrl,
-      items: items.map(item => ({
+      items: isFavor ? [] : items.map(item => ({
         productId: item.productId || item.id.substring(0, 36), 
         quantity: item.quantity,
         selectedOptionsText: item.selectedOptionsText || 'Sin adicionales',
@@ -664,7 +725,12 @@ const MapScreen = () => {
         throw new Error(data.message || 'Error al procesar el pedido en el servidor');
       }
 
-      return { orderId: data.orderId || data.id };
+      const createdId = data.orderId || data.id;
+      if (createdId) {
+        await saveRecentOrderId(createdId);
+      }
+
+      return { orderId: createdId };
     } finally {
       setIsSubmittingOrder(false);
     }
@@ -672,6 +738,8 @@ const MapScreen = () => {
 
   const handleOrderSuccessFinished = () => {
     setShowStorePaymentModal(false);
+    setShowTaxiModal(false);
+    setTaxiSuccessData(null);
     clearCart();
     setPickupLocation(null);
     setDeliveryLocation(null);
@@ -951,19 +1019,19 @@ const MapScreen = () => {
                 <TouchableOpacity 
                   style={[
                     styles.whatsappBtn, 
-                    isStoreService && { backgroundColor: '#10B981' },
+                    { backgroundColor: isTaxiService ? '#EDB422' : '#10B981' },
                     { opacity: (!routeQuote || isSubmittingOrder) ? 0.6 : 1 }
                   ]} 
                   disabled={!routeQuote || isSubmittingOrder}
                   onPress={() => {
                     if (!routeQuote) {
-                      Alert.alert("Cotización faltante", "No se pudo obtener el precio del envío.");
+                      Alert.alert("Cotización faltante", "No se pudo obtener el precio del servicio.");
                       return;
                     }
-                    if (isStoreService) {
-                      setShowStorePaymentModal(true);
+                    if (isTaxiService) {
+                      setShowTaxiModal(true);
                     } else {
-                      dispatchWhatsAppOrder();
+                      setShowStorePaymentModal(true);
                     }
                   }}
                 >
@@ -972,16 +1040,16 @@ const MapScreen = () => {
                   ) : (
                     <>
                       <Ionicons 
-                        name={isStoreService ? "card-outline" : "logo-whatsapp"} 
+                        name={isTaxiService ? "car-sport-outline" : "card-outline"} 
                         size={20} 
-                        color="white" 
+                        color={isTaxiService ? "#000" : "white"} 
                         style={{ marginRight: 10 }} 
                       />
-                      <Text style={styles.whatsappBtnText}>
+                      <Text style={[styles.whatsappBtnText, isTaxiService && { color: '#000' }]}>
                         {isTaxiService 
-                          ? "Solicitar Traslado Taxi" 
+                          ? `Solicitar IGO Taxi ($${(routeQuote?.deliveryFee || 0).toFixed(2)})` 
                           : (isFavorService 
-                            ? "Solicitar Servicio Favor" 
+                            ? `Pagar IGO Favor ($${(routeQuote?.deliveryFee || 0).toFixed(2)})` 
                             : `Pagar Pedido ($${(cartSubtotal + (routeQuote?.deliveryFee || 0)).toFixed(2)})`)}
                       </Text>
                     </>
@@ -1162,18 +1230,111 @@ const MapScreen = () => {
         </View>
       ) : null}
 
-      {isStoreService && (
+      {/* Modal de Pago Móvil para Tiendas e IGO Favor */}
+      {!isTaxiService && (
         <StorePaymentModal
           visible={showStorePaymentModal}
           onClose={() => setShowStorePaymentModal(false)}
           onOrderFinished={handleOrderSuccessFinished}
-          business={businesses.find(b => b.id === currentBusinessId)}
-          totalAmountUsd={cartSubtotal + (routeQuote?.deliveryFee || 0)}
-          totalAmountBs={(cartSubtotal + (routeQuote?.deliveryFee || 0)) * bcvRate}
+          business={isFavorService ? null : businesses.find(b => b.id === currentBusinessId)}
+          totalAmountUsd={isFavorService ? (routeQuote?.deliveryFee || 0) : (cartSubtotal + (routeQuote?.deliveryFee || 0))}
+          totalAmountBs={isFavorService ? ((routeQuote?.deliveryFee || 0) * bcvRate) : ((cartSubtotal + (routeQuote?.deliveryFee || 0)) * bcvRate)}
           bcvRate={bcvRate}
           onSubmitOrder={handleSubmitStoreOrder}
         />
       )}
+
+      {/* Modal de Confirmación para IGO Taxi (Pago Directo al Conductor) */}
+      <Modal
+        visible={showTaxiModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowTaxiModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            {taxiSuccessData ? (
+              <View style={{ alignItems: 'center', padding: 20 }}>
+                <Ionicons name="checkmark-circle" size={64} color="#10B981" />
+                <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#1A1A1A', marginTop: 10 }}>
+                  ¡Taxi Solicitado!
+                </Text>
+                <Text style={{ fontSize: 14, color: '#64748B', textAlign: 'center', marginTop: 8 }}>
+                  Carrera #{String(taxiSuccessData.orderId || '').padStart(4, '0')} registrada con éxito.
+                </Text>
+                <Text style={{ fontSize: 14, color: '#334155', fontWeight: '600', textAlign: 'center', marginTop: 12 }}>
+                  🚕 Pago directo al conductor al finalizar tu viaje.
+                </Text>
+
+                <TouchableOpacity
+                  style={[styles.actionBtn, { backgroundColor: '#EDB422', marginTop: 25, width: '100%' }]}
+                  onPress={handleOrderSuccessFinished}
+                >
+                  <Text style={[styles.actionBtnText, { color: '#000' }]}>Entendido / Volver al Inicio</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <View style={{ padding: 20 }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 }}>
+                  <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#1A1A1A' }}>
+                    🚕 Confirmar IGO Taxi
+                  </Text>
+                  <TouchableOpacity onPress={() => setShowTaxiModal(false)}>
+                    <Ionicons name="close" size={24} color="#64748B" />
+                  </TouchableOpacity>
+                </View>
+
+                <View style={{ backgroundColor: '#FFF8E1', padding: 14, borderRadius: 12, marginBottom: 15, borderWidth: 1, borderColor: '#EDB422' }}>
+                  <Text style={{ fontSize: 13, color: '#B45309', fontWeight: 'bold', marginBottom: 4 }}>
+                    💵 MODALIDAD DE PAGO:
+                  </Text>
+                  <Text style={{ fontSize: 15, fontWeight: 'bold', color: '#1A1A1A' }}>
+                    Pago directo al conductor
+                  </Text>
+                  <Text style={{ fontSize: 12, color: '#64748B', marginTop: 2 }}>
+                    Pagas en efectivo o pago móvil directamente al chofer al llegar a tu destino.
+                  </Text>
+                </View>
+
+                <View style={{ backgroundColor: '#F8FAFC', padding: 14, borderRadius: 12, marginBottom: 15 }}>
+                  <Text style={{ fontSize: 12, color: '#64748B', marginBottom: 4 }}>
+                    📍 <Text style={{ fontWeight: 'bold' }}>Origen:</Text> {pickupLocation?.address || 'Punto A'}
+                  </Text>
+                  <Text style={{ fontSize: 12, color: '#64748B', marginBottom: 8 }}>
+                    🏁 <Text style={{ fontWeight: 'bold' }}>Destino:</Text> {deliveryLocation?.address || 'Punto B'}
+                  </Text>
+                  <View style={{ height: 1, backgroundColor: '#E2E8F0', marginVertical: 6 }} />
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Text style={{ fontSize: 14, color: '#334155', fontWeight: 'bold' }}>Tarifa estimada:</Text>
+                    <View style={{ alignItems: 'flex-end' }}>
+                      <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#10B981' }}>
+                        ${parseFloat(routeQuote?.deliveryFee || 0).toFixed(2)}
+                      </Text>
+                      <Text style={{ fontSize: 12, color: '#64748B' }}>
+                        Bs. {((routeQuote?.deliveryFee || 0) * bcvRate).toFixed(2)} (BCV: {bcvRate})
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+
+                <TouchableOpacity
+                  style={[styles.actionBtn, { backgroundColor: '#EDB422', width: '100%', paddingVertical: 14 }]}
+                  disabled={isSubmittingOrder}
+                  onPress={handleSubmitTaxiOrder}
+                >
+                  {isSubmittingOrder ? (
+                    <ActivityIndicator color="#000" />
+                  ) : (
+                    <Text style={[styles.actionBtnText, { color: '#000', fontSize: 16 }]}>
+                      🚖 Confirmar y Pedir Taxi
+                    </Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -1355,5 +1516,24 @@ const styles = StyleSheet.create({
   },
   insuranceSwitchKnobOff: {
     alignSelf: 'flex-start'
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20
+  },
+  modalContent: {
+    width: '100%',
+    maxWidth: 420,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    elevation: 8
   }
 });
