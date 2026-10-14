@@ -16,6 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import { pickImageFromGallery, takePhotoWithCamera, uploadReceiptImage } from '@/infrastructure/services/imageUpload.service';
 import { getSocket } from '@/infrastructure/services/socket.service';
+import { saveRecentOrderId } from '@/infrastructure/api/orders.api';
 
 interface StorePaymentModalProps {
   visible: boolean;
@@ -160,6 +161,10 @@ export default function StorePaymentModal({
         paymentCaptureUrl: captureUrl,
       });
 
+      if (result?.orderId) {
+        await saveRecentOrderId(result.orderId);
+      }
+
       setOrderSuccess(result || { orderId: 'OK' });
     } catch (err: any) {
       console.error('Error al procesar el pago del pedido:', err);
@@ -232,6 +237,27 @@ export default function StorePaymentModal({
               </TouchableOpacity>
 
               <TouchableOpacity
+                style={styles.trackOrderBtn}
+                onPress={() => {
+                  setOrderSuccess(null);
+                  setReference('');
+                  setLocalImageUri(null);
+                  setPaymentVerified(false);
+                  setAssignedDriver(null);
+                  if (onOrderFinished) {
+                    onOrderFinished();
+                  } else {
+                    onClose();
+                  }
+                }}
+              >
+                <Ionicons name="navigate-circle" size={22} color="#1A1A1A" style={{ marginRight: 8 }} />
+                <Text style={styles.trackOrderBtnText}>
+                  🛵 Ver Seguimiento en Vivo
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
                 style={[styles.doneBtn, paymentVerified && { backgroundColor: '#10B981' }]}
                 onPress={() => {
                   setOrderSuccess(null);
@@ -247,7 +273,7 @@ export default function StorePaymentModal({
                 }}
               >
                 <Text style={styles.doneBtnText}>
-                  {paymentVerified ? 'Seguir Comprando' : 'Entendido / Finalizar'}
+                  {paymentVerified ? 'Seguir Comprando' : 'Cerrar / Ir a Inicio'}
                 </Text>
               </TouchableOpacity>
             </ScrollView>
@@ -654,16 +680,35 @@ const styles = StyleSheet.create({
     color: '#15803D',
     fontWeight: '700',
   },
+  trackOrderBtn: {
+    backgroundColor: '#FFDB58',
+    borderRadius: 12,
+    width: '100%',
+    paddingVertical: 15,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
+    shadowColor: '#FFDB58',
+    shadowOpacity: 0.35,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 3,
+  },
+  trackOrderBtnText: {
+    color: '#1A1A1A',
+    fontSize: 16,
+    fontWeight: '900',
+  },
   doneBtn: {
     backgroundColor: '#0F172A',
     borderRadius: 12,
     width: '100%',
-    paddingVertical: 15,
+    paddingVertical: 14,
     alignItems: 'center',
   },
   doneBtnText: {
     color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: 'bold',
+    fontSize: 14,
+    fontWeight: '600',
   },
 });

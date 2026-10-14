@@ -14,6 +14,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SecureStorage } from '@/infrastructure/storage/secure-storage';
 import StorePaymentModal from '@/presentation/components/shared/StorePaymentModal';
 import { getSocket } from '@/infrastructure/services/socket.service';
+import { saveRecentOrderId } from '@/infrastructure/api/orders.api';
 
 const { width, height } = Dimensions.get('window');
 
@@ -657,6 +658,11 @@ const MapScreen = () => {
         throw new Error(data.message || 'Error al solicitar el traslado en taxi');
       }
 
+      const createdId = data.orderId || data.id;
+      if (createdId) {
+        await saveRecentOrderId(createdId);
+      }
+
       setTaxiSuccessData(data);
     } catch (err: any) {
       Alert.alert("Error", err.message || "No se pudo solicitar el traslado.");
@@ -719,7 +725,12 @@ const MapScreen = () => {
         throw new Error(data.message || 'Error al procesar el pedido en el servidor');
       }
 
-      return { orderId: data.orderId || data.id };
+      const createdId = data.orderId || data.id;
+      if (createdId) {
+        await saveRecentOrderId(createdId);
+      }
+
+      return { orderId: createdId };
     } finally {
       setIsSubmittingOrder(false);
     }

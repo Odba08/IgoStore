@@ -19,7 +19,7 @@ import { useCartStore } from "@/presentation/store/useCartStore";
 import { useLocationStore } from "@/presentation/store/useLocationStore";
 import { useAuthStore } from "@/presentation/store/useAuthStore";
 import { igoApi } from "@/infrastructure/api/igo.api";
-import { getPendingDeliveriesApi, updateOrderApi, getOrderQuoteApi, getMyOrdersApi } from "@/infrastructure/api/orders.api";
+import { getPendingDeliveriesApi, updateOrderApi, getOrderQuoteApi, getMyOrdersApi, getOrderByIdApi, getActiveOrderId } from "@/infrastructure/api/orders.api";
 import { getSocket } from "@/infrastructure/services/socket.service";
 import MapView, { Marker, Polyline, UrlTile } from 'react-native-maps';
 import { ActiveOrderFloatingWidget } from "@/presentation/components/ActiveOrderFloatingWidget";
@@ -143,10 +143,31 @@ export default function Index() {
             o.status !== 'CANCELLED' &&
             (o.status !== 'DELIVERED' || !o.businessRating)
         );
-        setClientActiveOrder(active || null);
-      } else {
-        setClientActiveOrder(null);
+        if (active) {
+          setClientActiveOrder(active);
+          return;
+        }
       }
+
+      // Respaldo directo en el dispositivo (pedidos invitados o locales)
+      const localActiveId = await getActiveOrderId();
+      if (localActiveId) {
+        try {
+          const singleRes = await getOrderByIdApi(localActiveId);
+          if (
+            singleRes.data &&
+            singleRes.data.status !== 'CANCELLED' &&
+            (singleRes.data.status !== 'DELIVERED' || !singleRes.data.businessRating)
+          ) {
+            setClientActiveOrder(singleRes.data);
+            return;
+          }
+        } catch {
+          // ignore
+        }
+      }
+
+      setClientActiveOrder(null);
     } catch {
       // Ignorar error temporal de red
     }
