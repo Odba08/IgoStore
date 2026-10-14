@@ -32,7 +32,15 @@ igoApi.interceptors.request.use(async (config) => {
 
 igoApi.interceptors.response.use(
   (response) => response,
-  (error) => {
+  async (error) => {
+    if (error.response?.status === 401) {
+      // Limpiar tokens inválidos o expirados de forma segura
+      try {
+        await SecureStorage.removeItem('token');
+        await SecureStorage.removeItem('user');
+      } catch {}
+      return Promise.reject(error);
+    }
     console.warn('⚠️ [igoApi Network Error]', {
       url: error.config?.url,
       baseURL: error.config?.baseURL,

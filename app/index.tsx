@@ -29,7 +29,7 @@ import { uploadImage } from "@/infrastructure/services/imageUpload.service";
 
 export default function Index() {
   const router = useRouter();
-  const { user } = useAuthStore();
+  const { user, logout } = useAuthStore();
 
   // 1. CARGA DE DATOS CLIENTE
   const { data: businesses, isLoading: loadingBusiness, error } = useBusinesses();
@@ -110,8 +110,13 @@ export default function Index() {
         ord.status !== 'CANCELLED'
       );
       setMyAssignedOrders(myAssigned);
-    } catch (err) {
-      console.error("Error loading driver dashboard:", err);
+    } catch (err: any) {
+      if (err?.response?.status === 401) {
+        console.warn("⚠️ Sesión de empleado expirada o no autorizada (401). Limpiando sesión...");
+        await logout();
+      } else {
+        console.error("Error loading driver dashboard:", err);
+      }
     }
   };
 
@@ -133,7 +138,6 @@ export default function Index() {
   const [clientActiveOrder, setClientActiveOrder] = useState<any | null>(null);
 
   const fetchClientOrders = async () => {
-    if (isEmployee) return;
     try {
       const res = await getMyOrdersApi();
       if (Array.isArray(res.data) && res.data.length > 0) {
@@ -174,27 +178,25 @@ export default function Index() {
   };
 
   useEffect(() => {
-    if (!isEmployee) {
+    fetchClientOrders();
+    const interval = setInterval(fetchClientOrders, 8000);
+
+    const socket = getSocket();
+    const handleLiveOrderUpdate = () => {
       fetchClientOrders();
-      const interval = setInterval(fetchClientOrders, 8000);
+    };
 
-      const socket = getSocket();
-      const handleLiveOrderUpdate = () => {
-        fetchClientOrders();
-      };
+    socket.on('order:updated', handleLiveOrderUpdate);
+    socket.on('order:payment_verified', handleLiveOrderUpdate);
+    socket.on('order:driver_assigned', handleLiveOrderUpdate);
 
-      socket.on('order:updated', handleLiveOrderUpdate);
-      socket.on('order:payment_verified', handleLiveOrderUpdate);
-      socket.on('order:driver_assigned', handleLiveOrderUpdate);
-
-      return () => {
-        clearInterval(interval);
-        socket.off('order:updated', handleLiveOrderUpdate);
-        socket.off('order:payment_verified', handleLiveOrderUpdate);
-        socket.off('order:driver_assigned', handleLiveOrderUpdate);
-      };
-    }
-  }, [isEmployee]);
+    return () => {
+      clearInterval(interval);
+      socket.off('order:updated', handleLiveOrderUpdate);
+      socket.off('order:payment_verified', handleLiveOrderUpdate);
+      socket.off('order:driver_assigned', handleLiveOrderUpdate);
+    };
+  }, []);
 
   const handleClaimOrder = async (orderId: string) => {
     try {
@@ -444,7 +446,7 @@ export default function Index() {
       <PrincipalHeader />
 
       {/* WIDGET FLOTANTE DE PEDIDO EN VIVO (ESTILO QUIK) */}
-      {!isEmployee && clientActiveOrder && (
+      {clientActiveOrder && (
         <ActiveOrderFloatingWidget
           order={clientActiveOrder}
           currentUser={user}
