@@ -1,5 +1,5 @@
 import { StatusBar } from "expo-status-bar";
-import { ScrollView, Text, View, FlatList, TouchableOpacity, TextInput, StyleSheet, Image, ActivityIndicator, Alert, Clipboard, Modal, Platform } from "react-native";
+import { ScrollView, Text, View, FlatList, TouchableOpacity, TextInput, StyleSheet, Image, ActivityIndicator, Alert, Clipboard, Modal, Platform, Linking } from "react-native";
 import { Image as ExpoImage } from "expo-image";
 import { useRef } from 'react';
 import { useRouter } from "expo-router";
@@ -25,6 +25,7 @@ import MapView, { Marker, Polyline, UrlTile } from 'react-native-maps';
 import { ActiveOrderFloatingWidget } from "@/presentation/components/ActiveOrderFloatingWidget";
 import { OrderChatModal } from "@/presentation/components/OrderChatModal";
 import { uploadImage } from "@/infrastructure/services/imageUpload.service";
+import { BusinessDashboard } from "@/presentation/components/business/BusinessDashboard";
 
 
 export default function Index() {
@@ -54,18 +55,22 @@ export default function Index() {
   // Ubicaciones del store global
   const { savedAddresses, removeSavedAddress, initStore, getLocation, lastKnowLocation } = useLocationStore();
 
-  // 1.5 LÓGICA DE MOTORIZADO / TRABAJADOR
+  // 1.5 LÓGICA DE MOTORIZADO / TRABAJADOR Y COMERCIO
   const isEmployee = user?.roles.includes('empleado') || user?.roles.includes('worker');
+  const isBusiness = user?.roles.includes('business') || user?.roles.includes('bussiness');
+  const [businessModeActive, setBusinessModeActive] = useState<boolean>(true);
+
   const [employeeStatus, setEmployeeStatus] = useState<string>('inactive');
   const [pendingOrders, setPendingOrders] = useState<any[]>([]);
   const [myAssignedOrders, setMyAssignedOrders] = useState<any[]>([]);
   const [loadingDriverData, setLoadingDriverData] = useState<boolean>(false);
 
-  // Mapa
+  // Mapa y Tramos de Entrega
   const [selectedRouteOrder, setSelectedRouteOrder] = useState<any | null>(null);
   const [routePolyline, setRoutePolyline] = useState<any[]>([]);
   const [loadingRoute, setLoadingRoute] = useState<boolean>(false);
   const [showMapModal, setShowMapModal] = useState<boolean>(false);
+  const [mapLeg, setMapLeg] = useState<'pickup' | 'delivery'>('pickup');
   const mapModalRef = useRef<MapView>(null);
 
   const [showConfirmModal, setShowConfirmModal] = useState<boolean>(false);
@@ -75,15 +80,42 @@ export default function Index() {
   const [driverChatOrder, setDriverChatOrder] = useState<any | null>(null);
   const [showDriverChatModal, setShowDriverChatModal] = useState<boolean>(false);
 
-  const handleMarkArrived = async (orderId: string) => {
+  const handleUpdateDriverStage = async (orderId: string, nextStage: string, nextStatus?: string) => {
     try {
-      await updateOrderApi(orderId, { status: 'ARRIVED' });
-      Alert.alert("¡Aviso enviado! 📍", "Se le notificó al cliente que ya llegaste al destino.");
+      const payload: any = { driverStage: nextStage };
+      if (nextStatus) payload.status = nextStatus;
+      await updateOrderApi(orderId, payload);
       await fetchDriverData();
+      
+      if (selectedRouteOrder && selectedRouteOrder.id === orderId) {
+        setSelectedRouteOrder((prev: any) => ({ ...prev, driverStage: nextStage, ...(nextStatus ? { status: nextStatus } : {}) }));
+        if (nextStage === 'ON_THE_WAY') {
+          setMapLeg('delivery');
+          await handleOpenMap(selectedRouteOrder, 'delivery');
+        }
+      }
+
+      let msg = 'Etapa de ruta actualizada.';
+      if (nextStage === 'ARRIVED_PICKUP') msg = '¡Llegaste al punto de recogida! Se notificó al local/cliente 📍';
+      if (nextStage === 'ON_THE_WAY') msg = '¡Pedido en mano! En camino a la ubicación del cliente 🛵';
+      if (nextStage === 'ARRIVED_DESTINATION') msg = '¡Llegaste a la ubicación del cliente! 🔔';
+      Alert.alert("Ruta Actualizada", msg);
     } catch (err: any) {
-      console.error("Error marking order arrived:", err);
-      Alert.alert("Error", "No se pudo actualizar el estado: " + (err.message || 'Error de conexión'));
+      console.error("Error updating driver stage:", err);
+      Alert.alert("Error", err.message || "No se pudo actualizar la etapa de la ruta.");
     }
+  };
+
+  const handleOpenExternalGps = (targetLat: number, targetLng: number, label: string) => {
+    const url = Platform.select({
+      ios: `maps:0,0?q=${encodeURIComponent(label)}@${targetLat},${targetLng}`,
+      android: `geo:0,0?q=${targetLat},${targetLng}(${encodeURIComponent(label)})`
+    });
+    Linking.openURL(url || `https://www.google.com/maps/dir/?api=1&destination=${targetLat},${targetLng}`);
+  };
+
+  const handleMarkArrived = async (orderId: string) => {
+    await handleUpdateDriverStage(orderId, 'ARRIVED_DESTINATION', 'ARRIVED');
   };
 
   const fetchDriverData = async () => {
@@ -226,26 +258,44 @@ export default function Index() {
     }
   };
 
-  const handleOpenMap = async (order: any) => {
+  const handleOpenMap = async (order: any, leg?: 'pickup' | 'delivery') => {
     try {
       setShowMapModal(true);
       setSelectedRouteOrder(order);
       setLoadingRoute(true);
+
+      const currentLeg = leg || (order.driverStage === 'ARRIVED_PICKUP' || order.driverStage === 'ON_THE_WAY' || order.driverStage === 'ARRIVED_DESTINATION' ? 'delivery' : 'pickup');
+      setMapLeg(currentLeg);
+
+      const startLat = order.business?.latitude || order.pickupLat || (lastKnowLocation?.latitude ?? 0);
+      const startLng = order.business?.longitude || order.pickupLong || (lastKnowLocation?.longitude ?? 0);
+
+      let originLat = startLat;
+      let originLng = startLng;
+      let destLat = order.deliveryLat;
+      let destLng = order.deliveryLong;
+
+      if (currentLeg === 'pickup' && lastKnowLocation?.latitude) {
+        originLat = lastKnowLocation.latitude;
+        originLng = lastKnowLocation.longitude;
+        destLat = startLat;
+        destLng = startLng;
+      }
       
       const res = await getOrderQuoteApi({
         businessId: order.business?.id || '00000000-0000-0000-0000-000000000000',
-        pickupLat: order.pickupLat,
-        pickupLong: order.pickupLong,
-        deliveryLat: order.deliveryLat,
-        deliveryLong: order.deliveryLong
+        pickupLat: originLat,
+        pickupLong: originLng,
+        deliveryLat: destLat,
+        deliveryLong: destLng
       });
       
       if (res.data && res.data.routePolyline) {
         setRoutePolyline(res.data.routePolyline);
       } else {
         setRoutePolyline([
-          { latitude: order.business?.latitude || order.pickupLat, longitude: order.business?.longitude || order.pickupLong },
-          { latitude: order.deliveryLat, longitude: order.deliveryLong }
+          { latitude: originLat, longitude: originLng },
+          { latitude: destLat, longitude: destLng }
         ]);
       }
     } catch (err) {
@@ -423,7 +473,7 @@ export default function Index() {
     return businesses.filter(b => favorites.includes(b.id));
   }, [businesses, favorites]);
 
-  if (loadingBusiness && !isEmployee) {
+  if (loadingBusiness && !isEmployee && !(isBusiness && businessModeActive)) {
     return (
       <LoadingScreen 
         imageSource={require("../assets/images/adaptive-icon.png")} 
@@ -432,10 +482,24 @@ export default function Index() {
     );
   }
 
-  if (error && !isEmployee) {
+  if (error && !isEmployee && !(isBusiness && businessModeActive)) {
     return (
       <View style={styles.center}>
         <Text style={{ color: "red" }}>{error.message}</Text>
+      </View>
+    );
+  }
+
+  // Si el usuario es dueño de negocio y tiene activo el modo comercio, renderizar BusinessDashboard
+  if (isBusiness && businessModeActive) {
+    return (
+      <View style={styles.mainContainer}>
+        <StatusBar style='dark' />
+        <PrincipalHeader />
+        <BusinessDashboard 
+          user={user} 
+          onSwitchToClientMode={() => setBusinessModeActive(false)} 
+        />
       </View>
     );
   }
@@ -444,6 +508,19 @@ export default function Index() {
     <View style={styles.mainContainer}>
       <StatusBar style='dark' />
       <PrincipalHeader />
+
+      {/* BARRA PARA VOLVER AL MODO COMERCIO SI ESTÁ EN MODO CLIENTE */}
+      {isBusiness && !businessModeActive && (
+        <TouchableOpacity 
+          style={styles.switchBackToBusinessBar}
+          onPress={() => setBusinessModeActive(true)}
+        >
+          <Ionicons name="storefront" size={18} color="#000" />
+          <Text style={styles.switchBackToBusinessText}>
+            Estás en Modo Cliente. Toca aquí para volver a tu Panel de Tienda 🏪
+          </Text>
+        </TouchableOpacity>
+      )}
 
       {/* WIDGET FLOTANTE DE PEDIDO EN VIVO (ESTILO QUIK) */}
       {clientActiveOrder && (
@@ -745,31 +822,47 @@ export default function Index() {
                        </TouchableOpacity>
                      </View>
 
-                     <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
-                       {order.status !== 'ARRIVED' ? (
+                     {/* BOTONES DE PROGRESIÓN DE ENTREGA (4 ETAPAS) */}
+                     <View style={{ marginTop: 8, gap: 6 }}>
+                       {(!order.driverStage || order.driverStage === 'TO_PICKUP') && (
                          <TouchableOpacity
-                           style={[styles.actionBtn, { flex: 1, backgroundColor: '#EC4899' }]}
-                           onPress={() => handleMarkArrived(order.id)}
+                           style={[styles.actionBtn, { backgroundColor: '#F59E0B', width: '100%', paddingVertical: 10 }]}
+                           onPress={() => handleUpdateDriverStage(order.id, 'ARRIVED_PICKUP')}
                          >
-                           <Ionicons name="location" size={16} color="white" style={{ marginRight: 4 }} />
-                           <Text style={[styles.actionBtnText, { color: 'white' }]}>¡Ya llegué! 📍</Text>
+                           <Ionicons name="location" size={16} color="white" style={{ marginRight: 6 }} />
+                           <Text style={[styles.actionBtnText, { color: 'white' }]}>📍 1. ¡Llegué al Local / Punto A!</Text>
                          </TouchableOpacity>
-                       ) : (
-                         <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#FDF2F8', borderRadius: 10, paddingVertical: 8, borderWidth: 1, borderColor: '#FBCFE8' }}>
-                           <Ionicons name="checkmark-done" size={16} color="#DB2777" style={{ marginRight: 4 }} />
-                           <Text style={{ fontSize: 12, fontWeight: 'bold', color: '#DB2777' }}>Llegada 📍</Text>
-                         </View>
                        )}
 
-                       <TouchableOpacity
-                         style={[styles.actionBtn, { flex: 1, backgroundColor: '#10B981' }]}
-                         onPress={() => handleCompleteOrderClick(order.id)}
-                       >
-                         <Ionicons name="camera" size={16} color="white" style={{ marginRight: 4 }} />
-                         <Text style={[styles.actionBtnText, { color: 'white' }]}>
-                           {order.status === 'ARRIVED' ? 'Entregar y Foto' : 'Completar'}
-                         </Text>
-                       </TouchableOpacity>
+                       {order.driverStage === 'ARRIVED_PICKUP' && (
+                         <TouchableOpacity
+                           style={[styles.actionBtn, { backgroundColor: '#2563EB', width: '100%', paddingVertical: 10 }]}
+                           onPress={() => handleUpdateDriverStage(order.id, 'ON_THE_WAY', 'ON_WAY')}
+                         >
+                           <Ionicons name="bicycle" size={16} color="white" style={{ marginRight: 6 }} />
+                           <Text style={[styles.actionBtnText, { color: 'white' }]}>🛵 2. ¡Ya recogí el pedido / En camino!</Text>
+                         </TouchableOpacity>
+                       )}
+
+                       {order.driverStage === 'ON_THE_WAY' && (
+                         <TouchableOpacity
+                           style={[styles.actionBtn, { backgroundColor: '#EC4899', width: '100%', paddingVertical: 10 }]}
+                           onPress={() => handleUpdateDriverStage(order.id, 'ARRIVED_DESTINATION', 'ARRIVED')}
+                         >
+                           <Ionicons name="notifications" size={16} color="white" style={{ marginRight: 6 }} />
+                           <Text style={[styles.actionBtnText, { color: 'white' }]}>🔔 3. ¡Llegué donde el cliente!</Text>
+                         </TouchableOpacity>
+                       )}
+
+                       {(order.driverStage === 'ARRIVED_DESTINATION' || order.status === 'ARRIVED') && (
+                         <TouchableOpacity
+                           style={[styles.actionBtn, { backgroundColor: '#10B981', width: '100%', paddingVertical: 10 }]}
+                           onPress={() => handleCompleteOrderClick(order.id)}
+                         >
+                           <Ionicons name="camera" size={16} color="white" style={{ marginRight: 6 }} />
+                           <Text style={[styles.actionBtnText, { color: 'white' }]}>📸 4. Entregar con Foto Comprobante</Text>
+                         </TouchableOpacity>
+                       )}
                      </View>
                    </View>
                  ))}
@@ -852,12 +945,35 @@ export default function Index() {
                  <View style={[styles.serviceIconWrapper, { backgroundColor: '#F3E8FF' }]}>
                    <ExpoImage 
                      source={require('../assets/Icons/igo-iconos-categorias/igo-cat-igo-favor.svg')} 
-                     style={{ width: 44, height: 44 }} 
+                     style={{ width: 40, height: 40 }} 
                      contentFit="contain" 
                    />
                  </View>
                  <Text style={styles.serviceTitle}>IGO Favor</Text>
-                 <Text style={styles.serviceSub}>Envíos Punto a Punto</Text>
+                 <Text style={styles.serviceSub}>Envíos Express</Text>
+               </TouchableOpacity>
+
+               <TouchableOpacity 
+                 style={styles.serviceBox}
+                 onPress={() => {
+                   router.push({
+                     pathname: '/map',
+                     params: {
+                       serviceType: 'moto',
+                       mode: 'delivery',
+                     }
+                   });
+                 }}
+               >
+                 <View style={[styles.serviceIconWrapper, { backgroundColor: '#E0F2FE' }]}>
+                   <ExpoImage 
+                     source={require('../assets/Icons/igo-iconos-categorias/igo-cat-express.svg')} 
+                     style={{ width: 40, height: 40 }} 
+                     contentFit="contain" 
+                   />
+                 </View>
+                 <Text style={styles.serviceTitle}>IGO Moto</Text>
+                 <Text style={styles.serviceSub}>Moto Taxi</Text>
                </TouchableOpacity>
 
                <TouchableOpacity 
@@ -875,12 +991,12 @@ export default function Index() {
                  <View style={[styles.serviceIconWrapper, { backgroundColor: '#FFF8E1' }]}>
                    <ExpoImage 
                      source={require('../assets/Icons/igo-iconos-categorias/igo-cat-taxi.svg')} 
-                     style={{ width: 44, height: 44 }} 
+                     style={{ width: 40, height: 40 }} 
                      contentFit="contain" 
                    />
                  </View>
                  <Text style={styles.serviceTitle}>IGO Taxi</Text>
-                 <Text style={styles.serviceSub}>Traslados en Carro</Text>
+                 <Text style={styles.serviceSub}>Taxi Carro</Text>
                </TouchableOpacity>
              </View>
 
@@ -1026,24 +1142,100 @@ export default function Index() {
                       </TouchableOpacity>
                     )}
 
-                    {/* Panel de Info Flotante */}
+                    {/* Panel de Info Flotante del Mapa con Tramos y Acciones */}
                     <View style={styles.mapInfoPanel}>
-                      <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#333' }}>
-                        Ruta del Pedido #{String(selectedRouteOrder.orderNumber).padStart(4, '0')}
+                      {/* SELECTOR DE TRAMO DE ENTREGA */}
+                      <View style={styles.mapLegToggleRow}>
+                        <TouchableOpacity
+                          style={[styles.mapLegBtn, mapLeg === 'pickup' && styles.mapLegBtnActive]}
+                          onPress={() => handleOpenMap(selectedRouteOrder, 'pickup')}
+                        >
+                          <Text style={[styles.mapLegBtnText, mapLeg === 'pickup' && styles.mapLegBtnTextActive]}>
+                            🏪 Tramo 1: Al Local
+                          </Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                          style={[styles.mapLegBtn, mapLeg === 'delivery' && styles.mapLegBtnActive]}
+                          onPress={() => handleOpenMap(selectedRouteOrder, 'delivery')}
+                        >
+                          <Text style={[styles.mapLegBtnText, mapLeg === 'delivery' && styles.mapLegBtnTextActive]}>
+                            🏠 Tramo 2: Al Cliente
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+
+                      <Text style={{ fontSize: 15, fontWeight: 'bold', color: '#1E293B' }}>
+                        Pedido #{String(selectedRouteOrder.orderNumber).padStart(4, '0')}
                       </Text>
-                      <Text style={{ fontSize: 13, color: '#666', marginTop: 4 }}>
-                        <Text style={{ fontWeight: 'bold' }}>De:</Text> {startName}
+                      <Text style={{ fontSize: 12, color: '#64748B', marginTop: 2 }}>
+                        <Text style={{ fontWeight: 'bold' }}>Punto A:</Text> {startName}
                       </Text>
-                      <Text style={{ fontSize: 13, color: '#666', marginTop: 2 }} numberOfLines={2}>
-                        <Text style={{ fontWeight: 'bold' }}>Para:</Text> {selectedRouteOrder.deliveryAddress}
+                      <Text style={{ fontSize: 12, color: '#64748B', marginTop: 1 }} numberOfLines={1}>
+                        <Text style={{ fontWeight: 'bold' }}>Punto B:</Text> {selectedRouteOrder.deliveryAddress}
                       </Text>
-                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 6, alignItems: 'center' }}>
-                        <Text style={{ fontSize: 14, color: '#00A86B', fontWeight: 'bold' }}>
-                          Envío: ${selectedRouteOrder.deliveryFee.toFixed(2)}
+
+                      {/* BOTÓN NAVEGAR CON GPS EXTERNO */}
+                      <TouchableOpacity
+                        style={styles.navGpsBtn}
+                        onPress={() => {
+                          if (mapLeg === 'pickup') {
+                            handleOpenExternalGps(startLat, startLng, startName);
+                          } else {
+                            handleOpenExternalGps(selectedRouteOrder.deliveryLat, selectedRouteOrder.deliveryLong, selectedRouteOrder.deliveryAddress);
+                          }
+                        }}
+                      >
+                        <Ionicons name="navigate" size={16} color="white" />
+                        <Text style={styles.navGpsBtnText}>
+                          {mapLeg === 'pickup' ? 'Navegar hacia el Local (Waze/Google)' : 'Navegar hacia el Cliente (Waze/Google)'}
                         </Text>
-                        <Text style={{ fontSize: 14, color: '#333', fontWeight: 'bold' }}>
-                          Total: ${selectedRouteOrder.totalAmount.toFixed(2)}
-                        </Text>
+                      </TouchableOpacity>
+
+                      {/* BOTÓN DE ACCIÓN DIRECTA DE ETAPA */}
+                      <View style={{ marginTop: 8 }}>
+                        {(!selectedRouteOrder.driverStage || selectedRouteOrder.driverStage === 'TO_PICKUP') && (
+                          <TouchableOpacity
+                            style={[styles.stageActionBtn, { backgroundColor: '#F59E0B' }]}
+                            onPress={() => handleUpdateDriverStage(selectedRouteOrder.id, 'ARRIVED_PICKUP')}
+                          >
+                            <Ionicons name="location" size={16} color="white" style={{ marginRight: 6 }} />
+                            <Text style={styles.stageActionBtnText}>1. ¡Llegué al Local / Punto A! 📍</Text>
+                          </TouchableOpacity>
+                        )}
+
+                        {selectedRouteOrder.driverStage === 'ARRIVED_PICKUP' && (
+                          <TouchableOpacity
+                            style={[styles.stageActionBtn, { backgroundColor: '#2563EB' }]}
+                            onPress={() => handleUpdateDriverStage(selectedRouteOrder.id, 'ON_THE_WAY', 'ON_WAY')}
+                          >
+                            <Ionicons name="bicycle" size={16} color="white" style={{ marginRight: 6 }} />
+                            <Text style={styles.stageActionBtnText}>2. ¡Ya recogí el pedido / En camino! 🛵</Text>
+                          </TouchableOpacity>
+                        )}
+
+                        {selectedRouteOrder.driverStage === 'ON_THE_WAY' && (
+                          <TouchableOpacity
+                            style={[styles.stageActionBtn, { backgroundColor: '#EC4899' }]}
+                            onPress={() => handleUpdateDriverStage(selectedRouteOrder.id, 'ARRIVED_DESTINATION', 'ARRIVED')}
+                          >
+                            <Ionicons name="notifications" size={16} color="white" style={{ marginRight: 6 }} />
+                            <Text style={styles.stageActionBtnText}>3. ¡Llegué donde el cliente! 🔔</Text>
+                          </TouchableOpacity>
+                        )}
+
+                        {(selectedRouteOrder.driverStage === 'ARRIVED_DESTINATION' || selectedRouteOrder.status === 'ARRIVED') && (
+                          <TouchableOpacity
+                            style={[styles.stageActionBtn, { backgroundColor: '#10B981' }]}
+                            onPress={() => {
+                              setShowMapModal(false);
+                              handleCompleteOrderClick(selectedRouteOrder.id);
+                            }}
+                          >
+                            <Ionicons name="camera" size={16} color="white" style={{ marginRight: 6 }} />
+                            <Text style={styles.stageActionBtnText}>4. Entregar con Foto Comprobante 📸</Text>
+                          </TouchableOpacity>
+                        )}
                       </View>
                     </View>
                   </View>
@@ -1583,16 +1775,17 @@ const styles = StyleSheet.create({
   servicesContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
     marginBottom: 20,
     marginTop: 10,
-    gap: 15,
+    gap: 10,
   },
   serviceBox: {
     flex: 1,
     backgroundColor: 'white',
     borderRadius: 16,
-    padding: 15,
+    paddingVertical: 12,
+    paddingHorizontal: 6,
     alignItems: 'center',
     shadowColor: '#000',
     shadowOpacity: 0.05,
@@ -1600,21 +1793,22 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   serviceIconWrapper: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 6,
   },
   serviceTitle: {
-    fontSize: 15,
+    fontSize: 13,
     fontWeight: 'bold',
     color: '#1A1A1A',
     marginBottom: 2,
+    textAlign: 'center',
   },
   serviceSub: {
-    fontSize: 11,
+    fontSize: 10,
     color: '#666',
     textAlign: 'center',
   },
@@ -1662,5 +1856,99 @@ const styles = StyleSheet.create({
     height: 200,
     borderRadius: 12,
     marginVertical: 15
-  }
+  },
+  stageNoticeBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#FFFBEB',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+  },
+  stageNoticeText: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#B45309',
+    flex: 1,
+  },
+  stageActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 11,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  stageActionBtnText: {
+    fontSize: 13,
+    fontWeight: 'bold',
+    color: '#FFF',
+  },
+  switchBackToBusinessBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#FFDB58',
+    paddingVertical: 10,
+    paddingHorizontal: 15,
+    marginHorizontal: 20,
+    borderRadius: 12,
+    marginBottom: 10,
+  },
+  switchBackToBusinessText: {
+    fontSize: 13,
+    fontWeight: 'bold',
+    color: '#000',
+  },
+  mapLegToggleRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 8,
+  },
+  mapLegBtn: {
+    flex: 1,
+    paddingVertical: 7,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+    backgroundColor: '#F1F5F9',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  mapLegBtnActive: {
+    backgroundColor: '#1E293B',
+    borderColor: '#1E293B',
+  },
+  mapLegBtnText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#475569',
+  },
+  mapLegBtnTextActive: {
+    color: '#FFF',
+    fontWeight: 'bold',
+  },
+  navGpsBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: '#6528FF',
+    paddingVertical: 9,
+    borderRadius: 10,
+    marginTop: 8,
+  },
+  navGpsBtnText: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#FFF',
+  },
 });

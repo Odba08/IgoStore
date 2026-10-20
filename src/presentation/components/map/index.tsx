@@ -46,7 +46,8 @@ const MapScreen = () => {
   
   // ⚡ CONTROL DE MULTIMODALIDAD INYECTADO
   const { mode, personalData, addressNotes, serviceType = 'store' } = useLocalSearchParams(); 
-  const isTaxiService = serviceType === 'taxi';
+  const isMotoTaxi = serviceType === 'moto';
+  const isTaxiService = serviceType === 'taxi' || isMotoTaxi;
   const isFavorService = serviceType === 'favor' || isTaxiService;
   const isStoreService = serviceType === 'store';
   const canEditOrigin = isFavorService; // Regla de negocio estricta (aplica a Favor y Taxi)
@@ -625,15 +626,15 @@ const MapScreen = () => {
 
     const orderPayload = {
       businessId: '00000000-0000-0000-0000-000000000000', 
-      userIdTemp: personalData || 'Pasajero IGO Taxi',
+      userIdTemp: personalData || (isMotoTaxi ? 'Pasajero IGO Moto Taxi' : 'Pasajero IGO Taxi'),
       pickupLat: routeQuote.businessLat || pickupLocation?.latitude,
       pickupLong: routeQuote.businessLong || pickupLocation?.longitude,
       pickupAddress: pickupLocation?.address || 'Punto de Partida (Punto A)',
       deliveryLat: routeQuote.userLat,
       deliveryLong: routeQuote.userLong,
       deliveryAddress: `${deliveryLocation?.address || 'Destino en Mapa'} | Ref: ${addressNotes || ''}`.trim(),
-      category: 'IgoTaxi',
-      shippingType: 'Carro',
+      category: isMotoTaxi ? 'IgoMoto' : 'IgoTaxi',
+      shippingType: isMotoTaxi ? 'Moto' : selectedShippingType,
       paymentRecipient: 'Pago Conductor',
       paymentMethod: 'PAGO_CONDUCTOR',
       items: []
@@ -1040,17 +1041,19 @@ const MapScreen = () => {
                   ) : (
                     <>
                       <Ionicons 
-                        name={isTaxiService ? "car-sport-outline" : "card-outline"} 
+                        name={isMotoTaxi ? "bicycle-outline" : (isTaxiService ? "car-sport-outline" : "card-outline")} 
                         size={20} 
                         color={isTaxiService ? "#000" : "white"} 
                         style={{ marginRight: 10 }} 
                       />
                       <Text style={[styles.whatsappBtnText, isTaxiService && { color: '#000' }]}>
-                        {isTaxiService 
-                          ? `Solicitar IGO Taxi ($${(routeQuote?.deliveryFee || 0).toFixed(2)})` 
-                          : (isFavorService 
-                            ? `Pagar IGO Favor ($${(routeQuote?.deliveryFee || 0).toFixed(2)})` 
-                            : `Pagar Pedido ($${(cartSubtotal + (routeQuote?.deliveryFee || 0)).toFixed(2)})`)}
+                        {isMotoTaxi
+                          ? `Solicitar IGO Moto Taxi ($${(routeQuote?.deliveryFee || 0).toFixed(2)})`
+                          : (isTaxiService 
+                            ? `Solicitar IGO Taxi ($${(routeQuote?.deliveryFee || 0).toFixed(2)})` 
+                            : (isFavorService 
+                              ? `Pagar IGO Favor ($${(routeQuote?.deliveryFee || 0).toFixed(2)})` 
+                              : `Pagar Pedido ($${(cartSubtotal + (routeQuote?.deliveryFee || 0)).toFixed(2)})`))}
                       </Text>
                     </>
                   )}
@@ -1257,13 +1260,13 @@ const MapScreen = () => {
               <View style={{ alignItems: 'center', padding: 20 }}>
                 <Ionicons name="checkmark-circle" size={64} color="#10B981" />
                 <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#1A1A1A', marginTop: 10 }}>
-                  ¡Taxi Solicitado!
+                  {isMotoTaxi ? '¡Moto Taxi Solicitado!' : '¡Taxi Solicitado!'}
                 </Text>
                 <Text style={{ fontSize: 14, color: '#64748B', textAlign: 'center', marginTop: 8 }}>
                   Carrera #{String(taxiSuccessData.orderId || '').padStart(4, '0')} registrada con éxito.
                 </Text>
                 <Text style={{ fontSize: 14, color: '#334155', fontWeight: '600', textAlign: 'center', marginTop: 12 }}>
-                  🚕 Pago directo al conductor al finalizar tu viaje.
+                  {isMotoTaxi ? '🛵 Pago directo al motorizado al finalizar tu viaje.' : '🚕 Pago directo al conductor al finalizar tu viaje.'}
                 </Text>
 
                 <TouchableOpacity
@@ -1277,7 +1280,7 @@ const MapScreen = () => {
               <View style={{ padding: 20 }}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 }}>
                   <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#1A1A1A' }}>
-                    🚕 Confirmar IGO Taxi
+                    {isMotoTaxi ? '🛵 Confirmar IGO Moto Taxi' : '🚕 Confirmar IGO Taxi'}
                   </Text>
                   <TouchableOpacity onPress={() => setShowTaxiModal(false)}>
                     <Ionicons name="close" size={24} color="#64748B" />

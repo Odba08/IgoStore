@@ -1,4 +1,5 @@
 import PermissionCheckerProvider from "@/presentation/providers/PermissionCheckerProvider";
+import { LogBox } from "react-native";
 import { Stack, useRouter, useSegments, useRootNavigationState } from "expo-router"; // <-- Importa useRootNavigationState
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -6,6 +7,19 @@ import { useEffect } from "react";
 import { useAuthStore } from "@/presentation/store/useAuthStore";
 import { usePushNotifications } from "@/presentation/hooks/usePushNotifications";
 import { getSocket } from "@/infrastructure/services/socket.service";
+
+// Silenciar advertencias molestas de desarrollo que muestran la barra amarilla abajo
+LogBox.ignoreLogs([
+  'Response.blob()',
+  'expo-notifications',
+  'shouldShowAlert',
+  'VirtualizedLists should never be nested',
+  'Unsupported FormDataPart',
+  'Warning: Each child in a list should have a unique',
+  'Setting a timer',
+  'AxiosError: Request failed with status code 401',
+  'Error loading driver dashboard',
+]);
 
 const queryClient = new QueryClient();
 
