@@ -91,7 +91,7 @@ export const uploadImage = async (imageUri: string, defaultName = 'upload.jpg'):
 
   // 2. Intento Nativo Nivel 2: FileSystem.uploadAsync al endpoint del backend (/api/files/products)
   try {
-    const backendBase = (process.env.EXPO_PUBLIC_API_URL || 'https://igoback.onrender.com').replace(/\/$/, '');
+    const backendBase = (process.env.EXPO_PUBLIC_API_URL || 'https://igoback-b84f.onrender.com').replace(/\/$/, '');
     const backendUrl = backendBase.endsWith('/api')
       ? `${backendBase}/files/products`
       : `${backendBase}/api/files/products`;

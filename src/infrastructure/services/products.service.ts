@@ -6,7 +6,7 @@ const resolveImageUrl = (url: string, pathSegment: string) => {
   if (url.startsWith('http://') || url.startsWith('https://')) {
     return url;
   }
-  const envUrl = process.env.EXPO_PUBLIC_API_URL || 'https://igoback.onrender.com';
+  const envUrl = process.env.EXPO_PUBLIC_API_URL || 'https://igoback-b84f.onrender.com';
   const cleanBase = envUrl.trim().replace(/\/+$/, '');
   const baseUrl = cleanBase.endsWith('/api') ? cleanBase : `${cleanBase}/api`;
   return `${baseUrl}/files/${pathSegment}/${url}`;

@@ -1,7 +1,7 @@
 import { io, Socket } from 'socket.io-client';
 
 const getSocketUrl = (): string => {
-  const envUrl = process.env.EXPO_PUBLIC_API_URL || 'https://igoback.onrender.com';
+  const envUrl = process.env.EXPO_PUBLIC_API_URL || 'https://igoback-b84f.onrender.com';
   return envUrl.replace(/\/api\/?$/, '');
 };
 

@@ -2,7 +2,7 @@ import axios from 'axios';
 import { SecureStorage } from '../storage/secure-storage';
 
 const getApiBaseUrl = (): string => {
-  const envUrl = process.env.EXPO_PUBLIC_API_URL || 'https://igoback.onrender.com';
+  const envUrl = process.env.EXPO_PUBLIC_API_URL || 'https://igoback-b84f.onrender.com';
   const cleanUrl = envUrl.trim().replace(/\/+$/, '');
   return cleanUrl.endsWith('/api') ? cleanUrl : `${cleanUrl}/api`;
 };

@@ -14,13 +14,13 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://igoback.onrender.com"
+        "EXPO_PUBLIC_API_URL": "https://igoback-b84f.onrender.com"
       }
     },
     "production": {
       "autoIncrement": true,
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://igoback.onrender.com"
+        "EXPO_PUBLIC_API_URL": "https://igoback-b84f.onrender.com"
       }
     }
   },
