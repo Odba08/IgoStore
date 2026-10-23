@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { 
   View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, 
-  Image, KeyboardAvoidingView, Platform, ScrollView, Dimensions 
+  Image, KeyboardAvoidingView, Platform, ScrollView, Dimensions, ActivityIndicator 
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@/presentation/store/useAuthStore';
+import { wakeUpBackend, subscribeServerStatus } from '@/infrastructure/api/igo.api';
 import * as WebBrowser from 'expo-web-browser';
 import * as Google from 'expo-auth-session/providers/google';
 
@@ -19,6 +20,14 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('admin123');
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSlowWakeUp, setIsSlowWakeUp] = useState(false);
+  const [serverStatus, setServerStatus] = useState<'unknown' | 'waking' | 'ready'>('unknown');
+
+  useEffect(() => {
+    wakeUpBackend();
+    const unsubscribe = subscribeServerStatus(setServerStatus);
+    return unsubscribe;
+  }, []);
 
   // Configuración de Google OAuth en Expo
   // Nota: Para usar en producción, reemplaza con tus credenciales de Google Cloud Console.
@@ -53,13 +62,23 @@ export default function LoginScreen() {
       Alert.alert('Atención', 'Por favor ingresa email y contraseña.');
       return;
     }
+    if (isSubmitting) return;
+
     setIsSubmitting(true);
-    const success = await login(email, password);
-    setIsSubmitting(false);
-    if (success) {
-      router.replace('/'); 
-    } else {
-      Alert.alert('Error', 'Credenciales incorrectas o servidor no disponible.');
+    setIsSlowWakeUp(false);
+    const slowTimer = setTimeout(() => setIsSlowWakeUp(true), 4000);
+
+    try {
+      const success = await login(email.trim(), password);
+      if (success) {
+        router.replace('/'); 
+      } else {
+        Alert.alert('Error', 'Credenciales incorrectas o servidor tardando en responder. Intenta de nuevo.');
+      }
+    } finally {
+      clearTimeout(slowTimer);
+      setIsSubmitting(false);
+      setIsSlowWakeUp(false);
     }
   };
 
@@ -95,6 +114,15 @@ export default function LoginScreen() {
         <View style={styles.bottomCard}>
           <Text style={styles.greeting}>¡Realiza tus encomiendas!</Text>
 
+          {serverStatus === 'waking' && (
+            <View style={styles.serverWakeBanner}>
+              <ActivityIndicator size="small" color="#B45309" style={{ marginRight: 8 }} />
+              <Text style={styles.serverWakeText}>
+                Conectando con el servidor, estará listo en segundos...
+              </Text>
+            </View>
+          )}
+
           {/* INPUT: EMAIL */}
           <View style={styles.inputWrapper}>
             <Ionicons name="person" size={20} color="#94A3B8" style={styles.inputIcon} />
@@ -103,6 +131,7 @@ export default function LoginScreen() {
               placeholder="Email o Usuario"
               placeholderTextColor="#94A3B8"
               value={email}
+              onFocus={() => wakeUpBackend()}
               onChangeText={setEmail}
               autoCapitalize="none"
               keyboardType="email-address"
@@ -117,6 +146,7 @@ export default function LoginScreen() {
               placeholder="Contraseña"
               placeholderTextColor="#94A3B8"
               value={password}
+              onFocus={() => wakeUpBackend()}
               onChangeText={setPassword}
               secureTextEntry={!showPassword}
             />
@@ -127,8 +157,21 @@ export default function LoginScreen() {
           </View>
 
           {/* BOTÓN PRINCIPAL */}
-          <TouchableOpacity style={styles.mainButton} onPress={handleLogin}>
-            <Text style={styles.mainButtonText}>Iniciar Sesión</Text>
+          <TouchableOpacity
+            style={[styles.mainButton, isSubmitting && { opacity: 0.8 }]}
+            onPress={handleLogin}
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                <ActivityIndicator size="small" color="#FFF" />
+                <Text style={styles.mainButtonText}>
+                  {isSlowWakeUp ? 'Despertando servidor...' : 'Iniciando sesión...'}
+                </Text>
+              </View>
+            ) : (
+              <Text style={styles.mainButtonText}>Iniciar Sesión</Text>
+            )}
           </TouchableOpacity>
 
           {/* SEPARADOR LÓGICO */}
@@ -222,7 +265,22 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     elevation: 10,
   },
-  greeting: { fontSize: 24, fontWeight: 'bold', color: 'black', textAlign: 'center', marginBottom: 30 },
+  greeting: { fontSize: 24, fontWeight: 'bold', color: 'black', textAlign: 'center', marginBottom: 20 },
+  serverWakeBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FEF3C7',
+    borderRadius: 14,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    marginBottom: 15,
+  },
+  serverWakeText: {
+    fontSize: 12,
+    color: '#B45309',
+    fontWeight: '600',
+  },
 
   // --- INPUTS ---
   inputWrapper: {

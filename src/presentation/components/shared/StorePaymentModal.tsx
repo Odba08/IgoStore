@@ -162,7 +162,7 @@ export default function StorePaymentModal({
       });
 
       if (result?.orderId) {
-        await saveRecentOrderId(result.orderId);
+        await saveRecentOrderId(result.id || result.orderId);
       }
 
       setOrderSuccess(result || { orderId: 'OK' });

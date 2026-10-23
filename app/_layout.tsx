@@ -1,5 +1,5 @@
 import PermissionCheckerProvider from "@/presentation/providers/PermissionCheckerProvider";
-import { LogBox } from "react-native";
+import { AppState, LogBox } from "react-native";
 import { Stack, useRouter, useSegments, useRootNavigationState } from "expo-router"; // <-- Importa useRootNavigationState
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -7,6 +7,7 @@ import { useEffect } from "react";
 import { useAuthStore } from "@/presentation/store/useAuthStore";
 import { usePushNotifications } from "@/presentation/hooks/usePushNotifications";
 import { getSocket } from "@/infrastructure/services/socket.service";
+import { wakeUpBackend } from "@/infrastructure/api/igo.api";
 
 // Silenciar advertencias molestas de desarrollo que muestran la barra amarilla abajo
 LogBox.ignoreLogs([
@@ -33,12 +34,24 @@ function RootLayoutNav() {
   usePushNotifications();
 
   useEffect(() => {
+    // Despertar el backend de Render de forma anticipada apenas se abre la app
+    wakeUpBackend();
     checkAuth();
     try {
       getSocket();
     } catch (e) {
       console.warn("Error initializing socket:", e);
     }
+
+    const subscription = AppState.addEventListener("change", (nextAppState) => {
+      if (nextAppState === "active") {
+        wakeUpBackend();
+      }
+    });
+
+    return () => {
+      subscription.remove();
+    };
   }, []);
 
   useEffect(() => {
