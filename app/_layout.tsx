@@ -1,4 +1,5 @@
 import PermissionCheckerProvider from "@/presentation/providers/PermissionCheckerProvider";
+import { StatusBar } from "expo-status-bar";
 import { AppState, LogBox } from "react-native";
 import { Stack, useRouter, useSegments, useRootNavigationState } from "expo-router"; // <-- Importa useRootNavigationState
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -6,8 +7,11 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { useAuthStore } from "@/presentation/store/useAuthStore";
 import { usePushNotifications } from "@/presentation/hooks/usePushNotifications";
+import { useGlobalChatListener } from "@/presentation/hooks/useGlobalChatListener";
+import { ChatToastNotification } from "@/presentation/components/shared/ChatToastNotification";
 import { getSocket } from "@/infrastructure/services/socket.service";
 import { wakeUpBackend } from "@/infrastructure/api/igo.api";
+import { useThemeStore } from "@/presentation/store/useThemeStore";
 
 // Silenciar advertencias molestas de desarrollo que muestran la barra amarilla abajo
 LogBox.ignoreLogs([
@@ -29,11 +33,15 @@ function RootLayoutNav() {
   const segments = useSegments();
   const { isAuthenticated, checkAuth } = useAuthStore();
   const navigationState = useRootNavigationState(); // <-- Obtenemos el estado de la navegación
+  const { colors, isDark } = useThemeStore();
 
-  // Inicializar servicio y listeners de Notificaciones Push
+  // Inicializar servicio y listeners de Notificaciones Push y Chat en Tiempo Real
   usePushNotifications();
+  useGlobalChatListener();
 
   useEffect(() => {
+    // Restaurar preferencia de tema
+    useThemeStore.getState().loadSavedTheme();
     // Despertar el backend de Render de forma anticipada apenas se abre la app
     wakeUpBackend();
     checkAuth();
@@ -74,29 +82,32 @@ function RootLayoutNav() {
   }, [isAuthenticated, segments, navigationState]);
 
   return (
-    <Stack
-      screenOptions={{
-        headerShown: false,
-        contentStyle: { backgroundColor: "#f9faeeff" },
-      }}
-      initialRouteName="index"
-    >
-      <Stack.Screen name="index" options={{ headerShown: false }} />
-      <Stack.Screen name="login" options={{ headerShown: false, animation: "fade" }} />
-      <Stack.Screen name="register" options={{ headerShown: false, animation: "slide_from_right" }} />
-      <Stack.Screen name="loading" options={{ animation: "slide_from_right", headerShown: false }} />
-      <Stack.Screen name="permissions" options={{ headerShown: false }} />
-      <Stack.Screen name="map" options={{ headerShown: false }} />
-    </Stack>
+    <>
+      <StatusBar style={isDark ? "light" : "dark"} />
+      <Stack
+        screenOptions={{
+          headerShown: false,
+          contentStyle: { backgroundColor: colors.background },
+        }}
+      >
+        <Stack.Screen name="index" options={{ headerShown: false }} />
+        <Stack.Screen name="login" options={{ headerShown: false, animation: "fade" }} />
+        <Stack.Screen name="register" options={{ headerShown: false, animation: "slide_from_right" }} />
+        <Stack.Screen name="loading" options={{ animation: "slide_from_right", headerShown: false }} />
+        <Stack.Screen name="permissions" options={{ headerShown: false }} />
+        <Stack.Screen name="map" options={{ headerShown: false }} />
+      </Stack>
+    </>
   );
 }
 
 export default function RootLayout() {
   return (
-    <GestureHandlerRootView>
+    <GestureHandlerRootView style={{ flex: 1 }}>
       <QueryClientProvider client={queryClient}>
         <PermissionCheckerProvider>
           <RootLayoutNav />
+          <ChatToastNotification />
         </PermissionCheckerProvider>
       </QueryClientProvider>
     </GestureHandlerRootView>

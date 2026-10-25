@@ -16,6 +16,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { getSocket } from '@/infrastructure/services/socket.service';
 import { igoApi } from '@/infrastructure/api/igo.api';
+import { useThemeStore } from '@/presentation/store/useThemeStore';
 
 interface ChatMessage {
   id: string;
@@ -39,6 +40,7 @@ export const OrderChatModal = ({
   order,
   currentUser,
 }: OrderChatModalProps) => {
+  const { colors, isDark } = useThemeStore();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputText, setInputText] = useState('');
   const [isSending, setIsSending] = useState(false);
@@ -78,6 +80,16 @@ export const OrderChatModal = ({
     const handleNewMessage = (msg: ChatMessage) => {
       setMessages((prev) => {
         if (prev.some((m) => m.id === msg.id)) return prev;
+        if (
+          prev.some(
+            (m) =>
+              m.senderId === msg.senderId &&
+              m.text === msg.text &&
+              Math.abs(new Date(m.timestamp).getTime() - new Date(msg.timestamp).getTime()) < 4000
+          )
+        ) {
+          return prev;
+        }
         return [...prev, msg];
       });
       setTimeout(() => {
@@ -163,11 +175,11 @@ export const OrderChatModal = ({
         style={styles.overlay}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        <View style={styles.container}>
+        <View style={[styles.container, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
           {/* Header */}
-          <View style={styles.header}>
+          <View style={[styles.header, { borderBottomColor: colors.cardBorder }]}>
             <View style={styles.headerInfo}>
-              <View style={[styles.avatarCircle, { backgroundColor: isDriverUser ? '#E0F2FE' : '#FEF3C7' }]}>
+              <View style={[styles.avatarCircle, { backgroundColor: isDriverUser ? (isDark ? '#1C315E' : '#E0F2FE') : (isDark ? '#3D2A00' : '#FEF3C7') }]}>
                 <Ionicons
                   name={isDriverUser ? 'person' : 'bicycle'}
                   size={20}
@@ -175,22 +187,22 @@ export const OrderChatModal = ({
                 />
               </View>
               <View>
-                <Text style={styles.driverName}>
+                <Text style={[styles.driverName, { color: colors.text }]}>
                   {otherPartyName}
                 </Text>
-                <Text style={styles.orderSubtitle}>
+                <Text style={[styles.orderSubtitle, { color: colors.textMuted }]}>
                   Orden #{String(order?.orderNumber || '').padStart(4, '0')} • {isDriverUser ? 'Cliente' : 'Repartidor'}
                 </Text>
               </View>
             </View>
 
             <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-              <Ionicons name="close" size={24} color="#333" />
+              <Ionicons name="close" size={24} color={colors.text} />
             </TouchableOpacity>
           </View>
 
           {/* Quick Actions Row */}
-          <View style={styles.quickActionsBar}>
+          <View style={[styles.quickActionsBar, { backgroundColor: isDark ? '#1B0E3D' : '#FAFAFA', borderBottomColor: colors.cardBorder }]}>
             <TouchableOpacity style={styles.sharePhoneBtn} onPress={handleSharePhone}>
               <Ionicons name="call" size={14} color="#000" style={{ marginRight: 4 }} />
               <Text style={styles.sharePhoneText}>Compartir Mi Teléfono</Text>
@@ -198,11 +210,11 @@ export const OrderChatModal = ({
 
             {otherPartyPhone && (
               <TouchableOpacity
-                style={styles.callDriverBtn}
+                style={[styles.callDriverBtn, { backgroundColor: isDark ? '#2E2059' : '#E5E7EB' }]}
                 onPress={() => Linking.openURL(`tel:${otherPartyPhone}`)}
               >
-                <Ionicons name="call-outline" size={14} color="#333" style={{ marginRight: 4 }} />
-                <Text style={styles.callDriverText}>Llamar</Text>
+                <Ionicons name="call-outline" size={14} color={colors.text} style={{ marginRight: 4 }} />
+                <Text style={[styles.callDriverText, { color: colors.text }]}>Llamar</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -227,24 +239,31 @@ export const OrderChatModal = ({
                   style={[
                     styles.messageBubble,
                     isSupport
-                      ? { alignSelf: 'center', backgroundColor: '#FEF3C7', borderWidth: 1, borderColor: '#F59E0B', maxWidth: '88%' }
+                      ? { alignSelf: 'center', backgroundColor: isDark ? '#3D2800' : '#FEF3C7', borderWidth: 1, borderColor: '#F59E0B', maxWidth: '88%' }
                       : isMe
                       ? styles.myMessageBubble
-                      : styles.otherMessageBubble,
+                      : [styles.otherMessageBubble, { backgroundColor: isDark ? '#281754' : '#F3F4F6', borderColor: colors.cardBorder, borderWidth: isDark ? 1 : 0 }],
                   ]}
                 >
-                  <Text
-                    style={[
-                      styles.senderLabel,
-                      isSupport && { color: '#B45309', fontWeight: 'bold' },
-                    ]}
-                  >
-                    {isSupport ? '🛡️ Soporte IGO' : isMe ? 'Tú' : item.senderName || (item.senderRole === 'driver' ? 'Motorizado' : 'Cliente')}
-                  </Text>
-                  <Text style={[styles.messageText, isMe && styles.myMessageText]}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                    {isSupport && <Ionicons name="shield-checkmark" size={12} color="#D97706" />}
+                    <Text
+                      style={[
+                        styles.senderLabel,
+                        isSupport
+                          ? { color: '#F59E0B', fontWeight: 'bold' }
+                          : isMe
+                          ? { color: '#0F0330' }
+                          : { color: colors.textMuted },
+                      ]}
+                    >
+                      {isSupport ? 'Soporte IGO' : isMe ? 'Tú' : item.senderName || (item.senderRole === 'driver' ? 'Motorizado' : 'Cliente')}
+                    </Text>
+                  </View>
+                  <Text style={[styles.messageText, isMe ? styles.myMessageText : { color: colors.text }]}>
                     {item.text}
                   </Text>
-                  <Text style={[styles.timeLabel, isMe && styles.myTimeLabel]}>
+                  <Text style={[styles.timeLabel, isMe ? styles.myTimeLabel : { color: colors.textMuted }]}>
                     {new Date(item.timestamp).toLocaleTimeString([], {
                       hour: '2-digit',
                       minute: '2-digit',
@@ -255,8 +274,8 @@ export const OrderChatModal = ({
             }}
             ListEmptyComponent={
               <View style={styles.emptyContainer}>
-                <Ionicons name="chatbubbles-outline" size={40} color="#9CA3AF" />
-                <Text style={styles.emptyText}>
+                <Ionicons name="chatbubbles-outline" size={40} color={colors.textMuted} />
+                <Text style={[styles.emptyText, { color: colors.textMuted }]}>
                   {isDriverUser
                     ? 'Inicia la conversación con el cliente aquí.'
                     : 'Inicia la conversación con tu conductor aquí.'}
@@ -266,24 +285,24 @@ export const OrderChatModal = ({
           />
 
           {/* Quick Replies Carousel */}
-          <View style={styles.quickRepliesContainer}>
+          <View style={[styles.quickRepliesContainer, { borderTopColor: colors.cardBorder }]}>
             {quickReplies.map((qr, idx) => (
               <TouchableOpacity
                 key={idx}
-                style={styles.quickReplyChip}
+                style={[styles.quickReplyChip, { backgroundColor: isDark ? '#281754' : '#F3F4F6', borderColor: colors.cardBorder, borderWidth: 1 }]}
                 onPress={() => handleSendMessage(qr)}
               >
-                <Text style={styles.quickReplyText}>{qr}</Text>
+                <Text style={[styles.quickReplyText, { color: colors.text }]}>{qr}</Text>
               </TouchableOpacity>
             ))}
           </View>
 
           {/* Input Bar */}
-          <View style={styles.inputContainer}>
+          <View style={[styles.inputContainer, { backgroundColor: colors.card, borderTopColor: colors.cardBorder }]}>
             <TextInput
-              style={styles.input}
+              style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.inputBorder, color: colors.text, borderWidth: 1 }]}
               placeholder={isDriverUser ? 'Escribe un mensaje al cliente...' : 'Escribe un mensaje al motorizado...'}
-              placeholderTextColor="#9CA3AF"
+              placeholderTextColor={colors.textMuted}
               value={inputText}
               onChangeText={setInputText}
               multiline
@@ -292,7 +311,7 @@ export const OrderChatModal = ({
             <TouchableOpacity
               style={[
                 styles.sendButton,
-                (!inputText.trim() || isSending) && styles.sendButtonDisabled,
+                (!inputText.trim() || isSending) && [styles.sendButtonDisabled, { backgroundColor: isDark ? '#2C1D54' : '#E5E7EB' }],
               ]}
               onPress={() => handleSendMessage()}
               disabled={!inputText.trim() || isSending}

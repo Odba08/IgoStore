@@ -12,6 +12,7 @@ import { useRouter } from 'expo-router';
 import { OrderChatModal } from '../OrderChatModal';
 import { ReportIssueModal } from '../ReportIssueModal';
 import { OrderRatingModal } from '../OrderRatingModal';
+import { useThemeStore } from '@/presentation/store/useThemeStore';
 
 interface ActiveOrderFloatingWidgetProps {
   order: any;
@@ -25,6 +26,7 @@ export const ActiveOrderFloatingWidget = ({
   onRefreshOrders,
 }: ActiveOrderFloatingWidgetProps) => {
   const router = useRouter();
+  const { colors, isDark } = useThemeStore();
   const [showChat, setShowChat] = useState(false);
   const [showReport, setShowReport] = useState(false);
   const [showRating, setShowRating] = useState(false);
@@ -149,19 +151,19 @@ export const ActiveOrderFloatingWidget = ({
         statusColor = '#F59E0B';
         break;
       case 1:
-        statusMessage = 'Restaurante preparando tu comida 👨‍🍳';
+        statusMessage = 'Restaurante preparando tu comida';
         statusColor = '#3B82F6';
         break;
       case 2:
-        statusMessage = 'Repartidor en camino a tu puerta 🛵';
+        statusMessage = 'Repartidor en camino a tu puerta';
         statusColor = '#8B5CF6';
         break;
       case 3:
-        statusMessage = '¡El repartidor ha llegado con tu comida! 📍';
+        statusMessage = '¡El repartidor ha llegado con tu comida!';
         statusColor = '#EC4899';
         break;
       case 4:
-        statusMessage = 'Comida entregada ¡Buen provecho! ✅';
+        statusMessage = 'Comida entregada ¡Buen provecho!';
         statusColor = '#059669';
         break;
     }
@@ -169,23 +171,23 @@ export const ActiveOrderFloatingWidget = ({
     // Tiendas generales (Mercado, Farmacia, etc.)
     switch (currentStepIndex) {
       case 0:
-        statusMessage = isPaid ? 'Pago verificado exitosamente 💳' : 'Verificando pago móvil...';
+        statusMessage = isPaid ? 'Pago verificado exitosamente' : 'Verificando pago móvil...';
         statusColor = '#F59E0B';
         break;
       case 1:
-        statusMessage = 'Tienda preparando y empacando tu pedido 🛍️';
+        statusMessage = 'Tienda preparando y empacando tu pedido';
         statusColor = '#3B82F6';
         break;
       case 2:
-        statusMessage = 'Repartidor en camino a tu dirección 🛵';
+        statusMessage = 'Repartidor en camino a tu dirección';
         statusColor = '#8B5CF6';
         break;
       case 3:
-        statusMessage = '¡El repartidor ha llegado a tu ubicación! 📍';
+        statusMessage = '¡El repartidor ha llegado a tu ubicación!';
         statusColor = '#EC4899';
         break;
       case 4:
-        statusMessage = 'Pedido entregado con éxito ✅';
+        statusMessage = 'Pedido entregado con éxito';
         statusColor = '#059669';
         break;
     }
@@ -194,13 +196,13 @@ export const ActiveOrderFloatingWidget = ({
   const businessName = order.business?.name || order.category || 'Pedido IGO';
 
   return (
-    <View style={styles.cardContainer}>
+    <View style={[styles.cardContainer, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
       {/* Header del Widget */}
       <View style={styles.cardHeader}>
         <View style={styles.headerLeft}>
           <View style={[styles.pulseDot, { backgroundColor: statusColor }]} />
           <View>
-            <Text style={styles.businessTitle} numberOfLines={1}>
+            <Text style={[styles.businessTitle, { color: colors.text }]} numberOfLines={1}>
               {businessName} • #{String(order.orderNumber || '').padStart(4, '0')}
             </Text>
             <Text style={[styles.statusSubtitle, { color: statusColor }]}>
@@ -235,7 +237,7 @@ export const ActiveOrderFloatingWidget = ({
                     styles.circle,
                     isCompleted && styles.circleCompleted,
                     isCurrent && styles.circleCurrent,
-                    isPending && styles.circlePending,
+                    isPending && [styles.circlePending, { backgroundColor: isDark ? '#281754' : '#F3F4F6', borderColor: colors.cardBorder }],
                   ]}
                 >
                   {isCompleted ? (
@@ -244,15 +246,16 @@ export const ActiveOrderFloatingWidget = ({
                     <Ionicons
                       name={step.icon as any}
                       size={13}
-                      color={isCurrent ? '#000' : '#9CA3AF'}
+                      color={isCurrent ? '#000' : colors.textMuted}
                     />
                   )}
                 </View>
                 <Text
                   style={[
                     styles.stepLabel,
-                    isCurrent && styles.stepLabelCurrent,
-                    isCompleted && styles.stepLabelCompleted,
+                    { color: colors.textMuted },
+                    isCurrent && [styles.stepLabelCurrent, { color: colors.text }],
+                    isCompleted && [styles.stepLabelCompleted, { color: colors.textSecondary }],
                   ]}
                   numberOfLines={1}
                 >
@@ -265,7 +268,7 @@ export const ActiveOrderFloatingWidget = ({
                 <View
                   style={[
                     styles.connectorLine,
-                    idx < currentStepIndex ? styles.connectorLineFilled : styles.connectorLineEmpty,
+                    idx < currentStepIndex ? styles.connectorLineFilled : [styles.connectorLineEmpty, { backgroundColor: isDark ? '#2E2059' : '#E5E7EB' }],
                   ]}
                 />
               )}
@@ -275,7 +278,7 @@ export const ActiveOrderFloatingWidget = ({
       </View>
 
       {/* Barra de Acciones: Chat con motorizado, Reportar Error */}
-      <View style={styles.actionBar}>
+      <View style={[styles.actionBar, { borderTopColor: colors.cardBorder }]}>
         {driver ? (
           <TouchableOpacity
             style={styles.chatActionBtn}
@@ -286,19 +289,19 @@ export const ActiveOrderFloatingWidget = ({
             <Text style={styles.chatActionText}>Chat con Conductor</Text>
           </TouchableOpacity>
         ) : (
-          <View style={styles.waitingDriverBox}>
-            <Ionicons name="hourglass-outline" size={14} color="#6B7280" style={{ marginRight: 4 }} />
-            <Text style={styles.waitingDriverText}>Asignando repartidor...</Text>
+          <View style={[styles.waitingDriverBox, { backgroundColor: isDark ? '#190E38' : '#F3F4F6' }]}>
+            <Ionicons name="hourglass-outline" size={14} color={colors.textMuted} style={{ marginRight: 4 }} />
+            <Text style={[styles.waitingDriverText, { color: colors.textMuted }]}>Asignando repartidor...</Text>
           </View>
         )}
 
         <TouchableOpacity
-          style={styles.reportActionBtn}
+          style={[styles.reportActionBtn, { backgroundColor: isDark ? '#3D1414' : '#FEE2E2', borderColor: isDark ? '#5C2222' : '#FCA5A5' }]}
           onPress={() => setShowReport(true)}
           activeOpacity={0.7}
         >
-          <Ionicons name="alert-circle-outline" size={15} color="#DC2626" style={{ marginRight: 4 }} />
-          <Text style={styles.reportActionText}>Reportar Error</Text>
+          <Ionicons name="alert-circle-outline" size={15} color={isDark ? '#F87171' : '#DC2626'} style={{ marginRight: 4 }} />
+          <Text style={[styles.reportActionText, { color: isDark ? '#F87171' : '#DC2626' }]}>Reportar Error</Text>
         </TouchableOpacity>
 
         {status === 'DELIVERED' && !order.businessRating && (

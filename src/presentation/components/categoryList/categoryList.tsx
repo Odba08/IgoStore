@@ -68,6 +68,8 @@ export const getCategoryIcon = (name?: string) => {
   return CATEGORY_ICONS_MAP['default'];
 };
 
+import { useThemeStore } from '@/presentation/store/useThemeStore';
+
 interface Props {
   selectedCategoryId?: string | null;
   onSelectCategory?: (id: string, name: string) => void; 
@@ -75,6 +77,7 @@ interface Props {
 
 export const CategoryList = ({ selectedCategoryId, onSelectCategory }: Props) => {
   const { categories, isLoading } = useCategories();
+  const { colors, isDark } = useThemeStore();
 
   if (isLoading) {
     return <ActivityIndicator size="small" color="#FFDB58" style={{ margin: 20 }} />;
@@ -82,7 +85,7 @@ export const CategoryList = ({ selectedCategoryId, onSelectCategory }: Props) =>
 
   return (
     <View style={styles.container}>
-      <Text style={styles.headerTitle}>Categorías</Text>
+      <Text style={[styles.headerTitle, { color: colors.text }]}>Categorías</Text>
       
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
         {categories.map((cat) => {
@@ -97,6 +100,7 @@ export const CategoryList = ({ selectedCategoryId, onSelectCategory }: Props) =>
             >
               <View style={[
                 styles.iconCircle,
+                { backgroundColor: isDark ? '#1F1242' : '#F5F5F5' },
                 isSelected && styles.iconCircleSelected 
               ]}>
                 <Image 
@@ -109,7 +113,8 @@ export const CategoryList = ({ selectedCategoryId, onSelectCategory }: Props) =>
               
               <Text style={[
                 styles.label,
-                isSelected && styles.labelSelected
+                { color: isDark ? colors.textSecondary : '#555' },
+                isSelected && [styles.labelSelected, { color: isDark ? '#FFC93C' : '#000' }]
               ]}>
                 {cat.name}
               </Text>

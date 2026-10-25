@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { igoApi } from '@/infrastructure/api/igo.api';
+import { useThemeStore } from '@/presentation/store/useThemeStore';
 
 interface OrderRatingModalProps {
   visible: boolean;
@@ -25,6 +26,7 @@ export const OrderRatingModal = ({
   order,
   onSuccess,
 }: OrderRatingModalProps) => {
+  const { colors, isDark } = useThemeStore();
   const [businessRating, setBusinessRating] = useState(5);
   const [driverRating, setDriverRating] = useState(5);
   const [comment, setComment] = useState('');
@@ -41,7 +43,7 @@ export const OrderRatingModal = ({
         comment: comment.trim(),
       });
 
-      Alert.alert('⭐ ¡Gracias por tu reseña!', 'Tu calificación ayuda a mejorar la calidad de IGO.', [
+      Alert.alert('¡Gracias por tu reseña!', 'Tu calificación ayuda a mejorar la calidad de IGO.', [
         {
           text: 'Genial',
           onPress: () => {
@@ -71,7 +73,7 @@ export const OrderRatingModal = ({
             <Ionicons
               name={star <= value ? 'star' : 'star-outline'}
               size={32}
-              color={star <= value ? '#FCD116' : '#D1D5DB'}
+              color={star <= value ? '#FFC93C' : (isDark ? '#4B3F72' : '#D1D5DB')}
             />
           </TouchableOpacity>
         ))}
@@ -85,21 +87,21 @@ export const OrderRatingModal = ({
   return (
     <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose}>
       <View style={styles.overlay}>
-        <View style={styles.container}>
+        <View style={[styles.container, { backgroundColor: colors.card, borderColor: colors.cardBorder, borderWidth: isDark ? 1 : 0 }]}>
           {/* Header */}
           <View style={styles.header}>
             <View style={styles.headerIconCircle}>
-              <Ionicons name="sparkles" size={24} color="#000" />
+              <Ionicons name="sparkles" size={24} color="#0F0330" />
             </View>
-            <Text style={styles.title}>¡Pedido Entregado con Éxito!</Text>
-            <Text style={styles.subtitle}>
+            <Text style={[styles.title, { color: colors.text }]}>¡Pedido Entregado con Éxito!</Text>
+            <Text style={[styles.subtitle, { color: colors.textMuted }]}>
               Orden #{String(order?.orderNumber || '').padStart(4, '0')}
             </Text>
           </View>
 
           {/* Rating Section 1: Business */}
           <View style={styles.ratingSection}>
-            <Text style={styles.sectionTitle}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>
               ¿Cómo fue tu experiencia con <Text style={{ fontWeight: '700' }}>{businessName}</Text>?
             </Text>
             {renderStarSelector(businessRating, setBusinessRating)}
@@ -107,7 +109,7 @@ export const OrderRatingModal = ({
 
           {/* Rating Section 2: Driver */}
           <View style={styles.ratingSection}>
-            <Text style={styles.sectionTitle}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>
               ¿Cómo calificarías el servicio de <Text style={{ fontWeight: '700' }}>{driverName}</Text>?
             </Text>
             {renderStarSelector(driverRating, setDriverRating)}
@@ -115,9 +117,9 @@ export const OrderRatingModal = ({
 
           {/* Comment */}
           <TextInput
-            style={styles.commentInput}
+            style={[styles.commentInput, { backgroundColor: colors.inputBg, borderColor: colors.inputBorder, color: colors.text }]}
             placeholder="Escribe un comentario sobre tu experiencia (opcional)..."
-            placeholderTextColor="#9CA3AF"
+            placeholderTextColor={colors.textMuted}
             value={comment}
             onChangeText={setComment}
             multiline
@@ -134,14 +136,17 @@ export const OrderRatingModal = ({
               activeOpacity={0.8}
             >
               {isSubmitting ? (
-                <ActivityIndicator color="#000" />
+                <ActivityIndicator color="#0F0330" />
               ) : (
-                <Text style={styles.submitButtonText}>Enviar Calificación ⭐</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <Text style={styles.submitButtonText}>Enviar Calificación</Text>
+                  <Ionicons name="star" size={16} color="#0F0330" style={{ marginLeft: 6 }} />
+                </View>
               )}
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.skipButton} onPress={onClose}>
-              <Text style={styles.skipButtonText}>Calificar más tarde</Text>
+              <Text style={[styles.skipButtonText, { color: colors.textMuted }]}>Calificar más tarde</Text>
             </TouchableOpacity>
           </View>
         </View>

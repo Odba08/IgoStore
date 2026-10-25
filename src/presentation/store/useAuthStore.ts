@@ -8,6 +8,12 @@ export interface User {
   fullname: string;
   roles: string[];
   avatarUrl?: string;
+  phoneNumber?: string;
+  cedulaNumber?: string;
+  residenceAddress?: string;
+  cedulaPhotoUrl?: string;
+  facePhotoUrl?: string;
+  identityStatus?: 'UNVERIFIED' | 'PENDING' | 'VERIFIED';
 }
 
 interface AuthState {
@@ -16,7 +22,7 @@ interface AuthState {
   token: string | null;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<boolean>;
-  register: (email: string, password: string, fullName: string) => Promise<boolean>;
+  register: (email: string, password: string, fullName: string, phoneNumber?: string) => Promise<boolean>;
   loginWithGoogle: (googleToken: string) => Promise<boolean>;
   changePassword: (password: string) => Promise<boolean>;
   logout: () => Promise<void>;
@@ -51,9 +57,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
-  register: async (email, password, fullName) => {
+  register: async (email, password, fullName, phoneNumber) => {
     try {
-      await igoApi.post('/users/register', { email, password, fullName });
+      await igoApi.post('/users/register', { email, password, fullName, phoneNumber });
       return await get().login(email, password);
     } catch (error) {
       console.error('Error registering:', error);

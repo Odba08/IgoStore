@@ -17,6 +17,7 @@ import * as Clipboard from 'expo-clipboard';
 import { pickImageFromGallery, takePhotoWithCamera, uploadReceiptImage } from '@/infrastructure/services/imageUpload.service';
 import { getSocket } from '@/infrastructure/services/socket.service';
 import { saveRecentOrderId } from '@/infrastructure/api/orders.api';
+import { useThemeStore } from '@/presentation/store/useThemeStore';
 
 interface StorePaymentModalProps {
   visible: boolean;
@@ -39,6 +40,7 @@ export default function StorePaymentModal({
   onSubmitOrder,
   onOrderFinished,
 }: StorePaymentModalProps) {
+  const { colors, isDark } = useThemeStore();
   const [reference, setReference] = useState('');
   const [localImageUri, setLocalImageUri] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -183,12 +185,12 @@ export default function StorePaymentModal({
 
   return (
     <View style={styles.modalOverlay}>
-      <View style={styles.modalContent}>
+      <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
           {orderSuccess ? (
             // PANTALLA DE CONFIRMACIÓN DE ÉXITO
             // PANTALLA DE CONFIRMACIÓN DE ÉXITO CON ESTADO EN TIEMPO REAL
             <ScrollView contentContainerStyle={styles.successContainer}>
-              <View style={[styles.successIconBadge, paymentVerified && { backgroundColor: '#DCFCE7' }]}>
+              <View style={[styles.successIconBadge, paymentVerified && { backgroundColor: isDark ? '#143825' : '#DCFCE7' }]}>
                 <Ionicons 
                   name={paymentVerified ? "checkmark-circle" : "checkmark-done"} 
                   size={48} 
@@ -196,11 +198,11 @@ export default function StorePaymentModal({
                 />
               </View>
 
-              <Text style={styles.successTitle}>
-                {paymentVerified ? '¡Pago Aprobado y Confirmado! 🎉' : '¡Gracias por tu compra!'}
+              <Text style={[styles.successTitle, { color: colors.text }]}>
+                {paymentVerified ? '¡Pago Aprobado y Confirmado!' : '¡Gracias por tu compra!'}
               </Text>
               
-              <Text style={styles.successSubtitle}>
+              <Text style={[styles.successSubtitle, { color: colors.textMuted }]}>
                 Tu pedido{' '}
                 <Text style={{ fontWeight: 'bold', color: '#10B981' }}>
                   #{String(orderSuccess.orderId || '').padStart(4, '0')}
@@ -211,18 +213,18 @@ export default function StorePaymentModal({
               </Text>
 
               {paymentVerified ? (
-                <View style={[styles.verificationNoteCard, { backgroundColor: '#ECFDF5', borderColor: '#A7F3D0' }]}>
+                <View style={[styles.verificationNoteCard, { backgroundColor: isDark ? '#143825' : '#ECFDF5', borderColor: isDark ? '#1E5839' : '#A7F3D0' }]}>
                   <Ionicons name="bag-check" size={24} color="#059669" style={{ marginRight: 10 }} />
-                  <Text style={[styles.verificationNoteText, { color: '#065F46' }]}>
+                  <Text style={[styles.verificationNoteText, { color: isDark ? '#A7F3D0' : '#065F46' }]}>
                     {assignedDriver 
                       ? `¡Repartidor Asignado! ${assignedDriver.name || 'Conductor Igo'} está en camino.` 
                       : 'Tu pago fue validado exitosamente en tiempo real. La tienda ya está preparando tu orden.'}
                   </Text>
                 </View>
               ) : (
-                <View style={styles.verificationNoteCard}>
+                <View style={[styles.verificationNoteCard, { backgroundColor: isDark ? '#10223D' : '#EFF6FF', borderColor: isDark ? '#1D3B6B' : '#BFDBFE' }]}>
                   <Ionicons name="shield-checkmark" size={24} color="#3B82F6" style={{ marginRight: 10 }} />
-                  <Text style={styles.verificationNoteText}>
+                  <Text style={[styles.verificationNoteText, { color: isDark ? '#BFDBFE' : '#1E40AF' }]}>
                     Nuestro equipo validará tu comprobante de pago en los próximos minutos y despacharemos a tu motorizado.
                   </Text>
                 </View>
@@ -251,9 +253,9 @@ export default function StorePaymentModal({
                   }
                 }}
               >
-                <Ionicons name="navigate-circle" size={22} color="#1A1A1A" style={{ marginRight: 8 }} />
+                <Ionicons name="navigate-circle" size={22} color="#0F0330" style={{ marginRight: 8 }} />
                 <Text style={styles.trackOrderBtnText}>
-                  🛵 Ver Seguimiento en Vivo
+                  Ver Seguimiento en Vivo
                 </Text>
               </TouchableOpacity>
 
@@ -281,30 +283,30 @@ export default function StorePaymentModal({
             // FORMULARIO DE PAGO MÓVIL Y CARGA DE COMPROBANTE
             <>
               {/* Header del Modal */}
-              <View style={styles.headerRow}>
+              <View style={[styles.headerRow, { borderBottomColor: colors.cardBorder }]}>
                 <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                   <Ionicons name="card" size={24} color="#EDB422" style={{ marginRight: 8 }} />
-                  <Text style={styles.modalTitle}>Pago Móvil a la Tienda</Text>
+                  <Text style={[styles.modalTitle, { color: colors.text }]}>Pago Móvil a la Tienda</Text>
                 </View>
                 <TouchableOpacity onPress={onClose} disabled={uploading}>
-                  <Ionicons name="close-circle" size={28} color="#94A3B8" />
+                  <Ionicons name="close-circle" size={28} color={colors.textMuted} />
                 </TouchableOpacity>
               </View>
 
               <ScrollView contentContainerStyle={styles.scrollBody} showsVerticalScrollIndicator={false}>
                 {/* Cuadro de Monto Total */}
-                <View style={styles.amountBanner}>
-                  <Text style={styles.amountLabel}>Monto Total a Transferir:</Text>
-                  <Text style={styles.amountBsText}>Bs. {totalAmountBs.toFixed(2)}</Text>
-                  <Text style={styles.amountUsdText}>
+                <View style={[styles.amountBanner, { backgroundColor: isDark ? '#3D2D00' : '#FFFBEB', borderColor: isDark ? '#5C4400' : '#FDE68A' }]}>
+                  <Text style={[styles.amountLabel, { color: isDark ? '#FFD700' : '#92400E' }]}>Monto Total a Transferir:</Text>
+                  <Text style={[styles.amountBsText, { color: isDark ? '#FFC93C' : '#B45309' }]}>Bs. {totalAmountBs.toFixed(2)}</Text>
+                  <Text style={[styles.amountUsdText, { color: isDark ? '#E5B83B' : '#78350F' }]}>
                     ${totalAmountUsd.toFixed(2)} USD • Tasa BCV: {bcvRate.toFixed(2)} Bs/$
                   </Text>
                 </View>
 
                 {/* Datos Bancarios del Comercio */}
-                <View style={styles.bankDataCard}>
+                <View style={[styles.bankDataCard, { backgroundColor: isDark ? '#190E38' : '#F8FAFC', borderColor: colors.cardBorder }]}>
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                    <Text style={styles.bankCardHeader}>Datos de Pago de {business?.name || 'la Tienda'}:</Text>
+                    <Text style={[styles.bankCardHeader, { color: colors.text }]}>Datos de Pago de {business?.name || 'la Tienda'}:</Text>
                     <TouchableOpacity
                       style={styles.copyAllBtn}
                       onPress={() =>
@@ -319,46 +321,46 @@ export default function StorePaymentModal({
                     </TouchableOpacity>
                   </View>
 
-                  <View style={styles.bankRow}>
-                    <Text style={styles.bankFieldLabel}>Banco:</Text>
-                    <Text style={styles.bankFieldValue}>{paymentBank}</Text>
+                  <View style={[styles.bankRow, { borderBottomColor: colors.cardBorder }]}>
+                    <Text style={[styles.bankFieldLabel, { color: colors.textMuted }]}>Banco:</Text>
+                    <Text style={[styles.bankFieldValue, { color: colors.text }]}>{paymentBank}</Text>
                   </View>
 
                   <TouchableOpacity
-                    style={styles.bankRowInteractive}
+                    style={[styles.bankRowInteractive, { borderBottomColor: colors.cardBorder }]}
                     onPress={() => copyToClipboard(paymentPhone, 'Teléfono')}
                   >
-                    <Text style={styles.bankFieldLabel}>Teléfono:</Text>
+                    <Text style={[styles.bankFieldLabel, { color: colors.textMuted }]}>Teléfono:</Text>
                     <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                      <Text style={[styles.bankFieldValue, { fontWeight: 'bold' }]}>{paymentPhone}</Text>
-                      <Ionicons name="copy-outline" size={14} color="#64748B" style={{ marginLeft: 6 }} />
+                      <Text style={[styles.bankFieldValue, { fontWeight: 'bold', color: colors.text }]}>{paymentPhone}</Text>
+                      <Ionicons name="copy-outline" size={14} color={colors.textMuted} style={{ marginLeft: 6 }} />
                     </View>
                   </TouchableOpacity>
 
                   <TouchableOpacity
-                    style={styles.bankRowInteractive}
+                    style={[styles.bankRowInteractive, { borderBottomColor: colors.cardBorder }]}
                     onPress={() => copyToClipboard(paymentId, 'Cédula/RIF')}
                   >
-                    <Text style={styles.bankFieldLabel}>C.I. / RIF:</Text>
+                    <Text style={[styles.bankFieldLabel, { color: colors.textMuted }]}>C.I. / RIF:</Text>
                     <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                      <Text style={[styles.bankFieldValue, { fontWeight: 'bold' }]}>{paymentId}</Text>
-                      <Ionicons name="copy-outline" size={14} color="#64748B" style={{ marginLeft: 6 }} />
+                      <Text style={[styles.bankFieldValue, { fontWeight: 'bold', color: colors.text }]}>{paymentId}</Text>
+                      <Ionicons name="copy-outline" size={14} color={colors.textMuted} style={{ marginLeft: 6 }} />
                     </View>
                   </TouchableOpacity>
 
-                  <View style={styles.bankRow}>
-                    <Text style={styles.bankFieldLabel}>Titular:</Text>
-                    <Text style={styles.bankFieldValue}>{paymentAccountName}</Text>
+                  <View style={[styles.bankRow, { borderBottomColor: colors.cardBorder }]}>
+                    <Text style={[styles.bankFieldLabel, { color: colors.textMuted }]}>Titular:</Text>
+                    <Text style={[styles.bankFieldValue, { color: colors.text }]}>{paymentAccountName}</Text>
                   </View>
                 </View>
 
                 {/* Input de Número de Referencia */}
                 <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>Número de Referencia del Pago Móvil *</Text>
+                  <Text style={[styles.inputLabel, { color: colors.text }]}>Número de Referencia del Pago Móvil *</Text>
                   <TextInput
-                    style={styles.refInput}
+                    style={[styles.refInput, { backgroundColor: colors.inputBg, borderColor: colors.inputBorder, color: colors.text }]}
                     placeholder="Ej: 849201 o últimos 6 dígitos"
-                    placeholderTextColor="#94A3B8"
+                    placeholderTextColor={colors.textMuted}
                     keyboardType="numeric"
                     value={reference}
                     onChangeText={setReference}
@@ -367,7 +369,7 @@ export default function StorePaymentModal({
 
                 {/* Selector de Comprobante / Capture */}
                 <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>Capture / Comprobante de Transferencia *</Text>
+                  <Text style={[styles.inputLabel, { color: colors.text }]}>Capture / Comprobante de Transferencia *</Text>
 
                   {localImageUri ? (
                     <View style={styles.previewContainer}>
@@ -379,14 +381,14 @@ export default function StorePaymentModal({
                     </View>
                   ) : (
                     <View style={styles.pickerButtonsRow}>
-                      <TouchableOpacity style={styles.pickerBtn} onPress={handlePickGallery}>
+                      <TouchableOpacity style={[styles.pickerBtn, { backgroundColor: isDark ? '#190E38' : '#F8FAFC', borderColor: colors.cardBorder }]} onPress={handlePickGallery}>
                         <Ionicons name="images" size={24} color="#3B82F6" />
-                        <Text style={styles.pickerBtnText}>Galería</Text>
+                        <Text style={[styles.pickerBtnText, { color: colors.text }]}>Galería</Text>
                       </TouchableOpacity>
 
-                      <TouchableOpacity style={styles.pickerBtn} onPress={handleTakePhoto}>
+                      <TouchableOpacity style={[styles.pickerBtn, { backgroundColor: isDark ? '#190E38' : '#F8FAFC', borderColor: colors.cardBorder }]} onPress={handleTakePhoto}>
                         <Ionicons name="camera" size={24} color="#10B981" />
-                        <Text style={styles.pickerBtnText}>Cámara</Text>
+                        <Text style={[styles.pickerBtnText, { color: colors.text }]}>Cámara</Text>
                       </TouchableOpacity>
                     </View>
                   )}
@@ -401,10 +403,10 @@ export default function StorePaymentModal({
                   disabled={uploading}
                 >
                   {uploading ? (
-                    <ActivityIndicator color="#000" size="small" />
+                    <ActivityIndicator color="#0F0330" size="small" />
                   ) : (
                     <>
-                      <Ionicons name="checkmark-circle" size={20} color="#000" style={{ marginRight: 8 }} />
+                      <Ionicons name="checkmark-circle" size={20} color="#0F0330" style={{ marginRight: 8 }} />
                       <Text style={styles.submitBtnText}>Enviar Comprobante y Finalizar</Text>
                     </>
                   )}

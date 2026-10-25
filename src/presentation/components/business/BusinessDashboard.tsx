@@ -449,7 +449,9 @@ export const BusinessDashboard: React.FC<BusinessDashboardProps> = ({
         visible={showProductModal}
         transparent
         animationType="slide"
-        onRequestClose={() => !savingProduct && setShowProductModal(false)}
+        onRequestClose={() => {
+          if (!savingProduct) setShowProductModal(false);
+        }}
       >
         <View style={styles.modalBackdrop}>
           <View style={styles.modalSheet}>

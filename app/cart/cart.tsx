@@ -10,9 +10,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useCartStore } from '@/presentation/store/useCartStore';
 import { useLocationStore } from '@/presentation/store/useLocationStore';
 import { igoApi } from '@/infrastructure/api/igo.api';
+import { useThemeStore } from '@/presentation/store/useThemeStore';
 
 const CartScreen = () => {
   const router = useRouter();
+  const { colors, isDark } = useThemeStore();
 
   const [bcvRate, setBcvRate] = useState<number>(75.54);
 
@@ -78,26 +80,26 @@ const CartScreen = () => {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <View style={styles.customHeader}>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
+      <View style={[styles.customHeader, { backgroundColor: colors.card, borderBottomColor: colors.cardBorder }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color="#1A1A1A" />
+          <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Mi Carrito</Text>
+        <Text style={[styles.headerTitle, { color: colors.text }]}>Mi Carrito</Text>
         <View style={{ width: 40 }} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={[styles.scrollContent, { backgroundColor: colors.background }]} keyboardShouldPersistTaps="handled">
         {cartItems.map((item) => (
-          <View key={item.id} style={styles.cartItem}>
+          <View key={item.id} style={[styles.cartItem, { backgroundColor: colors.card, borderColor: colors.cardBorder, borderWidth: isDark ? 1 : 0 }]}>
             <Image 
               source={{ uri: (item.image && item.image.trim() !== '') ? item.image : 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=200&q=80' }} 
-              style={styles.itemImage} 
+              style={[styles.itemImage, { backgroundColor: isDark ? '#231254' : '#F1F5F9' }]} 
             />
             <View style={styles.itemDetails}>
-              <Text style={styles.itemTitle} numberOfLines={2}>{item.title}</Text>
+              <Text style={[styles.itemTitle, { color: colors.text }]} numberOfLines={2}>{item.title}</Text>
               {item.selectedOptionsText && item.selectedOptionsText.trim() !== '' ? (
-                <Text style={styles.itemOptions} numberOfLines={2}>
+                <Text style={[styles.itemOptions, { color: colors.textMuted }]} numberOfLines={2}>
                   {item.selectedOptionsText}
                 </Text>
               ) : null}
@@ -105,13 +107,13 @@ const CartScreen = () => {
             </View>
             
             <View style={styles.actionContainer}>
-              <View style={styles.quantityControls}>
-                <TouchableOpacity style={styles.controlBtn} onPress={() => updateQuantity(item.id, item.quantity - 1)}>
-                  <Ionicons name="remove" size={18} color="#000" />
+              <View style={[styles.quantityControls, { backgroundColor: isDark ? '#231254' : '#F1F5F9' }]}>
+                <TouchableOpacity style={[styles.controlBtn, { backgroundColor: isDark ? '#2E1B63' : '#FFF' }]} onPress={() => updateQuantity(item.id, item.quantity - 1)}>
+                  <Ionicons name="remove" size={18} color={isDark ? '#FFF' : '#000'} />
                 </TouchableOpacity>
-                <Text style={styles.quantityText}>{item.quantity}</Text>
-                <TouchableOpacity style={styles.controlBtn} onPress={() => updateQuantity(item.id, item.quantity + 1)}>
-                  <Ionicons name="add" size={18} color="#000" />
+                <Text style={[styles.quantityText, { color: colors.text }]}>{item.quantity}</Text>
+                <TouchableOpacity style={[styles.controlBtn, { backgroundColor: isDark ? '#2E1B63' : '#FFF' }]} onPress={() => updateQuantity(item.id, item.quantity + 1)}>
+                  <Ionicons name="add" size={18} color={isDark ? '#FFF' : '#000'} />
                 </TouchableOpacity>
               </View>
               <TouchableOpacity style={styles.deleteBtn} onPress={() => removeItem(item.id)}>
@@ -123,18 +125,22 @@ const CartScreen = () => {
 
         {cartItems.length > 0 && (
           <>
-            <View style={styles.logisticsCard}>
-              <Text style={styles.cardSectionTitle}>¿A dónde lo enviamos?</Text>
+            <View style={[styles.logisticsCard, { backgroundColor: colors.card, borderColor: colors.cardBorder, borderWidth: isDark ? 1 : 0 }]}>
+              <Text style={[styles.cardSectionTitle, { color: colors.text }]}>¿A dónde lo enviamos?</Text>
               
               {/* ✅ Renderiza las direcciones guardadas directamente del Store de Zustand */}
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.addressBookScroll}>
                 {savedAddresses.map((addr: any) => (
                   <TouchableOpacity 
                     key={addr.id} 
-                    style={[styles.savedAddressChip, selectedAddressId === addr.id && styles.savedAddressChipActive]}
+                    style={[
+                      styles.savedAddressChip, 
+                      { backgroundColor: isDark ? '#231254' : '#F1F5F9' },
+                      selectedAddressId === addr.id && styles.savedAddressChipActive
+                    ]}
                     onPress={() => handleSelectSavedAddress(addr)}
                   >
-                    <Text style={[styles.savedAddressLabel, selectedAddressId === addr.id && styles.savedAddressLabelActive]}>
+                    <Text style={[styles.savedAddressLabel, { color: colors.textMuted }, selectedAddressId === addr.id && styles.savedAddressLabelActive]}>
                       {addr.label}
                     </Text>
                   </TouchableOpacity>
@@ -143,41 +149,44 @@ const CartScreen = () => {
 
               <View style={styles.logisticsRow}>
                 <View style={styles.logisticsHeader}>
-                  <Text style={[styles.inputTitle, { color: '#EDB422', flex: 1, marginRight: 10 }]} numberOfLines={1}>
-                    📍 Dirección de Entrega
-                  </Text>
-                  <TouchableOpacity style={styles.mapLink} onPress={() => { setSelectedAddressId(null); router.push({ pathname: '/map', params: { serviceType: 'store' } }); }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, marginRight: 10 }}>
+                    <Ionicons name="location-outline" size={16} color="#EDB422" style={{ marginRight: 4 }} />
+                    <Text style={[styles.inputTitle, { color: '#EDB422' }]} numberOfLines={1}>
+                      Dirección de Entrega
+                    </Text>
+                  </View>
+                  <TouchableOpacity style={[styles.mapLink, isDark && { backgroundColor: '#231254' }]} onPress={() => { setSelectedAddressId(null); router.push({ pathname: '/map', params: { serviceType: 'store' } }); }}>
                     <Text style={styles.mapLinkText}>Buscar en Mapa</Text>
                   </TouchableOpacity>
                 </View>
-                <View style={[styles.addressBox, { borderColor: '#FDF7E8', backgroundColor: '#FDF7E8' }]}>
+                <View style={[styles.addressBox, { borderColor: isDark ? '#3D2678' : '#FDF7E8', backgroundColor: isDark ? '#231254' : '#FDF7E8' }]}>
                   <Ionicons name="location-sharp" size={20} color="#EDB422" style={{ marginRight: 8 }} />
-                  <Text style={styles.addressBoxText} numberOfLines={2}>
+                  <Text style={[styles.addressBoxText, { color: colors.text }]} numberOfLines={2}>
                     {deliveryLocation ? deliveryLocation.address : 'Selecciona un destino arriba o busca en el mapa...'}
                   </Text>
                 </View>
               </View>
             </View>
 
-            <View style={styles.contactCard}>
-              <Text style={styles.cardSectionTitle}>Datos de Despacho</Text>
+            <View style={[styles.contactCard, { backgroundColor: colors.card, borderColor: colors.cardBorder, borderWidth: isDark ? 1 : 0 }]}>
+              <Text style={[styles.cardSectionTitle, { color: colors.text }]}>Datos de Despacho</Text>
               
-              <View style={styles.readonlyProfileRow}>
-                <Ionicons name="person-circle" size={36} color="#6200EE" />
+              <View style={[styles.readonlyProfileRow, { backgroundColor: isDark ? '#231254' : '#F8FAFC', borderColor: colors.cardBorder }]}>
+                <Ionicons name="person-circle" size={36} color={isDark ? '#FFC93C' : '#6200EE'} />
                 <View style={{ marginLeft: 12 }}>
-                  <Text style={{ fontSize: 15, fontWeight: 'bold', color: '#1A1A1A' }}>{currentUser.name}</Text>
-                  <Text style={{ fontSize: 13, color: '#666' }}>{currentUser.phone}</Text>
+                  <Text style={{ fontSize: 15, fontWeight: 'bold', color: colors.text }}>{currentUser.name}</Text>
+                  <Text style={{ fontSize: 13, color: colors.textMuted }}>{currentUser.phone}</Text>
                 </View>
-                <View style={styles.verifiedBadge}>
+                <View style={[styles.verifiedBadge, isDark && { backgroundColor: '#064E3B' }]}>
                   <Ionicons name="checkmark-circle" size={14} color="#10B981" />
                   <Text style={{ fontSize: 11, color: '#10B981', marginLeft: 4, fontWeight: 'bold' }}>Verificado</Text>
                 </View>
               </View>
               
               <TextInput
-                style={[styles.textInput, { minHeight: 60, marginTop: 15 }]}
+                style={[styles.textInput, { minHeight: 60, marginTop: 15, backgroundColor: colors.inputBg, borderColor: colors.inputBorder, color: colors.text }]}
                 placeholder="Punto de referencia o notas para el motorizado (Ej: Portón negro, tocar timbre 3)..."
-                placeholderTextColor="#999"
+                placeholderTextColor={colors.textMuted}
                 multiline={true}
                 numberOfLines={2}
                 value={addressNotes}
@@ -185,26 +194,26 @@ const CartScreen = () => {
               />
             </View>
 
-            <View style={styles.summaryContainer}>
-              <Text style={styles.summaryTitle}>Resumen Parcial</Text>
+            <View style={[styles.summaryContainer, { backgroundColor: colors.card, borderColor: colors.cardBorder, borderWidth: isDark ? 1 : 0 }]}>
+              <Text style={[styles.summaryTitle, { color: colors.text }]}>Resumen Parcial</Text>
               <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Subtotal de Productos</Text>
-                <Text style={styles.summaryValue}>${subtotal.toFixed(2)}</Text>
+                <Text style={[styles.summaryLabel, { color: colors.textMuted }]}>Subtotal de Productos</Text>
+                <Text style={[styles.summaryValue, { color: colors.text }]}>${subtotal.toFixed(2)}</Text>
               </View>
               <View style={[styles.summaryRow, { marginTop: 8 }]}>
                 <Text style={[styles.summaryLabel, { color: '#27AE60', fontWeight: 'bold' }]}>Equivalente en Bs</Text>
                 <Text style={[styles.summaryValue, { color: '#27AE60', fontWeight: 'bold' }]}>Bs. {(subtotal * bcvRate).toFixed(2)}</Text>
               </View>
-              <Text style={{ fontSize: 11, color: '#666', marginTop: 8, fontStyle: 'italic' }}>
+              <Text style={{ fontSize: 11, color: colors.textMuted, marginTop: 8, fontStyle: 'italic' }}>
                 Tasa Oficial BCV: {bcvRate.toFixed(2)} Bs/$
               </Text>
-              <Text style={styles.infoFooterTexto}>*La tarifa de envío se calculará automáticamente con las coordenadas viales en la siguiente pantalla.</Text>
+              <Text style={[styles.infoFooterTexto, { color: colors.textMuted }]}>*La tarifa de envío se calculará automáticamente con las coordenadas viales en la siguiente pantalla.</Text>
             </View>
           </>
         )}
       </ScrollView>
 
-      <View style={styles.footer}>
+      <View style={[styles.footer, { backgroundColor: colors.card, borderTopColor: colors.cardBorder }]}>
         <TouchableOpacity 
           style={[styles.checkoutBtn, cartItems.length === 0 && { backgroundColor: '#FFDB58' }]} 
           onPress={() => {

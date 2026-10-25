@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { igoApi } from '@/infrastructure/api/igo.api';
+import { useThemeStore } from '@/presentation/store/useThemeStore';
 
 interface ReportIssueModalProps {
   visible: boolean;
@@ -20,11 +21,11 @@ interface ReportIssueModalProps {
 }
 
 const ISSUE_OPTIONS = [
-  '🍔 No me trajeron lo que pedí / Pedido incompleto',
-  '📦 El producto llegó en mal estado',
-  '📍 El repartidor no encuentra la dirección',
-  '⏳ Demora excesiva en la entrega',
-  '❓ Otro inconveniente',
+  { text: 'No me trajeron lo que pedí / Pedido incompleto', icon: 'fast-food-outline' },
+  { text: 'El producto llegó en mal estado', icon: 'cube-outline' },
+  { text: 'El repartidor no encuentra la dirección', icon: 'location-outline' },
+  { text: 'Demora excesiva en la entrega', icon: 'time-outline' },
+  { text: 'Otro inconveniente', icon: 'help-circle-outline' },
 ];
 
 export const ReportIssueModal = ({
@@ -33,7 +34,8 @@ export const ReportIssueModal = ({
   order,
   onSuccess,
 }: ReportIssueModalProps) => {
-  const [selectedReason, setSelectedReason] = useState<string>(ISSUE_OPTIONS[0]);
+  const { colors, isDark } = useThemeStore();
+  const [selectedReason, setSelectedReason] = useState<string>(ISSUE_OPTIONS[0].text);
   const [comment, setComment] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -42,13 +44,13 @@ export const ReportIssueModal = ({
 
     setIsSubmitting(true);
     try {
-      const response = await igoApi.post(`/orders/${order.id}/report-issue`, {
+      await igoApi.post(`/orders/${order.id}/report-issue`, {
         reason: selectedReason,
         comment: comment.trim(),
       });
 
       Alert.alert(
-        '🚨 Reporte Enviado',
+        'Reporte Enviado',
         'Un administrador de IGO ha recibido tu notificación con máxima prioridad y se pondrá en contacto contigo y con el comercio para solucionar el problema.',
         [
           {
@@ -74,59 +76,69 @@ export const ReportIssueModal = ({
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <View style={styles.overlay}>
-        <View style={styles.container}>
+        <View style={[styles.container, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
           {/* Header */}
-          <View style={styles.header}>
+          <View style={[styles.header, { borderBottomColor: colors.cardBorder }]}>
             <View style={styles.headerLeft}>
-              <View style={styles.alertIconCircle}>
-                <Ionicons name="warning" size={20} color="#b91c1c" />
+              <View style={[styles.alertIconCircle, { backgroundColor: isDark ? '#451A1A' : '#FEE2E2' }]}>
+                <Ionicons name="warning" size={20} color={isDark ? '#F87171' : '#b91c1c'} />
               </View>
               <View>
-                <Text style={styles.title}>Reportar un Problema</Text>
-                <Text style={styles.subtitle}>
+                <Text style={[styles.title, { color: colors.text }]}>Reportar un Problema</Text>
+                <Text style={[styles.subtitle, { color: colors.textMuted }]}>
                   Orden #{String(order?.orderNumber || '').padStart(4, '0')}
                 </Text>
               </View>
             </View>
 
             <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-              <Ionicons name="close" size={24} color="#6B7280" />
+              <Ionicons name="close" size={24} color={colors.text} />
             </TouchableOpacity>
           </View>
 
           {/* Body */}
           <View style={styles.body}>
-            <Text style={styles.sectionLabel}>¿Qué problema tuviste?</Text>
+            <Text style={[styles.sectionLabel, { color: colors.text }]}>¿Qué problema tuviste?</Text>
 
             {ISSUE_OPTIONS.map((opt, idx) => {
-              const isSelected = selectedReason === opt;
+              const isSelected = selectedReason === opt.text;
               return (
                 <TouchableOpacity
                   key={idx}
-                  style={[styles.reasonOption, isSelected && styles.reasonOptionSelected]}
-                  onPress={() => setSelectedReason(opt)}
+                  style={[
+                    styles.reasonOption,
+                    { backgroundColor: isDark ? '#1C103B' : '#FAFAFA', borderColor: isDark ? '#2E2059' : '#E5E7EB' },
+                    isSelected && { borderColor: '#FFC93C', backgroundColor: isDark ? '#2B1A57' : 'rgba(255, 201, 60, 0.15)' },
+                  ]}
+                  onPress={() => setSelectedReason(opt.text)}
                   activeOpacity={0.7}
                 >
                   <Ionicons
+                    name={opt.icon as any}
+                    size={18}
+                    color={isSelected ? '#FFC93C' : colors.textMuted}
+                    style={{ marginRight: 8 }}
+                  />
+                  <Text style={[styles.reasonText, { color: isSelected ? colors.text : colors.textSecondary }, isSelected && { fontWeight: '700' }]}>
+                    {opt.text}
+                  </Text>
+                  <Ionicons
                     name={isSelected ? 'radio-button-on' : 'radio-button-off'}
                     size={18}
-                    color={isSelected ? '#FCD116' : '#9CA3AF'}
-                    style={{ marginRight: 10 }}
+                    color={isSelected ? '#FFC93C' : colors.textMuted}
+                    style={{ marginLeft: 6 }}
                   />
-                  <Text style={[styles.reasonText, isSelected && styles.reasonTextSelected]}>
-                    {opt}
-                  </Text>
                 </TouchableOpacity>
               );
             })}
 
-            <Text style={[styles.sectionLabel, { marginTop: 14 }]}>
+            <Text style={[styles.sectionLabel, { marginTop: 14, color: colors.text }]}>
               Detalles adicionales (opcional):
             </Text>
             <TextInput
-              style={styles.textInput}
+              style={[styles.textInput, { backgroundColor: colors.inputBg, borderColor: colors.inputBorder, color: colors.text }]}
               placeholder="Explica con brevedad qué ocurrió..."
-              placeholderTextColor="#9CA3AF"
+              placeholderTextColor={colors.textMuted}
               value={comment}
               onChangeText={setComment}
               multiline

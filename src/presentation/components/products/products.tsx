@@ -14,9 +14,11 @@ import { useFavoritesStore } from '@/presentation/store/useFavoriteStore';
 import { useCartStore } from '@/presentation/store/useCartStore';
 import { Business } from '@/core/entities/bussines.entity';
 import { BusinessCardSkeleton } from '@/presentation/components/shared/Skeleton';
+import { useThemeStore } from '@/presentation/store/useThemeStore';
 
 export default function Productos() {
   const router = useRouter();
+  const { colors, isDark } = useThemeStore();
   const totalItems = useCartStore(state => state.items.reduce((total, item) => total + item.quantity, 0));
   // 1. DATA
   const { data: businesses, isLoading } = useBusinesses();
@@ -61,11 +63,11 @@ export default function Productos() {
 
     return (
       <TouchableOpacity 
-        style={styles.card} 
+        style={[styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder, borderWidth: isDark ? 1 : 0 }]} 
         activeOpacity={0.9}
         onPress={() => router.push({ pathname: "/business/[id]", params: { id: item.id }})}
       >
-        <Image source={imageSource} style={styles.cardImage} resizeMode="cover" />
+        <Image source={imageSource} style={[styles.cardImage, { backgroundColor: isDark ? '#231254' : '#eee' }]} resizeMode="cover" />
         
         <TouchableOpacity 
           style={styles.favButton} 
@@ -77,13 +79,13 @@ export default function Productos() {
           <Ionicons 
             name={isFav ? "star" : "star-outline"} 
             size={24} 
-            color={isFav ? "#EDB422" : "black"} 
+            color={isFav ? "#EDB422" : (isDark ? "#FFF" : "black")} 
           />
         </TouchableOpacity>
 
         <View style={styles.cardInfo}>
            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-             <Text style={styles.cardTitle}>{item.name}</Text>
+             <Text style={[styles.cardTitle, { color: colors.text }]}>{item.name}</Text>
              {item.isOfficialStore && (
                <View style={{ backgroundColor: '#FFF8E1', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, borderWidth: 1, borderColor: '#EDB422' }}>
                  <Text style={{ fontSize: 10, fontWeight: '800', color: '#B45309' }}>OFICIAL IGO</Text>
@@ -92,7 +94,7 @@ export default function Productos() {
            </View>
            <View style={styles.cardMeta}>
               <Ionicons name="star" size={14} color="#FFD700" />
-              <Text style={styles.metaText}>
+              <Text style={[styles.metaText, { color: colors.textMuted }]}>
                 {item.rating ? Number(item.rating).toFixed(1) : 'Nuevo'}
                 {item.reviewsCount ? ` (${item.reviewsCount})` : ''}
                 {item.freeDeliveryAbove ? ` • Envío Gratis > $${item.freeDeliveryAbove}` : ''}
@@ -129,13 +131,13 @@ export default function Productos() {
 
   if (isLoading) {
     return (
-      <View style={styles.mainContainer}>
-        <StatusBar style="dark" />
+      <View style={[styles.mainContainer, { backgroundColor: colors.background }]}>
+        <StatusBar style={isDark ? "light" : "dark"} />
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.iconBtn}>
-            <Ionicons name="chevron-back-outline" size={24} color="#000" />
+          <TouchableOpacity onPress={() => router.back()} style={[styles.iconBtn, { backgroundColor: colors.card, borderWidth: isDark ? 1 : 0, borderColor: colors.cardBorder }]}>
+            <Ionicons name="chevron-back-outline" size={24} color={colors.text} />
           </TouchableOpacity>
-          <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#000', flex: 1, textAlign: 'center' }}>
+          <Text style={{ fontSize: 18, fontWeight: 'bold', color: colors.text, flex: 1, textAlign: 'center' }}>
             Tiendas
           </Text>
           <View style={{ width: 44 }} />
@@ -150,16 +152,16 @@ export default function Productos() {
   }
 
   return (
-    <View style={styles.mainContainer}>
-      <StatusBar style='dark' />
+    <View style={[styles.mainContainer, { backgroundColor: colors.background }]}>
+      <StatusBar style={isDark ? 'light' : 'dark'} />
       
       {/* HEADER SIMPLE */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.iconBtn}>
-           <Ionicons name='chevron-back-outline' size={24} color='#000' />
+        <TouchableOpacity onPress={() => router.back()} style={[styles.iconBtn, { backgroundColor: colors.card, borderWidth: isDark ? 1 : 0, borderColor: colors.cardBorder }]}>
+           <Ionicons name='chevron-back-outline' size={24} color={colors.text} />
         </TouchableOpacity>
 
-        <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#000', flex: 1, textAlign: 'center' }}>
+        <Text style={{ fontSize: 18, fontWeight: 'bold', color: colors.text, flex: 1, textAlign: 'center' }}>
           Tiendas
         </Text>
 
@@ -169,18 +171,18 @@ export default function Productos() {
       <ScrollView contentContainerStyle={{ paddingBottom: 140 }} showsVerticalScrollIndicator={false}>
         
         {/* BUSCADOR */}
-        <View style={styles.searchContainer}>
-            <Ionicons name="search" size={20} color="#999" style={{marginRight: 10}} />
+        <View style={[styles.searchContainer, { backgroundColor: colors.card, borderColor: colors.cardBorder, borderWidth: 1 }]}>
+            <Ionicons name="search" size={20} color={colors.textMuted} style={{marginRight: 10}} />
             <TextInput
-                style={styles.searchInput}
+                style={[styles.searchInput, { color: colors.text }]}
                 placeholder='Buscar tiendas...'
-                placeholderTextColor="#999"
+                placeholderTextColor={colors.textMuted}
                 value={searchText}
                 onChangeText={setSearchText}
             />
             {searchText.length > 0 && (
                 <TouchableOpacity onPress={() => setSearchText('')}>
-                    <Ionicons name="close-circle" size={20} color="#999" />
+                    <Ionicons name="close-circle" size={20} color={colors.textMuted} />
                 </TouchableOpacity>
             )}
         </View>
@@ -188,7 +190,10 @@ export default function Productos() {
         {/* SECCIÓN FAVORITOS (Horizontal) */}
         {favoriteBusinesses.length > 0 && (
             <View style={styles.sectionContainer}>
-                <Text style={styles.sectionTitle}>Tus Favoritos ⭐</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+                    <Ionicons name="star" size={18} color="#FFC93C" style={{ marginRight: 6 }} />
+                    <Text style={[styles.sectionTitle, { marginBottom: 0, color: colors.text }]}>Tus Favoritos</Text>
+                </View>
                 <FlatList 
                     horizontal
                     data={favoriteBusinesses}
@@ -202,12 +207,12 @@ export default function Productos() {
 
         {/* LISTA PRINCIPAL (Vertical) */}
         <View style={styles.sectionContainer}>
-            <Text style={styles.sectionTitle}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>
                 {searchText ? `Resultados para "${searchText}"` : 'Todas las Tiendas'}
             </Text>
             
             {filteredBusinesses.length === 0 ? (
-                <Text style={styles.emptyText}>No encontramos tiendas con ese nombre.</Text>
+                <Text style={[styles.emptyText, { color: colors.textMuted }]}>No encontramos tiendas con ese nombre.</Text>
             ) : (
                 filteredBusinesses.map((item) => (
                     <View key={item.id} style={{ marginHorizontal: 20, marginBottom: 15 }}>

@@ -24,6 +24,8 @@ export interface Business {
   reviewsCount?: number;
   freeDeliveryAbove?: number;
   isOfficialStore?: boolean;
+  latitude?: number;
+  longitude?: number;
 
   products: Producto[];
 }

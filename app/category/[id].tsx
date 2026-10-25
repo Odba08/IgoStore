@@ -7,16 +7,17 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 
-// TUS IMPORTS (Asegúrate que las rutas sean correctas)
-
+// TUS IMPORTS
 import { useFavoritesStore } from '@/presentation/store/useFavoriteStore'; 
 import { useBusinesses } from '@/presentation/hooks/useBusiness';
 import { Business } from '@/core/entities/bussines.entity';
 import { useCartStore } from '@/presentation/store/useCartStore';
+import { useThemeStore } from '@/presentation/store/useThemeStore';
 
 export default function CategoryScreen() {
   const router = useRouter();
-   const totalItems = useCartStore(state => state.items.reduce((total, item) => total + item.quantity, 0));
+  const { colors, isDark } = useThemeStore();
+  const totalItems = useCartStore(state => state.items.reduce((total, item) => total + item.quantity, 0));
   
   // 1. RECIBIMOS LOS PARÁMETROS DE LA URL (ID y Nombre de la categoría)
   const { id, name } = useLocalSearchParams(); 
@@ -48,14 +49,13 @@ export default function CategoryScreen() {
 
   // --- COMPONENTE DE TARJETA (Reutilizado) ---
   const StoreCard = ({ item, isFav }: { item: Business, isFav: boolean }) => {
-    // Lógica para imagen o placeholder
     const imageSource = item.images && item.images.length > 0 
       ? { uri: item.images[0].url } 
-      : require('../../assets/images/adaptive-icon.png'); // Ajusta tu ruta de imagen por defecto
+      : require('../../assets/images/adaptive-icon.png');
 
     return (
       <TouchableOpacity 
-        style={styles.card} 
+        style={[styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder, borderWidth: 1 }]} 
         activeOpacity={0.9}
         onPress={() => router.push({ pathname: "/business/[id]", params: { id: item.id }})}
       >
@@ -71,68 +71,69 @@ export default function CategoryScreen() {
           <Ionicons 
             name={isFav ? "star" : "star-outline"} 
             size={20} 
-            color={isFav ? "#EDB422" : "black"} 
+            color={isFav ? "#EDB422" : colors.textMuted} 
           />
         </TouchableOpacity>
 
         <View style={styles.cardInfo}>
-           <Text style={styles.cardTitle}>{item.name}</Text>
+           <Text style={[styles.cardTitle, { color: colors.text }]}>{item.name}</Text>
            <View style={styles.cardMeta}>
               <Ionicons name="star" size={12} color="#FFD700" />
-              <Text style={styles.metaText}>4.5 • Envío Gratis</Text>
+              <Text style={[styles.metaText, { color: colors.textSecondary }]}>4.5 • Envío Gratis</Text>
            </View>
-           {/* <Text numberOfLines={2} style={styles.descriptionText}>
-              {item.description || "Sin descripción disponible."}
-           </Text> */}
         </View>
       </TouchableOpacity>
     );
   };
 
   if (isLoading) {
-    return <View style={styles.center}><ActivityIndicator size="large" color="#FFDB58"/></View>;
+    return (
+      <View style={[styles.center, { backgroundColor: colors.background }]}>
+        <ActivityIndicator size="large" color="#FFDB58"/>
+      </View>
+    );
   }
 
   return (
-    <View style={styles.mainContainer}>
-      <StatusBar style='dark' />
+    <View style={[styles.mainContainer, { backgroundColor: colors.background }]}>
+      <StatusBar style={isDark ? "light" : "dark"} />
       
       {/* Header Personalizado con Título de la Categoría */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.iconBtn}>
-           <Ionicons name='chevron-back-outline' size={24} color='#000' />
+        <TouchableOpacity onPress={() => router.back()} style={[styles.iconBtn, { backgroundColor: colors.card, borderColor: colors.cardBorder, borderWidth: 1 }]}>
+           <Ionicons name='chevron-back-outline' size={24} color={colors.text} />
         </TouchableOpacity>
         
-        <Text style={styles.headerTitle}>{categoryName || 'Categoría'}</Text>
+        <Text style={[styles.headerTitle, { color: colors.text }]}>{categoryName || 'Categoría'}</Text>
 
-        <TouchableOpacity style={styles.iconBtn}
-         onPress={() => router.push('/cart/cart')}
+        <TouchableOpacity 
+          style={[styles.iconBtn, { backgroundColor: colors.card, borderColor: colors.cardBorder, borderWidth: 1 }]}
+          onPress={() => router.push('/cart/cart')}
         >
-           <Ionicons name='cart-outline' size={24} color='#000' />
-             {totalItems > 0 && (
-               <View style={styles.badge}>
-                 <Text style={styles.badgeText}>
-                   {totalItems > 99 ? '99+' : totalItems}
-                 </Text>
-               </View>
-             )}
+           <Ionicons name='cart-outline' size={24} color={colors.text} />
+           {totalItems > 0 && (
+             <View style={styles.badge}>
+               <Text style={styles.badgeText}>
+                 {totalItems > 99 ? '99+' : totalItems}
+               </Text>
+             </View>
+           )}
         </TouchableOpacity>
-
       </View>
 
       {/* BUSCADOR */}
-      <View style={styles.searchContainer}>
-         <Ionicons name="search" size={20} color="#999" style={{marginRight: 10}} />
+      <View style={[styles.searchContainer, { backgroundColor: colors.card, borderColor: colors.cardBorder, borderWidth: 1 }]}>
+         <Ionicons name="search" size={20} color={colors.textMuted} style={{marginRight: 10}} />
          <TextInput
-             style={styles.searchInput}
+             style={[styles.searchInput, { color: colors.text }]}
              placeholder={`Buscar en ${categoryName}...`}
-             placeholderTextColor="#999"
+             placeholderTextColor={colors.textMuted}
              value={searchText}
              onChangeText={setSearchText}
          />
          {searchText.length > 0 && (
              <TouchableOpacity onPress={() => setSearchText('')}>
-                 <Ionicons name="close-circle" size={20} color="#999" />
+                 <Ionicons name="close-circle" size={20} color={colors.textMuted} />
              </TouchableOpacity>
          )}
       </View>
@@ -153,8 +154,8 @@ export default function CategoryScreen() {
           )}
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
-                <Ionicons name="storefront-outline" size={50} color="#ccc" />
-                <Text style={styles.emptyText}>
+                <Ionicons name="storefront-outline" size={50} color={colors.textMuted} />
+                <Text style={[styles.emptyText, { color: colors.textMuted }]}>
                     No hay tiendas en {categoryName} por el momento.
                 </Text>
             </View>

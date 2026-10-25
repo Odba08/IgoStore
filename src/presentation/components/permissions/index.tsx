@@ -7,8 +7,8 @@ import {
   ActivityIndicator,
   Linking,
   SafeAreaView,
-  StatusBar,
 } from 'react-native';
+import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { usePermissionsStore } from '@/presentation/store/usePermissions';
@@ -57,7 +57,7 @@ const PermissionScreen = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#f9faeeff" />
+      <StatusBar style="dark" />
 
       {/* Header con botón de volver */}
       <View style={styles.header}>

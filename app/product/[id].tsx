@@ -8,10 +8,12 @@ import { useProduct } from '@/presentation/hooks/useProducts';
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 import { useCartStore } from '@/presentation/store/useCartStore';
+import { useThemeStore } from '@/presentation/store/useThemeStore';
 
 export default function ProductDetailScreen() {
   const { id } = useLocalSearchParams(); 
   const router = useRouter();
+  const { colors, isDark } = useThemeStore();
   
   const addItem = useCartStore((state) => state.addItem);
   
@@ -102,14 +104,14 @@ export default function ProductDetailScreen() {
   const totalPrice = finalUnitTestPrice * quantity;
 
   return (
-   <View style={styles.container}>
-      <StatusBar style="dark" />
-      <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-        <Ionicons name="arrow-back" size={22} color="#1a1a1a" />
+   <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <StatusBar style={isDark ? "light" : "dark"} />
+      <TouchableOpacity style={[styles.backButton, { backgroundColor: colors.card }]} onPress={() => router.back()}>
+        <Ionicons name="arrow-back" size={22} color={colors.text} />
       </TouchableOpacity>
         
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        <View style={styles.imageContainer}>
+        <View style={[styles.imageContainer, { backgroundColor: isDark ? '#140833' : '#FAF9F6', borderBottomColor: colors.cardBorder }]}>
           <Image source={{ uri: product.images?.[0]?.url }} style={styles.productImage} resizeMode="contain" />
         </View>
 
@@ -118,21 +120,22 @@ export default function ProductDetailScreen() {
             {((product.menuCategory?.name) || (product.tags && product.tags.length > 0)) && (
               <View style={styles.tagContainer}>
                 {product.menuCategory?.name && (
-                  <View style={[styles.tagPill, { backgroundColor: '#EBF3FF', borderColor: '#C2D9FF', borderWidth: 1 }]}>
-                    <Text style={[styles.tagText, { color: '#0055FF', fontWeight: '600' }]}>
-                      📂 {product.menuCategory.name}
+                  <View style={[styles.tagPill, { backgroundColor: isDark ? '#1C2954' : '#EBF3FF', borderColor: isDark ? '#2E4380' : '#C2D9FF', borderWidth: 1, flexDirection: 'row', alignItems: 'center' }]}>
+                    <Ionicons name="folder-outline" size={12} color="#0055FF" style={{ marginRight: 4 }} />
+                    <Text style={[styles.tagText, { color: isDark ? '#60A5FA' : '#0055FF', fontWeight: '600' }]}>
+                      {product.menuCategory.name}
                     </Text>
                   </View>
                 )}
                 {product.tags?.map((tag: string, index: number) => (
-                  <View key={index} style={styles.tagPill}>
-                    <Text style={styles.tagText}>{tag}</Text>
+                  <View key={index} style={[styles.tagPill, isDark && { backgroundColor: '#231254' }]}>
+                    <Text style={[styles.tagText, isDark && { color: colors.textSecondary }]}>{tag}</Text>
                   </View>
                 ))}
               </View>
             )}
 
-            <Text style={styles.title}>{product.title}</Text>
+            <Text style={[styles.title, { color: colors.text }]}>{product.title}</Text>
             
             {/* Stock e Indicador de Disponibilidad */}
             <View style={styles.metaRow}>
@@ -157,22 +160,22 @@ export default function ProductDetailScreen() {
                   </View>
                 </View>
               ) : (
-                <Text style={styles.price}>${product.price.toFixed(2)}</Text>
+                <Text style={[styles.price, { color: colors.text }]}>${product.price.toFixed(2)}</Text>
               )}
             </View>
 
             {/* Sección de Descripción */}
             {product.description && product.description.trim() !== "" && (
-              <View style={styles.descriptionSection}>
-                <Text style={styles.sectionHeading}>Descripción</Text>
-                <Text style={styles.descriptionText}>{product.description}</Text>
+              <View style={[styles.descriptionSection, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+                <Text style={[styles.sectionHeading, { color: colors.text }]}>Descripción</Text>
+                <Text style={[styles.descriptionText, { color: colors.textSecondary }]}>{product.description}</Text>
               </View>
             )}
 
             {/* Opciones y extras configurables */}
             {product.options && product.options.length > 0 && (
               <View style={{ marginTop: 15 }}>
-                <Text style={styles.sectionHeading}>Personaliza tu orden</Text>
+                <Text style={[styles.sectionHeading, { color: colors.text }]}>Personaliza tu orden</Text>
                 
                 {product.options.map((optionGroup: any, gIdx: number) => {
                      const groupSelections = selectedOptions[optionGroup.title] || {};
@@ -182,11 +185,11 @@ export default function ProductDetailScreen() {
                      const isCompleted = totalSelected === optionGroup.maxAllowed;
                      
                      return (
-                        <View key={gIdx} style={styles.groupContainer}>
-                            <TouchableOpacity style={styles.groupHeader} onPress={() => toggleGroup(optionGroup.title)}>
+                        <View key={gIdx} style={[styles.groupContainer, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+                            <TouchableOpacity style={[styles.groupHeader, { backgroundColor: isDark ? '#1F1245' : '#F9FAFB' }]} onPress={() => toggleGroup(optionGroup.title)}>
                                 <View style={{ flex: 1 }}>
-                                  <Text style={styles.sectionTitle}>{optionGroup.title}</Text>
-                                  <Text style={styles.sectionSubtitle}>
+                                  <Text style={[styles.sectionTitle, { color: colors.text }]}>{optionGroup.title}</Text>
+                                  <Text style={[styles.sectionSubtitle, { color: colors.textMuted }]}>
                                     {isSingle ? 'Selecciona 1 opción' : `Selecciona hasta ${optionGroup.maxAllowed} opciones`}
                                     {optionGroup.isRequired ? ' • Obligatorio' : ' • Opcional'}
                                   </Text>
@@ -197,41 +200,41 @@ export default function ProductDetailScreen() {
                                     <Ionicons name={isCollapsed ? "chevron-down" : "chevron-up"} size={20} color="#00A86B" />
                                   </View>
                                 ) : (
-                                  <Ionicons name={isCollapsed ? "chevron-down" : "chevron-up"} size={20} color="#555" />
+                                  <Ionicons name={isCollapsed ? "chevron-down" : "chevron-up"} size={20} color={colors.textMuted} />
                                 )}
                             </TouchableOpacity>
                             
                             {!isCollapsed && (
-                                <View style={styles.groupBody}>
+                                <View style={[styles.groupBody, { backgroundColor: colors.card, borderTopColor: colors.cardBorder }]}>
                                     {optionGroup.choices.map((choice: any, cIdx: number) => {
                                         const qty = groupSelections[choice.name] || 0;
                                         const isSelected = qty > 0;
                                         
                                         if (isSingle) return (
-                                            <TouchableOpacity key={cIdx} style={styles.radioRow} onPress={() => handleOptionQuantity(optionGroup.title, choice, 1, 1)}>
-                                                <Ionicons name={isSelected ? "radio-button-on" : "radio-button-off"} size={22} color={isSelected ? "#EDB422" : "#999"} />
-                                                <Text style={styles.choiceName}>{choice.name}</Text>
+                                            <TouchableOpacity key={cIdx} style={[styles.radioRow, { borderBottomColor: colors.cardBorder }]} onPress={() => handleOptionQuantity(optionGroup.title, choice, 1, 1)}>
+                                                <Ionicons name={isSelected ? "radio-button-on" : "radio-button-off"} size={22} color={isSelected ? "#EDB422" : colors.textMuted} />
+                                                <Text style={[styles.choiceName, { color: colors.text }]}>{choice.name}</Text>
                                                 {choice.additionalPrice > 0 && (
-                                                  <Text style={styles.choicePrice}>+ ${choice.additionalPrice.toFixed(2)}</Text>
+                                                  <Text style={[styles.choicePrice, { color: colors.textSecondary }]}>+ ${choice.additionalPrice.toFixed(2)}</Text>
                                                 )}
                                             </TouchableOpacity>
                                         );
                                         
                                         return (
-                                            <View key={cIdx} style={styles.stepperRow}>
+                                            <View key={cIdx} style={[styles.stepperRow, { borderBottomColor: colors.cardBorder }]}>
                                                 <View style={{ flex: 1 }}>
-                                                  <Text style={styles.choiceName}>{choice.name}</Text>
+                                                  <Text style={[styles.choiceName, { color: colors.text }]}>{choice.name}</Text>
                                                   {choice.additionalPrice > 0 && (
-                                                    <Text style={styles.choicePrice}>+ ${choice.additionalPrice.toFixed(2)}</Text>
+                                                    <Text style={[styles.choicePrice, { color: colors.textSecondary }]}>+ ${choice.additionalPrice.toFixed(2)}</Text>
                                                   )}
                                                 </View>
-                                                <View style={styles.stepperControls}>
+                                                <View style={[styles.stepperControls, { borderColor: colors.cardBorder }]}>
                                                     <TouchableOpacity style={styles.stepperBtn} onPress={() => handleOptionQuantity(optionGroup.title, choice, optionGroup.maxAllowed, -1)}>
-                                                      <Ionicons name="remove" size={16} color={qty > 0 ? "#1a1a1a" : "#ccc"} />
+                                                      <Ionicons name="remove" size={16} color={qty > 0 ? colors.text : colors.textMuted} />
                                                     </TouchableOpacity>
-                                                    <Text style={styles.stepperValue}>{qty}</Text>
+                                                    <Text style={[styles.stepperValue, { color: colors.text }]}>{qty}</Text>
                                                     <TouchableOpacity style={styles.stepperBtn} onPress={() => handleOptionQuantity(optionGroup.title, choice, optionGroup.maxAllowed, 1)}>
-                                                      <Ionicons name="add" size={16} color="#1a1a1a" />
+                                                      <Ionicons name="add" size={16} color={colors.text} />
                                                     </TouchableOpacity>
                                                 </View>
                                             </View>
@@ -247,24 +250,24 @@ export default function ProductDetailScreen() {
 
             {/* Notas Especiales para Comida (Panel Extensible) */}
             {isFoodProduct && (
-              <View style={styles.specialInstructionsCard}>
+              <View style={[styles.specialInstructionsCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
                 <TouchableOpacity 
-                  style={styles.specialInstructionsHeader} 
+                  style={[styles.specialInstructionsHeader, { backgroundColor: isDark ? '#1F1245' : '#FAF9F6' }]} 
                   onPress={() => setShowSpecialInstructionsPanel(!showSpecialInstructionsPanel)}
                 >
                   <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                    <Ionicons name="restaurant-outline" size={18} color="#1a1a1a" />
-                    <Text style={styles.sectionHeading2}>Instrucciones de Cocina / Notas</Text>
+                    <Ionicons name="restaurant-outline" size={18} color={colors.text} />
+                    <Text style={[styles.sectionHeading2, { color: colors.text }]}>Instrucciones de Cocina / Notas</Text>
                   </View>
-                  <Ionicons name={showSpecialInstructionsPanel ? "chevron-up" : "chevron-down"} size={18} color="#555" />
+                  <Ionicons name={showSpecialInstructionsPanel ? "chevron-up" : "chevron-down"} size={18} color={colors.textMuted} />
                 </TouchableOpacity>
                 
                 {showSpecialInstructionsPanel && (
-                  <View style={styles.specialInstructionsBody}>
+                  <View style={[styles.specialInstructionsBody, { borderTopColor: colors.cardBorder }]}>
                     <TextInput
-                      style={styles.notesInput}
+                      style={[styles.notesInput, { backgroundColor: colors.inputBg, borderColor: colors.inputBorder, color: colors.text }]}
                       placeholder="Ej: Sin cebolla, sin verduras, salsas aparte, etc..."
-                      placeholderTextColor="#999"
+                      placeholderTextColor={colors.textMuted}
                       value={specialInstructions}
                       onChangeText={setSpecialInstructions}
                       multiline={true}
@@ -278,20 +281,20 @@ export default function ProductDetailScreen() {
       </ScrollView>
 
       {/* FOOTER: PASOS DE CANTIDAD E INGRESO AL CARRITO */}
-      <View style={styles.footer}>
-          <View style={styles.qtyContainer}>
+      <View style={[styles.footer, { backgroundColor: colors.card, borderTopColor: colors.cardBorder }]}>
+          <View style={[styles.qtyContainer, { borderColor: isDark ? colors.cardBorder : '#1a1a1a' }]}>
             <TouchableOpacity 
               style={styles.qtyBtn} 
               onPress={() => setQuantity(prev => Math.max(1, prev - 1))}
             >
-              <Ionicons name="remove" size={20} color="#1a1a1a" />
+              <Ionicons name="remove" size={20} color={colors.text} />
             </TouchableOpacity>
-            <Text style={styles.qtyText}>{quantity}</Text>
+            <Text style={[styles.qtyText, { color: colors.text }]}>{quantity}</Text>
             <TouchableOpacity 
               style={styles.qtyBtn} 
               onPress={() => setQuantity(prev => prev + 1)}
             >
-              <Ionicons name="add" size={20} color="#1a1a1a" />
+              <Ionicons name="add" size={20} color={colors.text} />
             </TouchableOpacity>
           </View>
 

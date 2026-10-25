@@ -11,10 +11,12 @@ import { useAuthStore } from '@/presentation/store/useAuthStore';
 import { OrderChatModal } from '@/presentation/components/OrderChatModal';
 import { ReportIssueModal } from '@/presentation/components/ReportIssueModal';
 import { OrderRatingModal } from '@/presentation/components/OrderRatingModal';
+import { useThemeStore } from '@/presentation/store/useThemeStore';
 
 export default function MyOrdersScreen() {
   const router = useRouter();
   const { user } = useAuthStore();
+  const { colors, isDark } = useThemeStore();
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -105,21 +107,21 @@ export default function MyOrdersScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top']}>
-      <View style={styles.header}>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]} edges={['top']}>
+      <View style={[styles.header, { backgroundColor: colors.card, borderBottomColor: colors.cardBorder }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color="#1A1A1A" />
+          <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Mis Pedidos y Servicios</Text>
+        <Text style={[styles.headerTitle, { color: colors.text }]}>Mis Pedidos y Servicios</Text>
         <TouchableOpacity onPress={onRefresh} style={{ width: 40, alignItems: 'flex-end' }}>
-          <Ionicons name="refresh" size={20} color="#64748B" />
+          <Ionicons name="refresh" size={20} color={colors.textMuted} />
         </TouchableOpacity>
       </View>
 
       {loading ? (
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color="#FFDB58" />
-          <Text style={styles.loadingText}>Cargando tus pedidos...</Text>
+          <Text style={[styles.loadingText, { color: colors.textMuted }]}>Cargando tus pedidos...</Text>
         </View>
       ) : (
         <FlatList
@@ -129,9 +131,9 @@ export default function MyOrdersScreen() {
           contentContainerStyle={styles.listContent}
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
-              <Ionicons name="receipt-outline" size={64} color="#CBD5E1" />
-              <Text style={styles.emptyTitle}>Sin pedidos registrados</Text>
-              <Text style={styles.emptySub}>Tus pedidos y solicitudes de viaje aparecerán aquí en tiempo real.</Text>
+              <Ionicons name="receipt-outline" size={64} color={colors.textMuted} />
+              <Text style={[styles.emptyTitle, { color: colors.text }]}>Sin pedidos registrados</Text>
+              <Text style={[styles.emptySub, { color: colors.textMuted }]}>Tus pedidos y solicitudes de viaje aparecerán aquí en tiempo real.</Text>
             </View>
           }
           renderItem={({ item }) => {
@@ -141,16 +143,16 @@ export default function MyOrdersScreen() {
             const hasTicket = !!item.supportTicketStatus;
 
             return (
-              <View style={styles.orderCard}>
+              <View style={[styles.orderCard, { backgroundColor: colors.card, borderColor: colors.cardBorder, borderWidth: isDark ? 1 : 0 }]}>
                 <View style={styles.cardHeader}>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.orderNumber}>Orden #{String(item.orderNumber).padStart(4, '0')}</Text>
-                    <Text style={styles.orderDate}>{new Date(item.createdAt).toLocaleDateString()} {new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Text>
+                    <Text style={[styles.orderNumber, { color: colors.text }]}>Orden #{String(item.orderNumber).padStart(4, '0')}</Text>
+                    <Text style={[styles.orderDate, { color: colors.textMuted }]}>{new Date(item.createdAt).toLocaleDateString()} {new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Text>
                   </View>
                   {getStatusBadge(item.status, item.isPaid, item.category)}
                 </View>
 
-                <View style={styles.divider} />
+                <View style={[styles.divider, { backgroundColor: colors.cardBorder }]} />
 
                 <View style={styles.businessRow}>
                   <Ionicons 
@@ -158,30 +160,36 @@ export default function MyOrdersScreen() {
                     size={18} 
                     color="#EDB422" 
                   />
-                  <Text style={styles.businessName}>{getCategoryTitle(item)}</Text>
+                  <Text style={[styles.businessName, { color: colors.text }]}>{getCategoryTitle(item)}</Text>
                 </View>
 
                 {item.pickupAddress && (item.category === 'IgoFavor' || item.category === 'IgoTaxi') && (
-                  <Text style={styles.addressText} numberOfLines={1}>
-                    🏢 <Text style={{ fontWeight: 'bold' }}>Origen:</Text> {item.pickupAddress}
-                  </Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
+                    <Ionicons name="business-outline" size={15} color="#EDB422" style={{ marginRight: 5 }} />
+                    <Text style={[styles.addressText, { color: colors.textMuted, marginBottom: 0 }]} numberOfLines={1}>
+                      <Text style={{ fontWeight: 'bold', color: colors.text }}>Origen:</Text> {item.pickupAddress}
+                    </Text>
+                  </View>
                 )}
 
-                <Text style={styles.addressText} numberOfLines={1}>
-                  📍 <Text style={{ fontWeight: 'bold' }}>Destino:</Text> {item.deliveryAddress}
-                </Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
+                  <Ionicons name="location-outline" size={15} color="#EDB422" style={{ marginRight: 5 }} />
+                  <Text style={[styles.addressText, { color: colors.textMuted, marginBottom: 0 }]} numberOfLines={1}>
+                    <Text style={{ fontWeight: 'bold', color: colors.text }}>Destino:</Text> {item.deliveryAddress}
+                  </Text>
+                </View>
 
                 {hasDriver && (
-                  <View style={styles.driverBar}>
-                    <Ionicons name="bicycle" size={16} color="#6200EE" />
-                    <Text style={styles.driverText}>
+                  <View style={[styles.driverBar, isDark && { backgroundColor: '#2B1A57' }]}>
+                    <Ionicons name="bicycle" size={16} color={isDark ? '#FFC93C' : '#6200EE'} />
+                    <Text style={[styles.driverText, isDark && { color: '#FFC93C' }]}>
                       Repartidor: {item.deliveryUser.fullName || item.deliveryUser.email}
                     </Text>
                   </View>
                 )}
 
-                <View style={styles.itemsSummary}>
-                  <Text style={styles.itemsCount}>
+                <View style={[styles.itemsSummary, { backgroundColor: isDark ? '#140833' : '#F8FAFC' }]}>
+                  <Text style={[styles.itemsCount, { color: colors.textMuted }]}>
                     {item.items && item.items.length > 0 ? `${item.items.length} producto(s)` : `${item.shippingType || 'Vehículo'} • ${item.paymentRecipient || 'Pago'}`}
                   </Text>
                   <Text style={styles.totalAmount}>${parseFloat(item.totalAmount).toFixed(2)}</Text>
@@ -202,7 +210,7 @@ export default function MyOrdersScreen() {
                 )}
 
                 {/* Card Action Buttons */}
-                <View style={styles.actionsRow}>
+                <View style={[styles.actionsRow, { borderTopColor: colors.cardBorder }]}>
                   {hasDriver && item.status !== 'CANCELLED' && (
                     <TouchableOpacity
                       style={styles.actionBtnSecondary}
@@ -244,8 +252,8 @@ export default function MyOrdersScreen() {
 
                   {hasRated && (
                     <View style={styles.ratedBadge}>
-                      <Ionicons name="star" size={13} color="#F59E0B" />
-                      <Text style={styles.ratedBadgeText}>⭐ {item.businessRating || 5}/5</Text>
+                      <Ionicons name="star" size={13} color="#F59E0B" style={{ marginRight: 3 }} />
+                      <Text style={styles.ratedBadgeText}>{item.businessRating || 5}/5</Text>
                     </View>
                   )}
                 </View>

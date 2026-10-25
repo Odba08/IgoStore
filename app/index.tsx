@@ -26,11 +26,12 @@ import { ActiveOrderFloatingWidget } from "@/presentation/components/ActiveOrder
 import { OrderChatModal } from "@/presentation/components/OrderChatModal";
 import { uploadImage } from "@/infrastructure/services/imageUpload.service";
 import { BusinessDashboard } from "@/presentation/components/business/BusinessDashboard";
-
+import { useThemeStore } from "@/presentation/store/useThemeStore";
 
 export default function Index() {
   const router = useRouter();
   const { user, logout } = useAuthStore();
+  const { colors, isDark } = useThemeStore();
 
   // 1. CARGA DE DATOS CLIENTE
   const { data: businesses, isLoading: loadingBusiness, error } = useBusinesses();
@@ -46,7 +47,7 @@ export default function Index() {
   }, [businesses]);
 
   const [searchText, setSearchText] = useState('');
-  const [activeTab, setActiveTab] = useState<'home' | 'favorites' | 'addresses' | 'payments'>('home');
+  const [activeTab, setActiveTab] = useState<'home' | 'favorites' | 'addresses'>('home');
 
   const favorites = useFavoritesStore(state => state.favorites);
   const items = useCartStore(state => state.items);
@@ -505,8 +506,8 @@ export default function Index() {
   }
 
   return (
-    <View style={styles.mainContainer}>
-      <StatusBar style='dark' />
+    <View style={[styles.mainContainer, { backgroundColor: colors.background }]}>
+      <StatusBar style={isDark ? 'light' : 'dark'} />
       <PrincipalHeader />
 
       {/* BARRA PARA VOLVER AL MODO COMERCIO SI ESTÁ EN MODO CLIENTE */}
@@ -535,18 +536,18 @@ export default function Index() {
         
         {/* BUSCADOR (Solo para clientes) */}
         {!isEmployee && (
-          <View style={styles.searchContainer}>
-              <Ionicons name="search" size={20} color="#999" style={{marginRight: 10}} />
+          <View style={[styles.searchContainer, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+              <Ionicons name="search" size={20} color={colors.textMuted} style={{marginRight: 10}} />
               <TextInput
-                  style={styles.searchInput}
+                  style={[styles.searchInput, { color: colors.text }]}
                   placeholder='Buscar comida, bebidas...'
-                  placeholderTextColor="#999"
+                  placeholderTextColor={colors.textMuted}
                   value={searchText}
                   onChangeText={setSearchText}
               />
               {searchText.length > 0 && (
                   <TouchableOpacity onPress={() => setSearchText('')}>
-                      <Ionicons name="close-circle" size={20} color="#999" />
+                      <Ionicons name="close-circle" size={20} color={colors.textMuted} />
                   </TouchableOpacity>
               )}
           </View>
@@ -555,28 +556,28 @@ export default function Index() {
         {/* RESULTADOS DE BÚSQUEDA */}
         {searchText.length > 0 ? (
            <View style={styles.sectionContainer}>
-                <Text style={styles.sectionTitle}>Resultados</Text>
+                <Text style={[styles.sectionTitle, { color: colors.text }]}>Resultados</Text>
                 
                 {productsLoading ? (
-                    <ActivityIndicator size="small" color="#000" style={{marginTop: 20}} />
+                    <ActivityIndicator size="small" color={colors.primary} style={{marginTop: 20}} />
                 ) : filteredProducts.length === 0 ? (
-                    <Text style={styles.emptyText}>No encontramos &quot;{searchText}&quot;</Text>
+                    <Text style={[styles.emptyText, { color: colors.textMuted }]}>No encontramos &quot;{searchText}&quot;</Text>
                 ) : (
                     filteredProducts.map((item: any) => (
                         <TouchableOpacity 
                             key={item.id} 
-                            style={styles.resultItem}
+                            style={[styles.resultItem, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
                             onPress={() => router.push({ pathname: "/product/[id]", params: { id: item.id }})}
                         >
                             <Image 
                                 source={{ uri: item.images[0]?.url }} 
-                                style={{ width: 50, height: 50, borderRadius: 8, backgroundColor: '#eee' }}
+                                style={{ width: 50, height: 50, borderRadius: 8, backgroundColor: isDark ? '#231254' : '#eee' }}
                             />
                             <View style={{marginLeft: 10, flex: 1}}>
-                                <Text style={{fontWeight: 'bold'}}>{item.title}</Text>
-                                <Text style={{color: 'green'}}>${item.price}</Text>
+                                <Text style={[{fontWeight: 'bold'}, { color: colors.text }]}>{item.title}</Text>
+                                <Text style={{color: '#10B981', fontWeight: '700'}}>${item.price}</Text>
                             </View>
-                            <Ionicons name="chevron-forward" color="#ccc" size={20}/>
+                            <Ionicons name="chevron-forward" color={colors.textMuted} size={20}/>
                         </TouchableOpacity>
                     ))
                 )}
@@ -584,11 +585,11 @@ export default function Index() {
         ) : activeTab === 'favorites' ? (
            // PESTAÑA FAVORITAS
            <View style={{ marginTop: 10, paddingHorizontal: 20 }}>
-             <Text style={[styles.sectionTitle, { marginLeft: 0, marginBottom: 15 }]}>Tus Tiendas Favoritas</Text>
+             <Text style={[styles.sectionTitle, { marginLeft: 0, marginBottom: 15, color: colors.text }]}>Tus Tiendas Favoritas</Text>
              {favoriteBusinesses.length === 0 ? (
                <View style={{ alignItems: 'center', marginTop: 60, paddingBottom: 60 }}>
-                 <Ionicons name="star-outline" size={48} color="#999" style={{ marginBottom: 10 }} />
-                 <Text style={{ color: '#888', fontStyle: 'italic', textAlign: 'center' }}>
+                 <Ionicons name="star-outline" size={48} color={colors.textMuted} style={{ marginBottom: 10 }} />
+                 <Text style={{ color: colors.textMuted, fontStyle: 'italic', textAlign: 'center' }}>
                    Aún no tienes tiendas favoritas. ¡Presiona la estrella en las tiendas para agregarlas aquí!
                  </Text>
                </View>
@@ -604,7 +605,7 @@ export default function Index() {
            // PESTAÑA DIRECCIONES INDEPENDIENTE
            <View style={{ marginTop: 10, paddingHorizontal: 20 }}>
              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 }}>
-               <Text style={[styles.sectionTitle, { marginLeft: 0, marginBottom: 0 }]}>Mis Direcciones</Text>
+               <Text style={[styles.sectionTitle, { marginLeft: 0, marginBottom: 0, color: colors.text }]}>Mis Direcciones</Text>
                <TouchableOpacity 
                  style={styles.addAddressHeaderBtn}
                  onPress={() => router.push('/map')}
@@ -616,8 +617,8 @@ export default function Index() {
              
              {savedAddresses.length === 0 ? (
                <View style={{ alignItems: 'center', marginTop: 60, paddingBottom: 60 }}>
-                 <Ionicons name="location-outline" size={48} color="#999" style={{ marginBottom: 10 }} />
-                 <Text style={{ color: '#888', fontStyle: 'italic', textAlign: 'center', marginBottom: 20 }}>
+                 <Ionicons name="location-outline" size={48} color={colors.textMuted} style={{ marginBottom: 10 }} />
+                 <Text style={{ color: colors.textMuted, fontStyle: 'italic', textAlign: 'center', marginBottom: 20 }}>
                    No tienes direcciones guardadas.
                  </Text>
                  <TouchableOpacity 
@@ -630,11 +631,11 @@ export default function Index() {
              ) : (
                <View style={{ gap: 15 }}>
                  {savedAddresses.map((addr: any) => (
-                   <View key={addr.id} style={styles.addressCard}>
+                   <View key={addr.id} style={[styles.addressCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
                      <Ionicons name="location-sharp" size={24} color="#EDB422" style={{ marginRight: 12 }} />
                      <View style={{ flex: 1 }}>
-                       <Text style={styles.addressLabel}>{addr.label}</Text>
-                       <Text style={styles.addressText} numberOfLines={2}>{addr.address}</Text>
+                       <Text style={[styles.addressLabel, { color: colors.text }]}>{addr.label}</Text>
+                       <Text style={[styles.addressText, { color: colors.textMuted }]} numberOfLines={2}>{addr.address}</Text>
                      </View>
                      <TouchableOpacity 
                        style={styles.deleteAddressBtn} 
@@ -655,85 +656,6 @@ export default function Index() {
                  ))}
                </View>
              )}
-           </View>
-        ) : activeTab === 'payments' ? (
-           // PESTAÑA MÉTODOS DE PAGO INDEPENDIENTE
-           <View style={{ marginTop: 10, paddingHorizontal: 20 }}>
-             <Text style={[styles.sectionTitle, { marginLeft: 0, marginBottom: 15 }]}>Métodos de Pago</Text>
-             
-             <View style={{ gap: 15 }}>
-               {/* Pago Móvil */}
-               <View style={styles.paymentCard}>
-                 <View style={styles.paymentCardHeader}>
-                   <Ionicons name="phone-portrait-outline" size={24} color="#EDB422" style={{ marginRight: 10 }} />
-                   <Text style={styles.paymentCardTitle}>Pago Móvil Mercantil</Text>
-                 </View>
-                 <View style={styles.paymentCardBody}>
-                   <Text style={styles.paymentDetailLine}>
-                     <Text style={{ fontWeight: 'bold' }}>C.I.:</Text> 27284670
-                   </Text>
-                   <Text style={styles.paymentDetailLine}>
-                     <Text style={{ fontWeight: 'bold' }}>Teléfono:</Text> 04127687819
-                   </Text>
-                 </View>
-                 <TouchableOpacity 
-                   style={styles.copyButton}
-                   onPress={() => {
-                     Clipboard.setString("27284670\n04127687819");
-                     Alert.alert("Copiado", "Datos de Pago Móvil copiados al portapapeles.");
-                   }}
-                 >
-                   <Ionicons name="copy-outline" size={16} color="#333" />
-                   <Text style={styles.copyButtonText}>Copiar Datos</Text>
-                 </TouchableOpacity>
-               </View>
-
-               {/* Binance Pay */}
-               <View style={styles.paymentCard}>
-                 <View style={styles.paymentCardHeader}>
-                   <Ionicons name="wallet-outline" size={24} color="#EDB422" style={{ marginRight: 10 }} />
-                   <Text style={styles.paymentCardTitle}>Binance Pay</Text>
-                 </View>
-                 <View style={styles.paymentCardBody}>
-                   <Text style={styles.paymentDetailLine}>
-                     <Text style={{ fontWeight: 'bold' }}>Email:</Text> igo@gmail.com
-                   </Text>
-                 </View>
-                 <TouchableOpacity 
-                   style={styles.copyButton}
-                   onPress={() => {
-                     Clipboard.setString("igo@gmail.com");
-                     Alert.alert("Copiado", "Email de Binance copiado al portapapeles.");
-                   }}
-                 >
-                   <Ionicons name="copy-outline" size={16} color="#333" />
-                   <Text style={styles.copyButtonText}>Copiar Email</Text>
-                 </TouchableOpacity>
-               </View>
-
-               {/* Zelle */}
-               <View style={styles.paymentCard}>
-                 <View style={styles.paymentCardHeader}>
-                   <Ionicons name="send-outline" size={24} color="#EDB422" style={{ marginRight: 10 }} />
-                   <Text style={styles.paymentCardTitle}>Zelle</Text>
-                 </View>
-                 <View style={styles.paymentCardBody}>
-                   <Text style={styles.paymentDetailLine}>
-                     <Text style={{ fontWeight: 'bold' }}>Email:</Text> igo@gmail.com
-                   </Text>
-                 </View>
-                 <TouchableOpacity 
-                   style={styles.copyButton}
-                   onPress={() => {
-                     Clipboard.setString("igo@gmail.com");
-                     Alert.alert("Copiado", "Email de Zelle copiado al portapapeles.");
-                   }}
-                 >
-                   <Ionicons name="copy-outline" size={16} color="#333" />
-                   <Text style={styles.copyButtonText}>Copiar Email</Text>
-                 </TouchableOpacity>
-               </View>
-             </View>
            </View>
         ) : activeTab === 'home' && isEmployee ? (
            // DASHBOARD DEL MOTORIZADO / EMPLEADO
@@ -931,7 +853,7 @@ export default function Index() {
              {/* ACCESOS RÁPIDOS A SERVICIOS IGO */}
              <View style={styles.servicesContainer}>
                <TouchableOpacity 
-                 style={styles.serviceBox}
+                 style={[styles.serviceBox, { backgroundColor: colors.card, borderColor: colors.cardBorder, borderWidth: isDark ? 1 : 0 }]}
                  onPress={() => {
                    router.push({
                      pathname: '/map',
@@ -942,19 +864,19 @@ export default function Index() {
                    });
                  }}
                >
-                 <View style={[styles.serviceIconWrapper, { backgroundColor: '#F3E8FF' }]}>
+                 <View style={[styles.serviceIconWrapper, { backgroundColor: isDark ? '#2D1854' : '#F3E8FF' }]}>
                    <ExpoImage 
                      source={require('../assets/Icons/igo-iconos-categorias/igo-cat-igo-favor.svg')} 
                      style={{ width: 40, height: 40 }} 
                      contentFit="contain" 
                    />
                  </View>
-                 <Text style={styles.serviceTitle}>IGO Favor</Text>
-                 <Text style={styles.serviceSub}>Envíos Express</Text>
+                 <Text style={[styles.serviceTitle, { color: colors.text }]}>IGO Favor</Text>
+                 <Text style={[styles.serviceSub, { color: colors.textMuted }]}>Envíos Express</Text>
                </TouchableOpacity>
 
                <TouchableOpacity 
-                 style={styles.serviceBox}
+                 style={[styles.serviceBox, { backgroundColor: colors.card, borderColor: colors.cardBorder, borderWidth: isDark ? 1 : 0 }]}
                  onPress={() => {
                    router.push({
                      pathname: '/map',
@@ -965,19 +887,19 @@ export default function Index() {
                    });
                  }}
                >
-                 <View style={[styles.serviceIconWrapper, { backgroundColor: '#E0F2FE' }]}>
+                 <View style={[styles.serviceIconWrapper, { backgroundColor: isDark ? '#1C2954' : '#E0F2FE' }]}>
                    <ExpoImage 
                      source={require('../assets/Icons/igo-iconos-categorias/igo-cat-express.svg')} 
                      style={{ width: 40, height: 40 }} 
                      contentFit="contain" 
                    />
                  </View>
-                 <Text style={styles.serviceTitle}>IGO Moto</Text>
-                 <Text style={styles.serviceSub}>Moto Taxi</Text>
+                 <Text style={[styles.serviceTitle, { color: colors.text }]}>IGO Moto</Text>
+                 <Text style={[styles.serviceSub, { color: colors.textMuted }]}>Moto Taxi</Text>
                </TouchableOpacity>
 
                <TouchableOpacity 
-                 style={styles.serviceBox}
+                 style={[styles.serviceBox, { backgroundColor: colors.card, borderColor: colors.cardBorder, borderWidth: isDark ? 1 : 0 }]}
                  onPress={() => {
                    router.push({
                      pathname: '/map',
@@ -988,15 +910,15 @@ export default function Index() {
                    });
                  }}
                >
-                 <View style={[styles.serviceIconWrapper, { backgroundColor: '#FFF8E1' }]}>
+                 <View style={[styles.serviceIconWrapper, { backgroundColor: isDark ? '#3D3014' : '#FFF8E1' }]}>
                    <ExpoImage 
                      source={require('../assets/Icons/igo-iconos-categorias/igo-cat-taxi.svg')} 
                      style={{ width: 40, height: 40 }} 
                      contentFit="contain" 
                    />
                  </View>
-                 <Text style={styles.serviceTitle}>IGO Taxi</Text>
-                 <Text style={styles.serviceSub}>Taxi Carro</Text>
+                 <Text style={[styles.serviceTitle, { color: colors.text }]}>IGO Taxi</Text>
+                 <Text style={[styles.serviceSub, { color: colors.textMuted }]}>Taxi Carro</Text>
                </TouchableOpacity>
              </View>
 
@@ -1006,7 +928,7 @@ export default function Index() {
 
              <View style={{ marginTop: 20 }}>
                 <View style={styles.headerRow}>
-                    <Text style={styles.sectionTitle}>Tiendas destacadas</Text>
+                    <Text style={[styles.sectionTitle, { color: colors.text }]}>Tiendas destacadas</Text>
                     <TouchableOpacity onPress={() => router.push("/products")}>
                        <Text style={{ color: '#EDB422', fontWeight: 'bold' }}>Ver más</Text>
                     </TouchableOpacity>
@@ -1339,7 +1261,7 @@ export default function Index() {
 
       {/* --- LA INYECCIÓN TÁCTICA: BOTTOM NAVIGATION BAR --- */}
       {!isEmployee && (
-        <View style={styles.bottomBar}>
+        <View style={[styles.bottomBar, { backgroundColor: colors.card, borderTopColor: colors.cardBorder }]}>
             
             <TouchableOpacity 
               style={styles.tabItem} 
@@ -1348,9 +1270,9 @@ export default function Index() {
                 <Ionicons 
                   name="home" 
                   size={22} 
-                  color={activeTab === 'home' ? '#1a1a1a' : '#888'} 
+                  color={activeTab === 'home' ? (isDark ? '#FFC93C' : '#0F0330') : colors.textMuted} 
                 />
-                <Text style={[styles.tabText, activeTab === 'home' && { color: '#1a1a1a', fontWeight: 'bold' }]}>
+                <Text style={[styles.tabText, { color: activeTab === 'home' ? (isDark ? '#FFC93C' : '#0F0330') : colors.textMuted, fontWeight: activeTab === 'home' ? 'bold' : '500' }]}>
                   Inicio
                 </Text>
             </TouchableOpacity>
@@ -1362,9 +1284,9 @@ export default function Index() {
                 <Ionicons 
                   name={activeTab === 'favorites' ? 'star' : 'star-outline'} 
                   size={22} 
-                  color={activeTab === 'favorites' ? '#EDB422' : '#888'} 
+                  color={activeTab === 'favorites' ? '#FFC93C' : colors.textMuted} 
                 />
-                <Text style={[styles.tabText, activeTab === 'favorites' && { color: '#1a1a1a', fontWeight: 'bold' }]}>
+                <Text style={[styles.tabText, { color: activeTab === 'favorites' ? (isDark ? '#FFC93C' : '#0F0330') : colors.textMuted, fontWeight: activeTab === 'favorites' ? 'bold' : '500' }]}>
                   Favoritos
                 </Text>
             </TouchableOpacity>
@@ -1376,9 +1298,9 @@ export default function Index() {
                 <Ionicons 
                   name={activeTab === 'addresses' ? "location" : "location-outline"} 
                   size={22} 
-                  color={activeTab === 'addresses' ? '#EDB422' : '#888'} 
+                  color={activeTab === 'addresses' ? '#FFC93C' : colors.textMuted} 
                 />
-                <Text style={[styles.tabText, activeTab === 'addresses' && { color: '#1a1a1a', fontWeight: 'bold' }]}>
+                <Text style={[styles.tabText, { color: activeTab === 'addresses' ? (isDark ? '#FFC93C' : '#0F0330') : colors.textMuted, fontWeight: activeTab === 'addresses' ? 'bold' : '500' }]}>
                   Direcciones
                 </Text>
             </TouchableOpacity>
@@ -1387,22 +1309,8 @@ export default function Index() {
               style={styles.tabItem} 
               onPress={() => router.push("/orders")}
             >
-                <Ionicons name="receipt-outline" size={22} color="#888" />
-                <Text style={styles.tabText}>Pedidos</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity 
-              style={styles.tabItem} 
-              onPress={() => setActiveTab('payments')}
-            >
-                <Ionicons 
-                  name={activeTab === 'payments' ? "card" : "card-outline"} 
-                  size={22} 
-                  color={activeTab === 'payments' ? '#EDB422' : '#888'} 
-                />
-                <Text style={[styles.tabText, activeTab === 'payments' && { color: '#1a1a1a', fontWeight: 'bold' }]}>
-                  Métodos Pago
-                </Text>
+                <Ionicons name="receipt-outline" size={22} color={colors.textMuted} />
+                <Text style={[styles.tabText, { color: colors.textMuted }]}>Pedidos</Text>
             </TouchableOpacity>
 
         </View>
@@ -1425,23 +1333,36 @@ export default function Index() {
 }
 
 const styles = StyleSheet.create({
-  mainContainer: { flex: 1, backgroundColor: '#F2F4F7' }, 
+  mainContainer: { flex: 1, backgroundColor: '#F8FAFC' }, 
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   searchContainer: {
-    flexDirection: 'row', alignItems: 'center',
-    backgroundColor: "white", paddingHorizontal: 15, height: 50,
-    marginHorizontal: 20, marginTop: 10, marginBottom: 10,
-    borderRadius: 15, shadowColor: '#000', shadowOpacity: 0.05, elevation: 3
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 16,
+    height: 50,
+    marginHorizontal: 16,
+    marginTop: 6,
+    marginBottom: 12,
+    borderRadius: 16,
+    borderWidth: 1.2,
+    borderColor: '#E2E8F0',
+    shadowColor: '#0F0330',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 2,
   },
-  searchInput: { flex: 1, fontSize: 16, color: '#333' },
+  searchInput: { flex: 1, fontSize: 15, color: '#0F0330', fontWeight: '500' },
   sectionContainer: { marginBottom: 20 },
-  sectionTitle: { fontSize: 18, fontWeight: "800", marginLeft: 20, marginBottom: 10, color: '#1a1a1a' },
+  sectionTitle: { fontSize: 18, fontWeight: "800", marginLeft: 20, marginBottom: 10, color: '#0F0330' },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingRight: 20, marginBottom: 10 },
   emptyText: { textAlign: 'center', marginTop: 20, color: '#888', fontStyle: 'italic' },
   resultItem: {
       flexDirection: 'row', alignItems: 'center', backgroundColor: 'white',
       marginHorizontal: 20, marginBottom: 10, padding: 10, borderRadius: 12,
-      shadowColor: '#000', shadowOpacity: 0.05, elevation: 2
+      borderWidth: 1, borderColor: '#F1F5F9',
+      shadowColor: '#0F0330', shadowOpacity: 0.04, elevation: 2
   },
 
   // --- FLOATING CART BUTTON ---
@@ -1475,18 +1396,19 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     height: 75,
-    backgroundColor: 'white',
+    backgroundColor: '#FFFFFF',
     flexDirection: 'row',
     justifyContent: 'space-around',
     alignItems: 'center',
     paddingBottom: 15,
     paddingTop: 10,
-    borderTopWidth: 1,
-    borderTopColor: '#EBEBEB',
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: -3 },
-    shadowOpacity: 0.05,
-    elevation: 10,
+    borderTopWidth: 1.2,
+    borderTopColor: '#F1F5F9',
+    shadowColor: '#0F0330',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 16,
+    elevation: 8,
     zIndex: 99
   },
   tabItem: {
