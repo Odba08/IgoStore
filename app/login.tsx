@@ -211,6 +211,8 @@ export default function LoginScreen() {
             loop={false}
             speed={1.25}
             onAnimationFinish={handleFinishSplash}
+            onAnimationFailure={() => handleFinishSplash()}
+            renderMode={Platform.OS === 'android' ? 'HARDWARE' : 'AUTOMATIC'}
             style={StyleSheet.absoluteFill}
             resizeMode="cover"
           />
@@ -230,6 +232,7 @@ export default function LoginScreen() {
         source={require('../assets/igo-login-bg.json')}
         autoPlay
         loop
+        renderMode={Platform.OS === 'android' ? 'HARDWARE' : 'AUTOMATIC'}
         style={styles.bgLottie}
         resizeMode="cover"
       />
@@ -253,6 +256,7 @@ export default function LoginScreen() {
                 source={require('../assets/igo-login-icon.json')}
                 autoPlay
                 loop
+                renderMode={Platform.OS === 'android' ? 'HARDWARE' : 'AUTOMATIC'}
                 style={styles.iconLottie}
                 resizeMode="contain"
               />

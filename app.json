@@ -16,6 +16,7 @@
         "backgroundColor": "#ffffff"
       },
       "package": "com.odba08.IgoStore",
+      "versionCode": 1,
       "config": {
         "googleMaps": {
           "apiKey": "AIzaSyByeMkbGjpm9bNaUs-eFoQXUwH2xq2DcyI"
@@ -24,8 +25,6 @@
       "permissions": [
         "ACCESS_COARSE_LOCATION",
         "ACCESS_FINE_LOCATION",
-        "FOREGROUND_SERVICE",
-        "FOREGROUND_SERVICE_LOCATION",
         "POST_NOTIFICATIONS"
       ]
     },
@@ -36,6 +35,14 @@
     },
     "plugins": [
       "expo-router",
+      [
+        "react-native-maps",
+        {
+          "android": {
+            "useGooglePlayServices": true
+          }
+        }
+      ],
       [
         "expo-notifications",
         {
