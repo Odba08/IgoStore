@@ -17,6 +17,7 @@
       },
       "package": "com.odba08.IgoStore",
       "versionCode": 1,
+      "newArchEnabled": false,
       "config": {
         "googleMaps": {
           "apiKey": "AIzaSyByeMkbGjpm9bNaUs-eFoQXUwH2xq2DcyI"
@@ -25,7 +26,8 @@
       "permissions": [
         "ACCESS_COARSE_LOCATION",
         "ACCESS_FINE_LOCATION",
-        "POST_NOTIFICATIONS"
+        "POST_NOTIFICATIONS",
+        "CAMERA"
       ]
     },
     "web": {
@@ -38,9 +40,7 @@
       [
         "react-native-maps",
         {
-          "android": {
-            "useGooglePlayServices": true
-          }
+          "androidGoogleMapsApiKey": "AIzaSyByeMkbGjpm9bNaUs-eFoQXUwH2xq2DcyI"
         }
       ],
       [
