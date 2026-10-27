@@ -8,7 +8,19 @@
     "scheme": "igostore",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": false,
+      "bundleIdentifier": "com.odba08.igostore",
+      "buildNumber": "1",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "IgoStore utiliza tu ubicación para encontrar tiendas cercanas, calcular la tarifa de delivery y permitir la entrega de tus pedidos.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "IgoStore utiliza tu ubicación para trazar rutas y mantener el seguimiento en tiempo real de tus envíos.",
+        "NSCameraUsageDescription": "IgoStore requiere acceso a la cámara para tomar fotografías de comprobantes de pago y verificación de identidad.",
+        "NSPhotoLibraryUsageDescription": "IgoStore requiere acceso a la galería de fotos para adjuntar comprobantes de pago móvil y transferencias.",
+        "NSPhotoLibraryAddUsageDescription": "IgoStore permite guardar recibos y comprobantes de tus pedidos en tu galería de fotos.",
+        "UIBackgroundModes": [
+          "remote-notification"
+        ]
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -27,7 +39,9 @@
         "ACCESS_COARSE_LOCATION",
         "ACCESS_FINE_LOCATION",
         "POST_NOTIFICATIONS",
-        "CAMERA"
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE"
       ]
     },
     "web": {

@@ -11,15 +11,11 @@ import LottieView from 'lottie-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore } from '@/presentation/store/useAuthStore';
 import { igoApi, wakeUpBackend, subscribeServerStatus } from '@/infrastructure/api/igo.api';
-import * as WebBrowser from 'expo-web-browser';
-import * as Google from 'expo-auth-session/providers/google';
-
-WebBrowser.maybeCompleteAuthSession();
 
 export default function LoginScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { login, loginWithGoogle } = useAuthStore();
+  const { login } = useAuthStore();
   
   const [email, setEmail] = useState(''); 
   const [password, setPassword] = useState('');
@@ -68,41 +64,6 @@ export default function LoginScreen() {
       clearTimeout(fallbackTimer);
     };
   }, []);
-
-  // Configuración de Google OAuth en Expo
-  const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
-    clientId: process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID_WEB || 'YOUR_WEB_CLIENT_ID.apps.googleusercontent.com', 
-    iosClientId: process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID_IOS || 'YOUR_IOS_CLIENT_ID.apps.googleusercontent.com',
-    androidClientId: process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID_ANDROID || 'YOUR_ANDROID_CLIENT_ID.apps.googleusercontent.com',
-  });
-
-  useEffect(() => {
-    if (response?.type === 'success') {
-      const { id_token } = response.params;
-      if (id_token) {
-        handleGoogleLogin(id_token);
-      }
-    }
-  }, [response]);
-
-  const handleGoogleLogin = async (idToken: string) => {
-    setIsSubmitting(true);
-    const success = await loginWithGoogle(idToken);
-    setIsSubmitting(false);
-    if (success) {
-      router.replace('/');
-    } else {
-      Alert.alert('Error', 'No se pudo iniciar sesión con Google.');
-    }
-  };
-
-  const handleAppleLogin = () => {
-    Alert.alert('Inicio con Apple', 'El inicio de sesión con Apple ID se activará en tu dispositivo Apple.');
-  };
-
-  const handleFacebookLogin = () => {
-    Alert.alert('Inicio con Facebook', 'El inicio de sesión con Facebook estará disponible próximamente.');
-  };
 
   const handleForgotPassword = () => {
     setForgotEmail(email.trim().toLowerCase());
@@ -348,41 +309,6 @@ export default function LoginScreen() {
               )}
             </TouchableOpacity>
 
-            {/* Separador */}
-            <View style={styles.dividerContainer}>
-              <View style={styles.dividerLine} />
-              <Text style={styles.dividerText}>o continúa con</Text>
-              <View style={styles.dividerLine} />
-            </View>
-
-            {/* Botones Sociales (Google, Apple, Facebook) */}
-            <View style={styles.socialContainer}>
-              <TouchableOpacity 
-                style={styles.socialBtn}
-                onPress={() => promptAsync()}
-                disabled={!request}
-                activeOpacity={0.75}
-              >
-                <Ionicons name="logo-google" size={22} color="#EA4335" />
-              </TouchableOpacity>
-
-              <TouchableOpacity 
-                style={styles.socialBtn}
-                onPress={handleAppleLogin}
-                activeOpacity={0.75}
-              >
-                <Ionicons name="logo-apple" size={24} color="#000000" />
-              </TouchableOpacity>
-
-              <TouchableOpacity 
-                style={styles.socialBtn}
-                onPress={handleFacebookLogin}
-                activeOpacity={0.75}
-              >
-                <Ionicons name="logo-facebook" size={24} color="#1877F2" />
-              </TouchableOpacity>
-            </View>
-
             {/* Footer: Registro */}
             <TouchableOpacity 
               style={styles.registerContainer} 
@@ -390,9 +316,23 @@ export default function LoginScreen() {
               activeOpacity={0.7}
             >
               <Text style={styles.registerText}>
-                ¿No tienes cuenta? <Text style={styles.registerTextBold}>Regístrate</Text>
+                ¿No tienes cuenta? <Text style={styles.registerTextBold}>Regístrate aquí</Text>
               </Text>
             </TouchableOpacity>
+
+            {/* Enlaces Legales requeridos por Apple y Google */}
+            <View style={styles.legalFooter}>
+              <Text style={styles.legalText}>Al iniciar sesión aceptas nuestros </Text>
+              <View style={styles.legalLinksRow}>
+                <TouchableOpacity onPress={() => router.push('/legal/terms' as any)}>
+                  <Text style={styles.legalLink}>Términos de Servicio</Text>
+                </TouchableOpacity>
+                <Text style={styles.legalText}> y </Text>
+                <TouchableOpacity onPress={() => router.push('/legal/privacy' as any)}>
+                  <Text style={styles.legalLink}>Política de Privacidad</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -645,44 +585,9 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
   },
-  dividerContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: 20,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.12)',
-  },
-  dividerText: {
-    marginHorizontal: 14,
-    color: '#7D7699',
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  socialContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 18,
-    marginBottom: 18,
-  },
-  socialBtn: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: '#FFFFFF',
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.25,
-    shadowRadius: 5,
-    elevation: 4,
-  },
   registerContainer: {
     alignItems: 'center',
-    paddingVertical: 8,
+    paddingVertical: 14,
   },
   registerText: {
     fontSize: 14,
@@ -691,6 +596,29 @@ const styles = StyleSheet.create({
   registerTextBold: {
     color: '#FFC93C',
     fontWeight: '700',
+  },
+  legalFooter: {
+    marginTop: 10,
+    alignItems: 'center',
+    paddingHorizontal: 10,
+  },
+  legalLinksRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    marginTop: 3,
+  },
+  legalText: {
+    fontSize: 12,
+    color: '#8E88A8',
+    textAlign: 'center',
+  },
+  legalLink: {
+    fontSize: 12,
+    color: '#FFC93C',
+    fontWeight: '600',
+    textDecorationLine: 'underline',
   },
   splashOverlay: {
     position: 'absolute',

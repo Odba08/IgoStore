@@ -245,40 +245,6 @@ export default function RegisterScreen() {
               )}
             </TouchableOpacity>
 
-            {/* Separador */}
-            <View style={styles.dividerContainer}>
-              <View style={styles.dividerLine} />
-              <Text style={styles.dividerText}>o regístrate con</Text>
-              <View style={styles.dividerLine} />
-            </View>
-
-            {/* Botones Sociales */}
-            <View style={styles.socialContainer}>
-              <TouchableOpacity
-                style={styles.socialBtn}
-                onPress={() => Alert.alert('Google', 'Usa el botón de Google en el Inicio de Sesión para registrarte automáticamente.')}
-                activeOpacity={0.75}
-              >
-                <Ionicons name="logo-google" size={22} color="#EA4335" />
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.socialBtn}
-                onPress={() => Alert.alert('Apple', 'Inicio con Apple ID disponible en iOS.')}
-                activeOpacity={0.75}
-              >
-                <Ionicons name="logo-apple" size={24} color="#000000" />
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.socialBtn}
-                onPress={() => Alert.alert('Facebook', 'Registro con Facebook próximamente disponible.')}
-                activeOpacity={0.75}
-              >
-                <Ionicons name="logo-facebook" size={24} color="#1877F2" />
-              </TouchableOpacity>
-            </View>
-
             {/* Footer: Ya tengo cuenta */}
             <TouchableOpacity
               style={styles.loginContainer}
@@ -289,6 +255,20 @@ export default function RegisterScreen() {
                 ¿Ya tienes una cuenta? <Text style={styles.loginTextBold}>Inicia sesión</Text>
               </Text>
             </TouchableOpacity>
+
+            {/* Enlaces Legales requeridos por Apple y Google */}
+            <View style={styles.legalFooter}>
+              <Text style={styles.legalText}>Al registrarte aceptas nuestros </Text>
+              <View style={styles.legalLinksRow}>
+                <TouchableOpacity onPress={() => router.push('/legal/terms' as any)}>
+                  <Text style={styles.legalLink}>Términos de Servicio</Text>
+                </TouchableOpacity>
+                <Text style={styles.legalText}> y </Text>
+                <TouchableOpacity onPress={() => router.push('/legal/privacy' as any)}>
+                  <Text style={styles.legalLink}>Política de Privacidad</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -406,43 +386,9 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
   },
-  dividerContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: 18,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.12)',
-  },
-  dividerText: {
-    color: '#8E88A8',
-    fontSize: 12,
-    fontWeight: '600',
-    marginHorizontal: 14,
-  },
-  socialContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 18,
-  },
-  socialBtn: {
-    width: 52,
-    height: 52,
-    borderRadius: 14,
-    backgroundColor: '#FFFFFF',
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.25,
-    shadowRadius: 5,
-    elevation: 3,
-  },
   loginContainer: {
     alignItems: 'center',
-    marginTop: 20,
+    marginTop: 18,
     paddingVertical: 8,
   },
   loginText: {
@@ -452,5 +398,28 @@ const styles = StyleSheet.create({
   loginTextBold: {
     color: '#FFC93C',
     fontWeight: '700',
+  },
+  legalFooter: {
+    marginTop: 10,
+    alignItems: 'center',
+    paddingHorizontal: 10,
+  },
+  legalLinksRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    marginTop: 3,
+  },
+  legalText: {
+    fontSize: 12,
+    color: '#8E88A8',
+    textAlign: 'center',
+  },
+  legalLink: {
+    fontSize: 12,
+    color: '#FFC93C',
+    fontWeight: '600',
+    textDecorationLine: 'underline',
   },
 });

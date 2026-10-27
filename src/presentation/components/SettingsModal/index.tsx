@@ -11,7 +11,9 @@ import {
   Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { useThemeStore } from '@/presentation/store/useThemeStore';
+import { useAuthStore } from '@/presentation/store/useAuthStore';
 
 interface SettingsModalProps {
   visible: boolean;
@@ -24,7 +26,9 @@ export const SettingsModal = ({
   onClose,
   onOpenSupport,
 }: SettingsModalProps) => {
-  const { isDark, toggleTheme, colors } = useThemeStore();
+  const router = useRouter();
+  const { isDark, toggleTheme } = useThemeStore();
+  const { deleteAccount } = useAuthStore();
 
   const [pushEnabled, setPushEnabled] = useState(true);
   const [soundEnabled, setSoundEnabled] = useState(true);
@@ -72,6 +76,35 @@ export const SettingsModal = ({
     );
   };
 
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      'Eliminar Cuenta',
+      '¿Estás seguro de que deseas eliminar tu cuenta permanentemente? Se borrarán todos tus datos personales y esta acción no se puede deshacer.',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Eliminar definitivamente',
+          style: 'destructive',
+          onPress: async () => {
+            onClose();
+            await deleteAccount();
+            router.replace('/login');
+          },
+        },
+      ]
+    );
+  };
+
+  const handleOpenTerms = () => {
+    onClose();
+    router.push('/legal/terms' as any);
+  };
+
+  const handleOpenPrivacy = () => {
+    onClose();
+    router.push('/legal/privacy' as any);
+  };
+
   return (
     <Modal visible={visible} animationType="slide" transparent={true} onRequestClose={onClose}>
       <View style={styles.overlay}>
@@ -95,7 +128,7 @@ export const SettingsModal = ({
             </TouchableOpacity>
           </View>
 
-          <ScrollView style={styles.scrollBody} contentContainerStyle={{ paddingBottom: 25 }}>
+          <ScrollView style={styles.scrollBody} contentContainerStyle={{ paddingBottom: 35 }}>
             {/* Sección Preferencias y Apariencia */}
             <Text style={[styles.sectionHeader, { color: isDark ? '#A5B4FC' : '#64748B' }]}>
               APARIENCIA Y PREFERENCIAS
@@ -244,9 +277,47 @@ export const SettingsModal = ({
               </TouchableOpacity>
             </View>
 
-            {/* Sección Almacenamiento */}
+            {/* Sección Legal (Requisito Apple & Google) */}
             <Text style={[styles.sectionHeader, { color: isDark ? '#A5B4FC' : '#64748B' }]}>
-              ALMACENAMIENTO Y DATOS
+              INFORMACIÓN LEGAL
+            </Text>
+            <View style={[styles.settingCard, { backgroundColor: isDark ? '#1F1242' : '#FFFFFF' }]}>
+              <TouchableOpacity style={styles.settingRowAction} onPress={handleOpenPrivacy} activeOpacity={0.75}>
+                <View style={[styles.settingIconBox, { backgroundColor: isDark ? '#2C1B58' : '#F1F5F9' }]}>
+                  <Ionicons name="shield-checkmark-outline" size={20} color={isDark ? '#FFC93C' : '#0F0330'} />
+                </View>
+                <View style={styles.settingTextCol}>
+                  <Text style={[styles.settingTitle, { color: isDark ? '#FFF' : '#1E293B' }]}>
+                    Política de Privacidad
+                  </Text>
+                  <Text style={[styles.settingSub, { color: isDark ? '#94A3B8' : '#64748B' }]}>
+                    Tratamiento y protección de datos
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color={isDark ? '#8E88A8' : '#94A3B8'} />
+              </TouchableOpacity>
+
+              <View style={[styles.divider, { backgroundColor: isDark ? '#2C1B58' : '#F1F5F9' }]} />
+
+              <TouchableOpacity style={styles.settingRowAction} onPress={handleOpenTerms} activeOpacity={0.75}>
+                <View style={[styles.settingIconBox, { backgroundColor: isDark ? '#2C1B58' : '#F1F5F9' }]}>
+                  <Ionicons name="document-text-outline" size={20} color={isDark ? '#FFC93C' : '#0F0330'} />
+                </View>
+                <View style={styles.settingTextCol}>
+                  <Text style={[styles.settingTitle, { color: isDark ? '#FFF' : '#1E293B' }]}>
+                    Términos y Condiciones
+                  </Text>
+                  <Text style={[styles.settingSub, { color: isDark ? '#94A3B8' : '#64748B' }]}>
+                    Condiciones de uso de IGO
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color={isDark ? '#8E88A8' : '#94A3B8'} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Sección Almacenamiento y Cuenta */}
+            <Text style={[styles.sectionHeader, { color: isDark ? '#A5B4FC' : '#64748B' }]}>
+              CUENTA Y DATOS
             </Text>
             <View style={[styles.settingCard, { backgroundColor: isDark ? '#1F1242' : '#FFFFFF' }]}>
               <TouchableOpacity
@@ -255,8 +326,8 @@ export const SettingsModal = ({
                 disabled={clearingCache}
                 activeOpacity={0.75}
               >
-                <View style={[styles.settingIconBox, { backgroundColor: isDark ? '#3E1020' : '#FFE4E6' }]}>
-                  <Ionicons name="trash-bin-outline" size={20} color="#E11D48" />
+                <View style={[styles.settingIconBox, { backgroundColor: isDark ? '#2C1B58' : '#F1F5F9' }]}>
+                  <Ionicons name="refresh-outline" size={20} color={isDark ? '#FFC93C' : '#0F0330'} />
                 </View>
                 <View style={styles.settingTextCol}>
                   <Text style={[styles.settingTitle, { color: isDark ? '#FFF' : '#1E293B' }]}>
@@ -267,6 +338,28 @@ export const SettingsModal = ({
                   </Text>
                 </View>
                 <Ionicons name="chevron-forward" size={18} color={isDark ? '#8E88A8' : '#94A3B8'} />
+              </TouchableOpacity>
+
+              <View style={[styles.divider, { backgroundColor: isDark ? '#2C1B58' : '#F1F5F9' }]} />
+
+              {/* Botón de eliminación de cuenta requerido por Apple y Google */}
+              <TouchableOpacity
+                style={styles.settingRowAction}
+                onPress={handleDeleteAccount}
+                activeOpacity={0.75}
+              >
+                <View style={[styles.settingIconBox, { backgroundColor: isDark ? '#3E1020' : '#FFE4E6' }]}>
+                  <Ionicons name="trash-bin-outline" size={20} color="#E11D48" />
+                </View>
+                <View style={styles.settingTextCol}>
+                  <Text style={[styles.settingTitle, { color: '#E11D48' }]}>
+                    Eliminar mi cuenta
+                  </Text>
+                  <Text style={[styles.settingSub, { color: isDark ? '#94A3B8' : '#64748B' }]}>
+                    Elimina de forma permanente tus datos personales y cuenta
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color="#E11D48" />
               </TouchableOpacity>
             </View>
 
@@ -301,8 +394,8 @@ const styles = StyleSheet.create({
   },
   header: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
+    alignItems: 'center',
     paddingBottom: 14,
     borderBottomWidth: 1,
   },
@@ -322,24 +415,25 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   scrollBody: {
-    marginTop: 14,
+    marginTop: 12,
   },
   sectionHeader: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '800',
     letterSpacing: 0.8,
     marginTop: 16,
     marginBottom: 8,
-    marginLeft: 4,
+    paddingHorizontal: 4,
   },
   settingCard: {
     borderRadius: 18,
-    paddingHorizontal: 16,
+    paddingHorizontal: 14,
     paddingVertical: 4,
+    elevation: 2,
     shadowColor: '#000',
-    shadowOpacity: 0.03,
-    shadowRadius: 6,
-    elevation: 1,
+    shadowOpacity: 0.05,
+    shadowRadius: 5,
+    shadowOffset: { width: 0, height: 2 },
   },
   settingRow: {
     flexDirection: 'row',
@@ -349,7 +443,7 @@ const styles = StyleSheet.create({
   settingRowAction: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 14,
+    paddingVertical: 12,
   },
   settingIconBox: {
     width: 38,
@@ -361,16 +455,16 @@ const styles = StyleSheet.create({
   },
   settingTextCol: {
     flex: 1,
-    marginRight: 10,
+    marginRight: 8,
   },
   settingTitle: {
     fontSize: 14,
     fontWeight: '700',
+    marginBottom: 2,
   },
   settingSub: {
-    fontSize: 11,
-    marginTop: 2,
-    lineHeight: 15,
+    fontSize: 12,
+    lineHeight: 16,
   },
   divider: {
     height: 1,
@@ -378,14 +472,14 @@ const styles = StyleSheet.create({
   versionFooter: {
     alignItems: 'center',
     marginTop: 24,
-    marginBottom: 10,
+    marginBottom: 8,
   },
   versionText: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '700',
   },
   buildText: {
     fontSize: 11,
-    marginTop: 2,
+    marginTop: 3,
   },
 });

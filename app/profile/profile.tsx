@@ -36,7 +36,7 @@ const PROFILE_OPTIONS = [
 const ProfileScreen = () => {
   const router = useRouter();
   const { expand } = useLocalSearchParams();
-  const { user, logout, updateUserLocal, changePassword } = useAuthStore();
+  const { user, logout, deleteAccount, updateUserLocal, changePassword } = useAuthStore();
   const { colors, isDark } = useThemeStore();
 
   const { savedAddresses, removeSavedAddress } = useLocationStore();
@@ -62,6 +62,24 @@ const ProfileScreen = () => {
       setShowAddresses(true);
     }
   }, [expand]);
+
+    const handleDeleteAccount = () => {
+    Alert.alert(
+      'Eliminar Cuenta',
+      '¿Estás seguro de que deseas eliminar tu cuenta permanentemente? Esta acción borrará tus datos personales, direcciones e historial y no se puede deshacer.',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Eliminar definitivamente',
+          style: 'destructive',
+          onPress: async () => {
+            await deleteAccount();
+            router.replace('/login');
+          },
+        },
+      ]
+    );
+  };
 
   const handleLogout = () => {
     Alert.alert(
@@ -373,6 +391,18 @@ const ProfileScreen = () => {
         <TouchableOpacity style={[styles.logoutBtn, { backgroundColor: colors.card, borderColor: colors.cardBorder, borderWidth: isDark ? 1 : 0 }]} onPress={handleLogout} activeOpacity={0.8}>
           <Ionicons name="log-out-outline" size={22} color="#E74C3C" />
           <Text style={styles.logoutText}>Cerrar Sesión</Text>
+        </TouchableOpacity>
+
+        {/* ELIMINAR CUENTA (Requisito Apple Store & Google Play) */}
+        <TouchableOpacity
+          style={styles.deleteAccountBtn}
+          onPress={handleDeleteAccount}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="trash-bin-outline" size={17} color={isDark ? '#8E88A8' : '#94A3B8'} style={{ marginRight: 6 }} />
+          <Text style={[styles.deleteAccountText, { color: isDark ? '#8E88A8' : '#94A3B8' }]}>
+            Eliminar mi cuenta
+          </Text>
         </TouchableOpacity>
       </ScrollView>
 
@@ -826,6 +856,18 @@ const styles = StyleSheet.create({
   cancelBtnText: { color: '#64748B', fontWeight: '700', fontSize: 14 },
   saveBtn: { backgroundColor: '#FFC93C' },
   saveBtnText: { color: '#0F0330', fontWeight: '800', fontSize: 14 },
+  deleteAccountBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    marginTop: 8,
+  },
+  deleteAccountText: {
+    fontSize: 13,
+    fontWeight: '600',
+    textDecorationLine: 'underline',
+  },
 });
 
 export default ProfileScreen;
