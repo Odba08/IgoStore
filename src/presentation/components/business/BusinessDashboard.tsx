@@ -74,6 +74,7 @@ export const BusinessDashboard: React.FC<BusinessDashboardProps> = ({
   const [productDescription, setProductDescription] = useState('');
   const [productImageUri, setProductImageUri] = useState<string | null>(null);
   const [savingProduct, setSavingProduct] = useState(false);
+  const isSavingProductRef = useRef(false);
   const knownOrderIdsRef = useRef<Set<string>>(new Set());
   const isInitialOrdersLoadRef = useRef(true);
 
@@ -204,7 +205,14 @@ export const BusinessDashboard: React.FC<BusinessDashboardProps> = ({
 
       // 2. Obtener productos de este comercio
       const prodRes = await igoApi.get(`/business/${biz.id}/products`, { params: { limit: 500 } });
-      setProducts(prodRes.data || []);
+      const rawProducts = prodRes.data || [];
+      const seenProdIds = new Set<string>();
+      const uniqueProducts = rawProducts.filter((p: any) => {
+        if (!p?.id || seenProdIds.has(p.id)) return false;
+        seenProdIds.add(p.id);
+        return true;
+      });
+      setProducts(uniqueProducts);
 
       // 3. Obtener órdenes del negocio
       await fetchOrdersOnly(biz.id, false);
@@ -643,6 +651,7 @@ export const BusinessDashboard: React.FC<BusinessDashboardProps> = ({
   };
 
   const handleSaveProduct = async () => {
+    if (isSavingProductRef.current) return;
     if (!productTitle.trim()) {
       Alert.alert('Campo requerido', 'Ingresa el nombre o título del producto.');
       return;
@@ -654,6 +663,7 @@ export const BusinessDashboard: React.FC<BusinessDashboardProps> = ({
     }
     const stockNum = parseInt(productStock, 10);
 
+    isSavingProductRef.current = true;
     setSavingProduct(true);
     try {
       let finalImgUrl = productImageUri;
@@ -691,6 +701,7 @@ export const BusinessDashboard: React.FC<BusinessDashboardProps> = ({
       console.error('Error saving product:', err);
       Alert.alert('Error', err.response?.data?.message || 'No se pudo guardar el producto.');
     } finally {
+      isSavingProductRef.current = false;
       setSavingProduct(false);
     }
   };
