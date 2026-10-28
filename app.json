@@ -85,6 +85,12 @@
       "expo-status-bar",
       "expo-web-browser",
       [
+        "expo-camera",
+        {
+          "cameraPermission": "IgoStore requiere acceso a la cámara para escanear códigos QR y validar entregas."
+        }
+      ],
+      [
         "expo-build-properties",
         {
           "android": {

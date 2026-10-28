@@ -25,6 +25,7 @@ import { getSocket } from '@/infrastructure/services/socket.service';
 import { NotificationService } from '@/infrastructure/services/notification.service';
 import { OrderChatModal } from '@/presentation/components/OrderChatModal';
 import { SupportChatModal } from '@/presentation/components/SupportChatModal';
+import { OrderPickupQrModal } from './OrderPickupQrModal';
 
 interface BusinessDashboardProps {
   user: any;
@@ -48,6 +49,7 @@ export const BusinessDashboard: React.FC<BusinessDashboardProps> = ({
   const [settlementData, setSettlementData] = useState<any | null>(null);
   const [settlementLoading, setSettlementLoading] = useState(false);
   const [settlementFilter, setSettlementFilter] = useState<'ALL' | 'THIS_MONTH' | 'LAST_MONTH' | 'LAST_7_DAYS'>('ALL');
+  const [selectedQrOrder, setSelectedQrOrder] = useState<any | null>(null);
   const [supportModalVisible, setSupportModalVisible] = useState(false);
 
   // Modal para ver Comprobante / Recibo de Pago Móvil en Grande
@@ -1481,6 +1483,14 @@ export const BusinessDashboard: React.FC<BusinessDashboardProps> = ({
                     {!isCancelled && (
                       <View style={styles.chatAndSupportRow}>
                         <TouchableOpacity
+                          style={[styles.chatActionBtn, { backgroundColor: '#F3E8FF', borderColor: '#D8B4FE', borderWidth: 1 }]}
+                          onPress={() => setSelectedQrOrder(item)}
+                        >
+                          <Ionicons name="qr-code" size={15} color="#7E22CE" />
+                          <Text style={[styles.chatActionBtnText, { color: '#7E22CE', fontWeight: '700' }]}>QR Despacho (PIN)</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
                           style={styles.chatActionBtn}
                           onPress={() => handleOpenChat(item)}
                         >
@@ -2016,6 +2026,13 @@ export const BusinessDashboard: React.FC<BusinessDashboardProps> = ({
           currentUser={user}
         />
       )}
+
+      {/* MODAL QR DE DESPACHO / VALIDACIÓN RETIRO */}
+      <OrderPickupQrModal
+        visible={!!selectedQrOrder}
+        order={selectedQrOrder}
+        onClose={() => setSelectedQrOrder(null)}
+      />
 
       {/* MODAL CREAR / EDITAR PRODUCTO */}
       <Modal
