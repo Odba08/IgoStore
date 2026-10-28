@@ -6,6 +6,31 @@ import { SafeNotifications, isExpoGo } from './expo-notifications-safe';
 
 export class NotificationService {
   /**
+   * Asegura la creación de los canales de notificación en Android con máxima prioridad y sonido
+   */
+  static async ensureChannelsAsync(): Promise<void> {
+    if (!SafeNotifications || Platform.OS !== 'android') return;
+    try {
+      await SafeNotifications.setNotificationChannelAsync('orders', {
+        name: 'Pedidos y Estados',
+        importance: SafeNotifications.AndroidImportance?.MAX ?? 5,
+        vibrationPattern: [0, 250, 250, 250],
+        lightColor: '#FF6B00',
+        sound: 'default',
+        enableVibrate: true,
+        showBadge: true,
+      });
+      await SafeNotifications.setNotificationChannelAsync('default', {
+        name: 'General',
+        importance: SafeNotifications.AndroidImportance?.DEFAULT ?? 3,
+        sound: 'default',
+      });
+    } catch (e) {
+      console.warn('Error configurando canales de notificación:', e);
+    }
+  }
+
+  /**
    * Solicita permisos de notificación y obtiene el token de Expo
    */
   static async registerForPushNotificationsAsync(): Promise<string | null> {
@@ -21,20 +46,7 @@ export class NotificationService {
     let token: string | null = null;
 
     try {
-      if (Platform.OS === 'android') {
-        await SafeNotifications.setNotificationChannelAsync('orders', {
-          name: 'Pedidos y Estados',
-          importance: SafeNotifications.AndroidImportance?.MAX ?? 5,
-          vibrationPattern: [0, 250, 250, 250],
-          lightColor: '#FF6B00',
-          sound: 'default',
-        });
-        await SafeNotifications.setNotificationChannelAsync('default', {
-          name: 'General',
-          importance: SafeNotifications.AndroidImportance?.DEFAULT ?? 3,
-          sound: 'default',
-        });
-      }
+      await this.ensureChannelsAsync();
 
       if (Device.isDevice) {
         const { status: existingStatus } = await SafeNotifications.getPermissionsAsync();
@@ -91,12 +103,18 @@ export class NotificationService {
   static async scheduleLocalNotification(title: string, body: string, data: any = {}) {
     if (!SafeNotifications) return;
     try {
+      if (Platform.OS === 'android') {
+        await this.ensureChannelsAsync();
+      }
       await SafeNotifications.scheduleNotificationAsync({
         content: {
           title,
           body,
           data,
-          sound: true,
+          sound: 'default',
+          channelId: 'orders',
+          priority: SafeNotifications.AndroidNotificationPriority?.MAX ?? 'max',
+          vibrate: [0, 250, 250, 250],
         },
         trigger: null,
       });

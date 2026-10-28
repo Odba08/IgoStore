@@ -74,6 +74,29 @@ export const BusinessDashboard: React.FC<BusinessDashboardProps> = ({
   const [productDescription, setProductDescription] = useState('');
   const [productImageUri, setProductImageUri] = useState<string | null>(null);
   const [savingProduct, setSavingProduct] = useState(false);
+  const knownOrderIdsRef = useRef<Set<string>>(new Set());
+  const isInitialOrdersLoadRef = useRef(true);
+
+  const notifyNewOrderInApp = (newOrder: any) => {
+    try {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+    } catch (e) {}
+
+    NotificationService.scheduleLocalNotification(
+      '¡Nuevo Pedido Recibido! 🛍️',
+      `Has recibido la orden #${String(newOrder.orderNumber || '').padStart(4, '0')} por $${Number(newOrder.totalAmount || 0).toFixed(2)}.`,
+      { orderId: newOrder.id }
+    ).catch(() => {});
+
+    Alert.alert(
+      '🛍️ ¡Nuevo Pedido Recibido!',
+      `Has recibido la orden #${String(newOrder.orderNumber || '').padStart(4, '0')} por $${Number(newOrder.totalAmount || 0).toFixed(2)}.\n\nCliente: ${newOrder.user?.fullName || newOrder.userIdTemp || 'Cliente IGO'}\n\n¡Ve a la pestaña de Pedidos para aceptarlo y prepararlo!`,
+      [
+        { text: 'Ver Pedido', onPress: () => setActiveTab('orders') },
+        { text: 'Entendido', style: 'cancel' }
+      ]
+    );
+  };
 
   const fetchOrdersOnly = async (bizId: string, showRefreshing = false) => {
     if (!bizId) return;
@@ -91,6 +114,20 @@ export const BusinessDashboard: React.FC<BusinessDashboardProps> = ({
         const allOrders = ordersRes.data || [];
         bizOrders = allOrders.filter((o: any) => o.business?.id === bizId);
       }
+
+      // Detección automática en segundo plano: alertar si llega orden nueva vía polling
+      if (!isInitialOrdersLoadRef.current && knownOrderIdsRef.current.size > 0) {
+        const newlyArrived = bizOrders.filter(
+          (o) => !knownOrderIdsRef.current.has(o.id) && o.status !== 'CANCELLED' && o.status !== 'DELIVERED'
+        );
+        if (newlyArrived.length > 0) {
+          console.log('⚡ [BusinessDashboard Polling] Nuevo pedido detectado:', newlyArrived[0].id, newlyArrived[0].orderNumber);
+          notifyNewOrderInApp(newlyArrived[0]);
+        }
+      }
+
+      bizOrders.forEach((o) => knownOrderIdsRef.current.add(o.id));
+      isInitialOrdersLoadRef.current = false;
       setOrders(bizOrders);
     } catch (err) {
       console.warn('Error fetching business orders:', err);
@@ -183,6 +220,12 @@ export const BusinessDashboard: React.FC<BusinessDashboardProps> = ({
 
   useEffect(() => {
     fetchBusinessData();
+    // Asegurar registro de push token y permisos del dueño del negocio
+    NotificationService.registerForPushNotificationsAsync().then((token) => {
+      if (token) {
+        NotificationService.syncPushTokenWithBackend(token);
+      }
+    });
   }, [user]);
 
   // SUSCRIPCIÓN EN TIEMPO REAL VÍA WEBSOCKETS + POLLING SEGUNDO PLANO
@@ -201,8 +244,8 @@ export const BusinessDashboard: React.FC<BusinessDashboardProps> = ({
         const handleOrderUpdateEvent = (orderData: any) => {
           if (!orderData) return;
           // Validar si pertenece a este negocio
-          const matches = orderData.business?.id === myBusiness.id;
-          if (!matches) return;
+          const orderBizId = orderData.business?.id || orderData.businessId || (typeof orderData.business === 'string' ? orderData.business : null);
+          if (orderBizId !== myBusiness.id) return;
 
           console.log('⚡ [BusinessDashboard WS] Orden actualizada/pagada:', orderData.id, orderData.status, 'isPaid:', orderData.isPaid);
 
@@ -230,25 +273,18 @@ export const BusinessDashboard: React.FC<BusinessDashboardProps> = ({
 
         const handleNewOrderEvent = (newOrder: any) => {
           if (!newOrder) return;
-          const matches = newOrder.business?.id === myBusiness.id;
-          if (!matches) return;
+          const orderBizId = newOrder.business?.id || newOrder.businessId || (typeof newOrder.business === 'string' ? newOrder.business : null);
+          if (orderBizId !== myBusiness.id) return;
 
           console.log('⚡ [BusinessDashboard WS] Nuevo pedido recibido:', newOrder.id, newOrder.orderNumber);
 
-          try {
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-          } catch (e) {}
-
+          knownOrderIdsRef.current.add(newOrder.id);
           setOrders((prev) => {
             if (prev.some((o) => o.id === newOrder.id)) return prev;
             return [newOrder, ...prev];
           });
 
-          NotificationService.scheduleLocalNotification(
-            '¡Nuevo Pedido Recibido! 🛍️',
-            `Has recibido la orden #${String(newOrder.orderNumber).padStart(4, '0')} por $${Number(newOrder.totalAmount || 0).toFixed(2)}.`,
-            { orderId: newOrder.id }
-          ).catch(() => {});
+          notifyNewOrderInApp(newOrder);
         };
 
         socket.on('order:updated', handleOrderUpdateEvent);
