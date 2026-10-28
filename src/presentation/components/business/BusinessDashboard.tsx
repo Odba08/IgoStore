@@ -166,7 +166,7 @@ export const BusinessDashboard: React.FC<BusinessDashboardProps> = ({
       setMyBusiness(biz);
 
       // 2. Obtener productos de este comercio
-      const prodRes = await igoApi.get(`/business/${biz.id}/products`);
+      const prodRes = await igoApi.get(`/business/${biz.id}/products`, { params: { limit: 500 } });
       setProducts(prodRes.data || []);
 
       // 3. Obtener órdenes del negocio
@@ -636,6 +636,7 @@ export const BusinessDashboard: React.FC<BusinessDashboardProps> = ({
         description: productDescription.trim(),
         stock: isNaN(stockNum) ? 10 : stockNum,
         images: finalImgUrl ? [finalImgUrl] : [],
+        isApproved: true,
       };
 
       if (editingProduct) {
@@ -909,6 +910,12 @@ export const BusinessDashboard: React.FC<BusinessDashboardProps> = ({
               data={products}
               keyExtractor={(item) => item.id}
               contentContainerStyle={{ paddingHorizontal: 15, paddingBottom: 100 }}
+              refreshControl={
+                <RefreshControl
+                  refreshing={refreshing}
+                  onRefresh={() => fetchBusinessData()}
+                />
+              }
               renderItem={({ item }) => {
                 const imgUrl = item.images && item.images.length > 0 
                   ? (typeof item.images[0] === 'string' ? item.images[0] : item.images[0].url)
