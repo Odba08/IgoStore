@@ -24,6 +24,7 @@ import { pickImageFromGallery, takePhotoWithCamera, uploadImage } from '@/infras
 import { getSocket } from '@/infrastructure/services/socket.service';
 import { NotificationService } from '@/infrastructure/services/notification.service';
 import { OrderChatModal } from '@/presentation/components/OrderChatModal';
+import { SupportChatModal } from '@/presentation/components/SupportChatModal';
 
 interface BusinessDashboardProps {
   user: any;
@@ -39,9 +40,15 @@ export const BusinessDashboard: React.FC<BusinessDashboardProps> = ({
   const [myBusiness, setMyBusiness] = useState<any | null>(null);
   const [products, setProducts] = useState<any[]>([]);
   const [orders, setOrders] = useState<any[]>([]);
-  const [activeTab, setActiveTab] = useState<'products' | 'orders'>('products');
+  const [activeTab, setActiveTab] = useState<'products' | 'orders' | 'balance'>('products');
   const [orderFilter, setOrderFilter] = useState<'ALL' | 'PENDING_ACCEPT' | 'PREPARING' | 'READY' | 'DELIVERED'>('ALL');
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
+
+  // Estados de Conciliación y Balance con IGO (Lógica espejo de Panel Admin)
+  const [settlementData, setSettlementData] = useState<any | null>(null);
+  const [settlementLoading, setSettlementLoading] = useState(false);
+  const [settlementFilter, setSettlementFilter] = useState<'ALL' | 'THIS_MONTH' | 'LAST_MONTH' | 'LAST_7_DAYS'>('ALL');
+  const [supportModalVisible, setSupportModalVisible] = useState(false);
 
   // Modal para ver Comprobante / Recibo de Pago Móvil en Grande
   const [receiptModalVisible, setReceiptModalVisible] = useState(false);
@@ -92,6 +99,48 @@ export const BusinessDashboard: React.FC<BusinessDashboardProps> = ({
     }
   };
 
+  const fetchSettlement = async (
+    bizId?: string,
+    filterOverride?: 'ALL' | 'THIS_MONTH' | 'LAST_MONTH' | 'LAST_7_DAYS'
+  ) => {
+    const id = bizId || myBusiness?.id;
+    if (!id) return;
+    try {
+      setSettlementLoading(true);
+      const activeFilter = filterOverride || settlementFilter;
+      let startDate: string | undefined;
+      let endDate: string | undefined;
+
+      const now = new Date();
+      if (activeFilter === 'THIS_MONTH') {
+        startDate = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+        endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59).toISOString();
+      } else if (activeFilter === 'LAST_MONTH') {
+        startDate = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString();
+        endDate = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59).toISOString();
+      } else if (activeFilter === 'LAST_7_DAYS') {
+        const d = new Date();
+        d.setDate(d.getDate() - 7);
+        d.setHours(0, 0, 0, 0);
+        startDate = d.toISOString();
+        endDate = now.toISOString();
+      }
+
+      const params: any = {};
+      if (startDate) params.startDate = startDate;
+      if (endDate) params.endDate = endDate;
+
+      const res = await igoApi.get(`/orders/business/${id}/settlement`, { params });
+      if (res.data) {
+        setSettlementData(res.data);
+      }
+    } catch (err) {
+      console.warn('Error fetching business settlement from backend:', err);
+    } finally {
+      setSettlementLoading(false);
+    }
+  };
+
   const fetchBusinessData = async () => {
     if (!user) return;
     try {
@@ -122,6 +171,9 @@ export const BusinessDashboard: React.FC<BusinessDashboardProps> = ({
 
       // 3. Obtener órdenes del negocio
       await fetchOrdersOnly(biz.id, false);
+
+      // 4. Obtener conciliación y balance con IGO
+      fetchSettlement(biz.id);
     } catch (err: any) {
       console.error('Error loading business dashboard data:', err);
     } finally {
@@ -392,6 +444,105 @@ export const BusinessDashboard: React.FC<BusinessDashboardProps> = ({
     return true;
   });
 
+  const copyTextToClipboard = async (text: string, label: string) => {
+    if (!text) return;
+    try {
+      if (Clipboard && Clipboard.setStringAsync) {
+        await Clipboard.setStringAsync(text);
+      }
+      try {
+        Haptics.selectionAsync().catch(() => {});
+      } catch (e) {}
+      Alert.alert('Copiado ✅', `${label} copiado al portapapeles.`);
+    } catch {
+      Alert.alert(label, text);
+    }
+  };
+
+  const copyAllPagoMovil = async () => {
+    const bank = settlementData?.paymentInfo?.bank || '0102 - Banco de Venezuela';
+    const phone = settlementData?.paymentInfo?.phone || '0412-1234567';
+    const id = settlementData?.paymentInfo?.id || 'V-12345678';
+    const name = settlementData?.paymentInfo?.name || 'IGO Delivery C.A.';
+    const text = `DATOS PAGO MÓVIL IGO:\nBanco: ${bank}\nTeléfono: ${phone}\nC.I./RIF: ${id}\nTitular: ${name}\nMonto: $${Math.abs(displayNetOwed).toFixed(2)} USD (Bs. ${amountDueBs.toFixed(2)})`;
+    try {
+      if (Clipboard && Clipboard.setStringAsync) {
+        await Clipboard.setStringAsync(text);
+      }
+      try {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      } catch (e) {}
+      Alert.alert('¡Copiado! 📋', 'Los datos completos de Pago Móvil de IGO se copiaron al portapapeles.');
+    } catch {
+      Alert.alert('Datos Pago Móvil', text);
+    }
+  };
+
+  const handleNotifyPayment = () => {
+    const bizName = myBusiness?.name || 'Mi Comercio';
+    const debtStr = Math.abs(displayNetOwed).toFixed(2);
+    const bsStr = amountDueBs.toFixed(2);
+    Alert.alert(
+      'Notificar Pago de Balance 💬',
+      `¿Deseas reportar tu pago de $${debtStr} USD (Bs. ${bsStr}) por Soporte en la app o por WhatsApp?`,
+      [
+        {
+          text: 'Chat Soporte App',
+          onPress: () => setSupportModalVisible(true),
+        },
+        {
+          text: 'WhatsApp',
+          onPress: () => {
+            const rawPhone = settlementData?.paymentInfo?.phone || '04121234567';
+            const digits = rawPhone.replace(/\D/g, '');
+            const phone = digits.startsWith('58') ? digits : `58${digits.replace(/^0+/, '')}`;
+            const msg = encodeURIComponent(
+              `Hola Soporte IGO, soy del comercio *${bizName}*. Adjunto comprobante de pago de liquidación/delivery por monto de *$${debtStr} USD* (Bs. ${bsStr}).`
+            );
+            Linking.openURL(`https://wa.me/${phone}?text=${msg}`).catch(() => {
+              setSupportModalVisible(true);
+            });
+          },
+        },
+        { text: 'Cancelar', style: 'cancel' },
+      ]
+    );
+  };
+
+  // Cálculos de conciliación y balance con IGO (Lógica espejo exacta de Panel Admin)
+  const paidOrders = orders.filter(
+    (o) => o.status !== 'CANCELLED' && (o.isPaid || o.status === 'DELIVERED')
+  );
+  const itemsSubtotal = paidOrders.reduce((sum, o) => sum + (o.totalItems || 0), 0);
+  const deliverySubtotal = paidOrders.reduce((sum, o) => sum + (o.deliveryFee || 0), 0);
+  const commissionRate = myBusiness?.commissionPercentage ?? 10;
+  const commissionAmount = itemsSubtotal * (commissionRate / 100);
+
+  const iGoOrders = paidOrders.filter((o) => o.paymentRecipient === 'Pago IGO');
+  const bizOrders = paidOrders.filter((o) => o.paymentRecipient === 'Pago Negocio');
+
+  const igoOwesBizProducts = iGoOrders.reduce((sum, o) => sum + (o.totalItems || 0), 0);
+  const bizOwesIgoDelivery = bizOrders.reduce((sum, o) => sum + (o.deliveryFee || 0), 0);
+
+  // liveNetOwed = igoOwesBizProducts - commissionAmount - bizOwesIgoDelivery
+  // Si < 0: el comercio debe a IGO la diferencia
+  // Si > 0: IGO debe al comercio la diferencia
+  const liveNetOwed = igoOwesBizProducts - commissionAmount - bizOwesIgoDelivery;
+  const liveBizDebt = bizOwesIgoDelivery + commissionAmount;
+
+  const currentSummary = settlementData?.summary;
+  const displayNetOwed = currentSummary !== undefined && currentSummary !== null ? currentSummary.netOwed : liveNetOwed;
+  const displayBizDebt = currentSummary !== undefined && currentSummary !== null ? currentSummary.totalBizDebt : liveBizDebt;
+  const displayItemsSubtotal = currentSummary !== undefined && currentSummary !== null ? currentSummary.itemsSubtotal : itemsSubtotal;
+  const displayDeliverySubtotal = currentSummary !== undefined && currentSummary !== null ? currentSummary.deliverySubtotal : deliverySubtotal;
+  const displayCommissionAmount = currentSummary !== undefined && currentSummary !== null ? currentSummary.commissionAmount : commissionAmount;
+  const displayIgoOwesBiz = currentSummary !== undefined && currentSummary !== null ? currentSummary.igoOwesBizProducts : igoOwesBizProducts;
+  const displayBizOwesIgoDelivery = currentSummary !== undefined && currentSummary !== null ? currentSummary.bizOwesIgoDelivery : bizOwesIgoDelivery;
+  const displayPaidOrdersCount = currentSummary !== undefined && currentSummary !== null ? currentSummary.totalPaidOrders : paidOrders.length;
+
+  const bcvRate = settlementData?.paymentInfo?.bcvRate || 75.54;
+  const amountDueBs = Math.abs(displayNetOwed) * bcvRate;
+
   const handleOpenCreateProduct = () => {
     setEditingProduct(null);
     setProductTitle('');
@@ -581,6 +732,83 @@ export const BusinessDashboard: React.FC<BusinessDashboardProps> = ({
             <Ionicons name="cube-outline" size={18} color="#6366F1" style={styles.metricIcon} />
           </View>
         </View>
+
+        {/* BALANCE / CONCILIACIÓN CON IGO QUICK BAR */}
+        <TouchableOpacity
+          style={[
+            styles.balanceQuickBar,
+            liveNetOwed < 0
+              ? styles.balanceQuickBarDebt
+              : liveNetOwed > 0
+              ? styles.balanceQuickBarCredit
+              : styles.balanceQuickBarOk,
+          ]}
+          onPress={() => {
+            setActiveTab('balance');
+            if (myBusiness?.id) fetchSettlement(myBusiness.id);
+          }}
+          activeOpacity={0.85}
+        >
+          <View style={styles.balanceQuickLeft}>
+            <View
+              style={[
+                styles.balanceQuickIconBg,
+                liveNetOwed < 0
+                  ? { backgroundColor: '#FEE2E2' }
+                  : liveNetOwed > 0
+                  ? { backgroundColor: '#DCFCE7' }
+                  : { backgroundColor: '#E0F2FE' },
+              ]}
+            >
+              <Ionicons
+                name={
+                  liveNetOwed < 0
+                    ? 'wallet'
+                    : liveNetOwed > 0
+                    ? 'arrow-down-circle'
+                    : 'checkmark-circle'
+                }
+                size={20}
+                color={
+                  liveNetOwed < 0
+                    ? '#DC2626'
+                    : liveNetOwed > 0
+                    ? '#16A34A'
+                    : '#0284C7'
+                }
+              />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.balanceQuickLabel}>
+                {liveNetOwed < 0
+                  ? 'Por pagar a IGO (Delivery + Comisión)'
+                  : liveNetOwed > 0
+                  ? 'Saldo a favor en IGO'
+                  : 'Balance IGO al día'}
+              </Text>
+              <Text
+                style={[
+                  styles.balanceQuickValue,
+                  liveNetOwed < 0
+                    ? { color: '#DC2626' }
+                    : liveNetOwed > 0
+                    ? { color: '#16A34A' }
+                    : { color: '#0F172A' },
+                ]}
+              >
+                {liveNetOwed < 0
+                  ? `-$${Math.abs(liveNetOwed).toFixed(2)} USD`
+                  : liveNetOwed > 0
+                  ? `+$${liveNetOwed.toFixed(2)} USD`
+                  : '$0.00 USD'}
+              </Text>
+            </View>
+          </View>
+          <View style={styles.balanceQuickRight}>
+            <Text style={styles.balanceQuickActionText}>Ver Detalle</Text>
+            <Ionicons name="chevron-forward" size={16} color="#64748B" />
+          </View>
+        </TouchableOpacity>
       </View>
 
       {/* TABS SELECTOR */}
@@ -596,7 +824,7 @@ export const BusinessDashboard: React.FC<BusinessDashboardProps> = ({
             style={{ marginRight: 6 }}
           />
           <Text style={[styles.tabButtonText, activeTab === 'products' && styles.activeTabButtonText]}>
-            Mis Productos ({products.length})
+            Productos ({products.length})
           </Text>
         </TouchableOpacity>
 
@@ -616,6 +844,35 @@ export const BusinessDashboard: React.FC<BusinessDashboardProps> = ({
           {pendingAcceptCount > 0 && (
             <View style={styles.tabBadgePulse}>
               <Text style={styles.tabBadgePulseText}>{pendingAcceptCount}</Text>
+            </View>
+          )}
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.tabButton, activeTab === 'balance' && styles.activeTabButton]}
+          onPress={() => {
+            setActiveTab('balance');
+            if (myBusiness?.id) fetchSettlement(myBusiness.id);
+          }}
+        >
+          <Ionicons
+            name="wallet"
+            size={18}
+            color={activeTab === 'balance' ? (liveNetOwed < 0 ? '#DC2626' : '#1E293B') : '#94A3B8'}
+            style={{ marginRight: 6 }}
+          />
+          <Text
+            style={[
+              styles.tabButtonText,
+              activeTab === 'balance' && styles.activeTabButtonText,
+              liveNetOwed < 0 && activeTab === 'balance' && { color: '#DC2626' },
+            ]}
+          >
+            Balance IGO
+          </Text>
+          {liveNetOwed < 0 && (
+            <View style={styles.tabBadgeDebt}>
+              <Text style={styles.tabBadgeDebtText}>!</Text>
             </View>
           )}
         </TouchableOpacity>
@@ -691,7 +948,7 @@ export const BusinessDashboard: React.FC<BusinessDashboardProps> = ({
             />
           )}
         </View>
-      ) : (
+      ) : activeTab === 'orders' ? (
         <View style={{ flex: 1 }}>
           {/* BARRA SUPERIOR DE PEDIDOS */}
           <View style={styles.ordersHeaderBar}>
@@ -1177,6 +1434,445 @@ export const BusinessDashboard: React.FC<BusinessDashboardProps> = ({
             }}
           />
         </View>
+      ) : (
+        /* VISTA DE BALANCE & CONCILIACIÓN CON IGO (ESPEJO EXACTO PANEL ADMIN) */
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={{ paddingHorizontal: 15, paddingBottom: 110 }}
+          refreshControl={
+            <RefreshControl
+              refreshing={settlementLoading}
+              onRefresh={() => myBusiness?.id && fetchSettlement(myBusiness.id)}
+              colors={['#10B981', '#0284C7']}
+            />
+          }
+        >
+          {/* BARRA SUPERIOR DE BALANCE & FILTROS */}
+          <View style={styles.settlementHeaderBar}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.sectionTitle}>Balance & Liquidaciones</Text>
+              <Text style={styles.settlementSub}>
+                Conciliación oficial de pedidos, entregas y comisiones con IGO
+              </Text>
+            </View>
+            <TouchableOpacity
+              style={styles.refreshOrdersBtn}
+              onPress={() => myBusiness?.id && fetchSettlement(myBusiness.id)}
+              disabled={settlementLoading}
+            >
+              {settlementLoading ? (
+                <ActivityIndicator size="small" color="#1E293B" />
+              ) : (
+                <>
+                  <Ionicons name="refresh" size={16} color="#1E293B" style={{ marginRight: 4 }} />
+                  <Text style={styles.refreshOrdersBtnText}>Actualizar</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+
+          {/* FILTROS DE RANGO DE FECHA */}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.settlementFilterScroll}
+          >
+            {[
+              { id: 'ALL', label: 'Histórico Total' },
+              { id: 'THIS_MONTH', label: 'Este Mes' },
+              { id: 'LAST_MONTH', label: 'Mes Pasado' },
+              { id: 'LAST_7_DAYS', label: 'Últimos 7 Días' },
+            ].map((f) => (
+              <TouchableOpacity
+                key={f.id}
+                style={[
+                  styles.filterChip,
+                  settlementFilter === f.id && styles.filterChipActive,
+                ]}
+                onPress={() => {
+                  setSettlementFilter(f.id as any);
+                  if (myBusiness?.id) fetchSettlement(myBusiness.id, f.id as any);
+                }}
+              >
+                <Text
+                  style={[
+                    styles.filterChipText,
+                    settlementFilter === f.id && styles.filterChipTextActive,
+                  ]}
+                >
+                  {f.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+
+          {/* HERO CARD DE ESTADO NETO */}
+          <View
+            style={[
+              styles.settlementHeroCard,
+              displayNetOwed < 0
+                ? styles.settlementHeroCardDebt
+                : displayNetOwed > 0
+                ? styles.settlementHeroCardCredit
+                : styles.settlementHeroCardBalanced,
+            ]}
+          >
+            <View style={styles.settlementHeroHeader}>
+              <View
+                style={[
+                  styles.settlementBadge,
+                  displayNetOwed < 0
+                    ? styles.settlementBadgeDebt
+                    : displayNetOwed > 0
+                    ? styles.settlementBadgeCredit
+                    : styles.settlementBadgeBalanced,
+                ]}
+              >
+                <Ionicons
+                  name={
+                    displayNetOwed < 0
+                      ? 'alert-circle'
+                      : displayNetOwed > 0
+                      ? 'trending-up'
+                      : 'checkmark-circle'
+                  }
+                  size={14}
+                  color={
+                    displayNetOwed < 0
+                      ? '#DC2626'
+                      : displayNetOwed > 0
+                      ? '#16A34A'
+                      : '#0284C7'
+                  }
+                  style={{ marginRight: 4 }}
+                />
+                <Text
+                  style={[
+                    styles.settlementBadgeText,
+                    displayNetOwed < 0
+                      ? styles.settlementBadgeTextDebt
+                      : displayNetOwed > 0
+                      ? styles.settlementBadgeTextCredit
+                      : styles.settlementBadgeTextBalanced,
+                  ]}
+                >
+                  {displayNetOwed < 0
+                    ? 'DEUDA PENDIENTE CON IGO'
+                    : displayNetOwed > 0
+                    ? 'SALDO A FAVOR DEL COMERCIO'
+                    : 'AL DÍA CON IGO'}
+                </Text>
+              </View>
+
+              <Text style={styles.bcvRateSmallText}>
+                BCV: Bs. {Number(bcvRate).toFixed(2)}
+              </Text>
+            </View>
+
+            <Text style={styles.settlementHeroTitle}>
+              {displayNetOwed < 0
+                ? 'Debes Transferir a IGO'
+                : displayNetOwed > 0
+                ? 'IGO debe Transferirte'
+                : 'Sin deudas pendientes'}
+            </Text>
+
+            <Text
+              style={[
+                styles.settlementHeroAmount,
+                displayNetOwed < 0
+                  ? { color: '#DC2626' }
+                  : displayNetOwed > 0
+                  ? { color: '#16A34A' }
+                  : { color: '#0F172A' },
+              ]}
+            >
+              {displayNetOwed < 0
+                ? `-$${Math.abs(displayNetOwed).toFixed(2)}`
+                : displayNetOwed > 0
+                ? `+$${displayNetOwed.toFixed(2)}`
+                : '$0.00'}{' '}
+              <Text style={styles.currencySub}>USD</Text>
+            </Text>
+
+            {displayNetOwed !== 0 && (
+              <Text style={styles.settlementHeroAmountBs}>
+                ≈ Bs. {amountDueBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </Text>
+            )}
+
+            <Text style={styles.settlementHeroExpl}>
+              {displayNetOwed < 0
+                ? 'Recibiste pagos de pedidos que incluían el cobro de delivery en tu cuenta/efectivo (\'Pago Negocio\') y/o adeudas comisión sobre tus productos. Transfiere este monto a IGO para el pago a los repartidores.'
+                : displayNetOwed > 0
+                ? 'Tus clientes pagaron directamente a las cuentas de IGO (\'Pago IGO\'). La plataforma debe transferirte el monto correspondiente a tus productos vendidos.'
+                : 'Todas las entregas, comisiones y cobros con IGO están completamente liquidados y al día.'}
+            </Text>
+          </View>
+
+          {/* TARJETA DE DESGLOSE FINANCIERO */}
+          <View style={styles.breakdownCard}>
+            <View style={styles.breakdownHeaderRow}>
+              <Ionicons name="calculator-outline" size={20} color="#1E293B" style={{ marginRight: 8 }} />
+              <Text style={styles.breakdownCardTitle}>Conciliación Detallada</Text>
+            </View>
+
+            {/* Fila de Métricas Rápidas */}
+            <View style={styles.breakdownMetricsRow}>
+              <View style={styles.breakdownMiniMetric}>
+                <Text style={styles.breakdownMiniLabel}>Órdenes Pagadas</Text>
+                <Text style={styles.breakdownMiniValue}>{displayPaidOrdersCount}</Text>
+              </View>
+              <View style={styles.breakdownMiniMetric}>
+                <Text style={styles.breakdownMiniLabel}>Venta Productos</Text>
+                <Text style={[styles.breakdownMiniValue, { color: '#10B981' }]}>
+                  ${displayItemsSubtotal.toFixed(2)}
+                </Text>
+              </View>
+              <View style={styles.breakdownMiniMetric}>
+                <Text style={styles.breakdownMiniLabel}>Delivery Total</Text>
+                <Text style={[styles.breakdownMiniValue, { color: '#0284C7' }]}>
+                  ${displayDeliverySubtotal.toFixed(2)}
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.breakdownDivider} />
+
+            {/* Líneas de Cálculo */}
+            <View style={styles.calcLine}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.calcLineTitle}>Ventas Recaudadas por IGO</Text>
+                <Text style={styles.calcLineSub}>Clientes pagaron a IGO por tus productos (\'Pago IGO\')</Text>
+              </View>
+              <Text style={[styles.calcLineValue, { color: '#16A34A' }]}>
+                +${displayIgoOwesBiz.toFixed(2)}
+              </Text>
+            </View>
+
+            <View style={styles.calcLine}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.calcLineTitle}>Delivery Cobrado en Tu Negocio</Text>
+                <Text style={styles.calcLineSub}>Dinero de envío recibido en tienda que debes a IGO (\'Pago Negocio\')</Text>
+              </View>
+              <Text style={[styles.calcLineValue, { color: '#DC2626' }]}>
+                -${displayBizOwesIgoDelivery.toFixed(2)}
+              </Text>
+            </View>
+
+            <View style={styles.calcLine}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.calcLineTitle}>Comisión Plataforma IGO ({commissionRate}%)</Text>
+                <Text style={styles.calcLineSub}>Calculada sobre ${displayItemsSubtotal.toFixed(2)} en productos</Text>
+              </View>
+              <Text style={[styles.calcLineValue, { color: '#DC2626' }]}>
+                -${displayCommissionAmount.toFixed(2)}
+              </Text>
+            </View>
+
+            <View style={styles.breakdownDivider} />
+
+            <View style={styles.calcTotalLine}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.calcTotalTitle}>Total Adeudado a IGO</Text>
+                <Text style={styles.calcTotalSub}>Delivery recibido en tienda + Comisión de ventas</Text>
+              </View>
+              <Text style={styles.calcTotalValue}>
+                ${displayBizDebt.toFixed(2)}
+              </Text>
+            </View>
+
+            <View style={styles.breakdownDivider} />
+
+            <View style={styles.calcNetLine}>
+              <Text style={styles.calcNetTitle}>Balance Neto Final:</Text>
+              <Text
+                style={[
+                  styles.calcNetValue,
+                  displayNetOwed < 0
+                    ? { color: '#DC2626' }
+                    : displayNetOwed > 0
+                    ? { color: '#16A34A' }
+                    : { color: '#1E293B' },
+                ]}
+              >
+                {displayNetOwed < 0
+                  ? `-$${Math.abs(displayNetOwed).toFixed(2)} USD`
+                  : displayNetOwed > 0
+                  ? `+$${displayNetOwed.toFixed(2)} USD`
+                  : '$0.00 USD'}
+              </Text>
+            </View>
+          </View>
+
+          {/* DATOS DE PAGO MÓVIL OFICIAL IGO */}
+          <View style={styles.bankDataCard}>
+            <View style={styles.bankDataHeader}>
+              <View style={styles.bankDataIconBg}>
+                <Ionicons name="card" size={20} color="#0284C7" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.bankDataTitle}>Cuentas Oficiales Pago Móvil IGO</Text>
+                <Text style={styles.bankDataSub}>Para transferir tu balance pendiente</Text>
+              </View>
+            </View>
+
+            <View style={styles.bankItemRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.bankItemLabel}>Banco Destino</Text>
+                <Text style={styles.bankItemValue}>
+                  {settlementData?.paymentInfo?.bank || '0102 - Banco de Venezuela'}
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={styles.copySmallBtn}
+                onPress={() => copyTextToClipboard(settlementData?.paymentInfo?.bank || '0102 - Banco de Venezuela', 'Banco')}
+              >
+                <Ionicons name="copy-outline" size={14} color="#0284C7" />
+                <Text style={styles.copySmallBtnText}>Copiar</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.bankItemRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.bankItemLabel}>Teléfono</Text>
+                <Text style={styles.bankItemValue}>
+                  {settlementData?.paymentInfo?.phone || '0412-1234567'}
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={styles.copySmallBtn}
+                onPress={() => copyTextToClipboard(settlementData?.paymentInfo?.phone || '0412-1234567', 'Teléfono')}
+              >
+                <Ionicons name="copy-outline" size={14} color="#0284C7" />
+                <Text style={styles.copySmallBtnText}>Copiar</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.bankItemRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.bankItemLabel}>Cédula / RIF</Text>
+                <Text style={styles.bankItemValue}>
+                  {settlementData?.paymentInfo?.id || 'V-12345678'}
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={styles.copySmallBtn}
+                onPress={() => copyTextToClipboard(settlementData?.paymentInfo?.id || 'V-12345678', 'Cédula / RIF')}
+              >
+                <Ionicons name="copy-outline" size={14} color="#0284C7" />
+                <Text style={styles.copySmallBtnText}>Copiar</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.bankItemRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.bankItemLabel}>Beneficiario / Titular</Text>
+                <Text style={styles.bankItemValue}>
+                  {settlementData?.paymentInfo?.name || 'IGO Delivery C.A.'}
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={styles.copySmallBtn}
+                onPress={() => copyTextToClipboard(settlementData?.paymentInfo?.name || 'IGO Delivery C.A.', 'Beneficiario')}
+              >
+                <Ionicons name="copy-outline" size={14} color="#0284C7" />
+                <Text style={styles.copySmallBtnText}>Copiar</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* BOTONES DE ACCIÓN: COPIAR TODO Y NOTIFICAR */}
+            <View style={styles.bankActionsRow}>
+              <TouchableOpacity style={styles.copyAllBankBtn} onPress={copyAllPagoMovil}>
+                <Ionicons name="copy" size={16} color="#0284C7" style={{ marginRight: 6 }} />
+                <Text style={styles.copyAllBankBtnText}>Copiar Datos</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.notifyPaymentBtn} onPress={handleNotifyPayment}>
+                <Ionicons name="chatbubbles" size={16} color="#FFF" style={{ marginRight: 6 }} />
+                <Text style={styles.notifyPaymentBtnText}>Notificar Pago</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* LISTA DE PEDIDOS CONCILIADOS */}
+          <View style={styles.ordersAuditContainer}>
+            <View style={styles.ordersAuditHeader}>
+              <Ionicons name="list-outline" size={18} color="#1E293B" style={{ marginRight: 6 }} />
+              <Text style={styles.ordersAuditTitle}>
+                Pedidos en este Período ({settlementData?.orders?.length || paidOrders.length})
+              </Text>
+            </View>
+
+            {(settlementData?.orders || paidOrders).length === 0 ? (
+              <View style={styles.emptySettlementOrders}>
+                <Ionicons name="receipt-outline" size={36} color="#CBD5E1" />
+                <Text style={styles.emptySettlementOrdersText}>
+                  No hay pedidos conciliados en el período seleccionado.
+                </Text>
+              </View>
+            ) : (
+              (settlementData?.orders || paidOrders).map((ord: any) => {
+                const isPagoNegocio = ord.paymentRecipient === 'Pago Negocio';
+                const dateStr = new Date(ord.createdAt).toLocaleDateString();
+                const timeStr = new Date(ord.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+                return (
+                  <View key={ord.id} style={styles.auditOrderCard}>
+                    <View style={styles.auditOrderTopRow}>
+                      <View>
+                        <Text style={styles.auditOrderNumber}>
+                          Orden #{String(ord.orderNumber || '').padStart(4, '0')}
+                        </Text>
+                        <Text style={styles.auditOrderDate}>
+                          {dateStr} • {timeStr}
+                        </Text>
+                      </View>
+
+                      <View
+                        style={[
+                          styles.recipientBadge,
+                          isPagoNegocio ? styles.recipientBadgeBiz : styles.recipientBadgeIgo,
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.recipientBadgeText,
+                            isPagoNegocio ? styles.recipientBadgeTextBiz : styles.recipientBadgeTextIgo,
+                          ]}
+                        >
+                          {ord.paymentRecipient || 'Pago IGO'}
+                        </Text>
+                      </View>
+                    </View>
+
+                    <View style={styles.auditOrderDetailsRow}>
+                      <View style={styles.auditOrderDetailItem}>
+                        <Text style={styles.auditOrderLabel}>Productos</Text>
+                        <Text style={styles.auditOrderVal}>${Number(ord.totalItems || 0).toFixed(2)}</Text>
+                      </View>
+
+                      <View style={styles.auditOrderDetailItem}>
+                        <Text style={styles.auditOrderLabel}>Delivery</Text>
+                        <Text style={[styles.auditOrderVal, isPagoNegocio && { color: '#DC2626', fontWeight: 'bold' }]}>
+                          ${Number(ord.deliveryFee || 0).toFixed(2)}
+                          {isPagoNegocio ? ' (Debes)' : ''}
+                        </Text>
+                      </View>
+
+                      <View style={styles.auditOrderDetailItem}>
+                        <Text style={styles.auditOrderLabel}>Total</Text>
+                        <Text style={[styles.auditOrderVal, { fontWeight: 'bold' }]}>
+                          ${Number(ord.totalAmount || 0).toFixed(2)}
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+                );
+              })
+            )}
+          </View>
+        </ScrollView>
       )}
 
       {/* MODAL PARA VER COMPROBANTE DE PAGO EN GRANDE */}
@@ -1392,6 +2088,13 @@ export const BusinessDashboard: React.FC<BusinessDashboardProps> = ({
           </View>
         </View>
       </Modal>
+
+      {/* MODAL DE SOPORTE EN TIEMPO REAL / NOTIFICAR PAGO */}
+      <SupportChatModal
+        visible={supportModalVisible}
+        onClose={() => setSupportModalVisible(false)}
+        currentUser={user}
+      />
     </View>
   );
 };
@@ -2463,5 +3166,493 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     color: '#334155',
+  },
+
+  // Quick Bar de Balance en Header
+  balanceQuickBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 12,
+    borderRadius: 12,
+    marginTop: 12,
+    borderWidth: 1,
+  },
+  balanceQuickBarDebt: {
+    backgroundColor: '#FEF2F2',
+    borderColor: '#FECACA',
+  },
+  balanceQuickBarCredit: {
+    backgroundColor: '#F0FDF4',
+    borderColor: '#BBF7D0',
+  },
+  balanceQuickBarOk: {
+    backgroundColor: '#F0F9FF',
+    borderColor: '#BAE6FD',
+  },
+  balanceQuickLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    gap: 10,
+  },
+  balanceQuickIconBg: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  balanceQuickLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#64748B',
+    textTransform: 'uppercase',
+  },
+  balanceQuickValue: {
+    fontSize: 16,
+    fontWeight: '900',
+    marginTop: 2,
+  },
+  balanceQuickRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    paddingLeft: 8,
+  },
+  balanceQuickActionText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#64748B',
+  },
+
+  // Badge de Deuda en el Tab
+  tabBadgeDebt: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: '#DC2626',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 4,
+  },
+  tabBadgeDebtText: {
+    fontSize: 11,
+    fontWeight: '900',
+    color: '#FFF',
+  },
+
+  // Vista de Balance y Conciliación
+  settlementHeaderBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 15,
+    marginBottom: 10,
+  },
+  settlementSub: {
+    fontSize: 12,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  settlementFilterScroll: {
+    paddingVertical: 6,
+    gap: 8,
+    marginBottom: 12,
+  },
+
+  // Hero Card de Balance
+  settlementHeroCard: {
+    borderRadius: 16,
+    padding: 18,
+    marginBottom: 16,
+    borderWidth: 1.5,
+  },
+  settlementHeroCardDebt: {
+    backgroundColor: '#FFF5F5',
+    borderColor: '#FCA5A5',
+  },
+  settlementHeroCardCredit: {
+    backgroundColor: '#F0FDF4',
+    borderColor: '#86EFAC',
+  },
+  settlementHeroCardBalanced: {
+    backgroundColor: '#F8FAFC',
+    borderColor: '#CBD5E1',
+  },
+  settlementHeroHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  settlementBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 20,
+  },
+  settlementBadgeDebt: {
+    backgroundColor: '#FEE2E2',
+  },
+  settlementBadgeCredit: {
+    backgroundColor: '#DCFCE7',
+  },
+  settlementBadgeBalanced: {
+    backgroundColor: '#E0F2FE',
+  },
+  settlementBadgeText: {
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.3,
+  },
+  settlementBadgeTextDebt: {
+    color: '#DC2626',
+  },
+  settlementBadgeTextCredit: {
+    color: '#16A34A',
+  },
+  settlementBadgeTextBalanced: {
+    color: '#0284C7',
+  },
+  bcvRateSmallText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#64748B',
+  },
+  settlementHeroTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#475569',
+  },
+  settlementHeroAmount: {
+    fontSize: 32,
+    fontWeight: '900',
+    marginVertical: 4,
+  },
+  currencySub: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#64748B',
+  },
+  settlementHeroAmountBs: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#334155',
+    marginBottom: 10,
+  },
+  settlementHeroExpl: {
+    fontSize: 12,
+    lineHeight: 18,
+    color: '#64748B',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(0,0,0,0.06)',
+    paddingTop: 8,
+  },
+
+  // Tarjeta de Desglose
+  breakdownCard: {
+    backgroundColor: '#FFF',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  breakdownHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  breakdownCardTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#1E293B',
+  },
+  breakdownMetricsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 12,
+  },
+  breakdownMiniMetric: {
+    flex: 1,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 10,
+    padding: 10,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+  },
+  breakdownMiniLabel: {
+    fontSize: 10,
+    color: '#64748B',
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  breakdownMiniValue: {
+    fontSize: 15,
+    fontWeight: '900',
+    color: '#1E293B',
+    marginTop: 4,
+  },
+  breakdownDivider: {
+    height: 1,
+    backgroundColor: '#F1F5F9',
+    marginVertical: 10,
+  },
+  calcLine: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 6,
+  },
+  calcLineTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#1E293B',
+  },
+  calcLineSub: {
+    fontSize: 11,
+    color: '#94A3B8',
+    marginTop: 1,
+  },
+  calcLineValue: {
+    fontSize: 14,
+    fontWeight: '800',
+    marginLeft: 10,
+  },
+  calcTotalLine: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 4,
+  },
+  calcTotalTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#DC2626',
+  },
+  calcTotalSub: {
+    fontSize: 11,
+    color: '#94A3B8',
+  },
+  calcTotalValue: {
+    fontSize: 15,
+    fontWeight: '900',
+    color: '#DC2626',
+  },
+  calcNetLine: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingTop: 4,
+  },
+  calcNetTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  calcNetValue: {
+    fontSize: 18,
+    fontWeight: '900',
+  },
+
+  // Tarjeta de Datos Bancarios
+  bankDataCard: {
+    backgroundColor: '#FFF',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  bankDataHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 14,
+  },
+  bankDataIconBg: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    backgroundColor: '#E0F2FE',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bankDataTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  bankDataSub: {
+    fontSize: 12,
+    color: '#64748B',
+    marginTop: 1,
+  },
+  bankItemRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F8FAFC',
+  },
+  bankItemLabel: {
+    fontSize: 11,
+    color: '#64748B',
+    fontWeight: '600',
+  },
+  bankItemValue: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#1E293B',
+    marginTop: 2,
+  },
+  copySmallBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#EFF6FF',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  copySmallBtnText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#0284C7',
+  },
+  bankActionsRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 14,
+  },
+  copyAllBankBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F0F9FF',
+    paddingVertical: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#BAE6FD',
+  },
+  copyAllBankBtnText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#0284C7',
+  },
+  notifyPaymentBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#0F172A',
+    paddingVertical: 12,
+    borderRadius: 10,
+  },
+  notifyPaymentBtnText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#FFF',
+  },
+
+  // Auditoría de Pedidos
+  ordersAuditContainer: {
+    backgroundColor: '#FFF',
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  ordersAuditHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  ordersAuditTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#1E293B',
+  },
+  emptySettlementOrders: {
+    alignItems: 'center',
+    paddingVertical: 25,
+  },
+  emptySettlementOrdersText: {
+    fontSize: 13,
+    color: '#94A3B8',
+    textAlign: 'center',
+    marginTop: 8,
+  },
+  auditOrderCard: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+  },
+  auditOrderTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  auditOrderNumber: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#1E293B',
+  },
+  auditOrderDate: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  recipientBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  recipientBadgeBiz: {
+    backgroundColor: '#FEF3C7',
+  },
+  recipientBadgeIgo: {
+    backgroundColor: '#DCFCE7',
+  },
+  recipientBadgeText: {
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  recipientBadgeTextBiz: {
+    color: '#B45309',
+  },
+  recipientBadgeTextIgo: {
+    color: '#15803D',
+  },
+  auditOrderDetailsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    backgroundColor: '#FFF',
+    padding: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+  },
+  auditOrderDetailItem: {
+    alignItems: 'center',
+  },
+  auditOrderLabel: {
+    fontSize: 10,
+    color: '#94A3B8',
+    fontWeight: '700',
+  },
+  auditOrderVal: {
+    fontSize: 12,
+    color: '#1E293B',
+    marginTop: 2,
   },
 });
