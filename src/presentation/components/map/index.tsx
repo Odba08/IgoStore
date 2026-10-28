@@ -132,7 +132,7 @@ const MapScreen = () => {
   // Nuevos selectores de pedido
   const [selectedCategory, setSelectedCategory] = useState<'Comida' | 'Mercado' | 'Compras' | 'Envíos' | 'Salud'>('Comida');
   const [selectedShippingType, setSelectedShippingType] = useState<'Moto' | 'Carro' | 'Pickup'>(serviceType === 'taxi' ? 'Carro' : 'Moto');
-  const [selectedPaymentRecipient, setSelectedPaymentRecipient] = useState<'Pago IGO' | 'Pago Negocio' | 'Mix'>('Pago IGO');
+  const [selectedPaymentRecipient, setSelectedPaymentRecipient] = useState<'Pago IGO' | 'Pago Negocio' | 'Mix'>('Pago Negocio');
 
   // Estados para IgoFavor
   const [packageSize, setPackageSize] = useState<'pequeño' | 'mediano' | 'grande'>('pequeño');
@@ -509,7 +509,7 @@ const MapScreen = () => {
         deliveryAddress: `${deliveryLocation?.address || 'Ubicación en Mapa'} | Ref: ${addressNotes || ''}`.trim(),
         category: isTaxiService ? 'IgoTaxi' : (isFavorService ? 'IgoFavor' : selectedCategory),
         shippingType: selectedShippingType,
-        paymentRecipient: selectedPaymentRecipient,
+        paymentRecipient: isFavorService ? 'Pago IGO' : (isTaxiService ? 'Pago Conductor' : 'Pago Negocio'),
         packageValue: parseFloat(packageValue) || 0,
         packageSize: packageSize,
         isInsured: isInsured,
@@ -692,7 +692,7 @@ const MapScreen = () => {
       deliveryAddress: `${deliveryLocation?.address || 'Ubicación en Mapa'} | Ref: ${addressNotes || ''}`.trim(),
       category: isFavor ? 'IgoFavor' : selectedCategory,
       shippingType: selectedShippingType,
-      paymentRecipient: isFavor ? 'Pago IGO' : selectedPaymentRecipient,
+      paymentRecipient: isFavor ? 'Pago IGO' : 'Pago Negocio',
       packageValue: parseFloat(packageValue) || 0,
       packageSize: packageSize,
       isInsured: isInsured,

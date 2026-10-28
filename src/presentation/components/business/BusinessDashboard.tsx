@@ -518,8 +518,10 @@ export const BusinessDashboard: React.FC<BusinessDashboardProps> = ({
   const commissionRate = myBusiness?.commissionPercentage ?? 10;
   const commissionAmount = itemsSubtotal * (commissionRate / 100);
 
+  // En el modelo IGO Store, el cliente paga el total (productos + delivery) directamente al comercio
+  // Por lo tanto, el comercio adeuda a IGO el delivery recaudado (para los repartidores) + la comisión
+  const bizOrders = paidOrders.filter((o) => o.paymentRecipient !== 'Pago IGO');
   const iGoOrders = paidOrders.filter((o) => o.paymentRecipient === 'Pago IGO');
-  const bizOrders = paidOrders.filter((o) => o.paymentRecipient === 'Pago Negocio');
 
   const igoOwesBizProducts = iGoOrders.reduce((sum, o) => sum + (o.totalItems || 0), 0);
   const bizOwesIgoDelivery = bizOrders.reduce((sum, o) => sum + (o.deliveryFee || 0), 0);
@@ -527,8 +529,9 @@ export const BusinessDashboard: React.FC<BusinessDashboardProps> = ({
   // liveNetOwed = igoOwesBizProducts - commissionAmount - bizOwesIgoDelivery
   // Si < 0: el comercio debe a IGO la diferencia
   // Si > 0: IGO debe al comercio la diferencia
-  const liveNetOwed = igoOwesBizProducts - commissionAmount - bizOwesIgoDelivery;
   const liveBizDebt = bizOwesIgoDelivery + commissionAmount;
+  const liveNetOwed = igoOwesBizProducts - liveBizDebt;
+  const liveBizNetEarnings = itemsSubtotal - commissionAmount;
 
   const currentSummary = settlementData?.summary;
   const displayNetOwed = currentSummary !== undefined && currentSummary !== null ? currentSummary.netOwed : liveNetOwed;
@@ -539,6 +542,10 @@ export const BusinessDashboard: React.FC<BusinessDashboardProps> = ({
   const displayIgoOwesBiz = currentSummary !== undefined && currentSummary !== null ? currentSummary.igoOwesBizProducts : igoOwesBizProducts;
   const displayBizOwesIgoDelivery = currentSummary !== undefined && currentSummary !== null ? currentSummary.bizOwesIgoDelivery : bizOwesIgoDelivery;
   const displayPaidOrdersCount = currentSummary !== undefined && currentSummary !== null ? currentSummary.totalPaidOrders : paidOrders.length;
+  const displayTotalCollected = currentSummary !== undefined && currentSummary !== null
+    ? (currentSummary.totalCollectedByBiz || currentSummary.totalAmountSum || (displayItemsSubtotal + displayDeliverySubtotal))
+    : (displayItemsSubtotal + displayDeliverySubtotal);
+  const displayBizNetEarnings = currentSummary?.bizNetEarnings ?? (displayItemsSubtotal - displayCommissionAmount);
 
   const bcvRate = settlementData?.paymentInfo?.bcvRate || 75.54;
   const amountDueBs = Math.abs(displayNetOwed) * bcvRate;
@@ -1573,7 +1580,7 @@ export const BusinessDashboard: React.FC<BusinessDashboardProps> = ({
               {displayNetOwed < 0
                 ? 'Debes Transferir a IGO'
                 : displayNetOwed > 0
-                ? 'IGO debe Transferirte'
+                ? 'Saldo a Favor en IGO'
                 : 'Sin deudas pendientes'}
             </Text>
 
@@ -1603,7 +1610,7 @@ export const BusinessDashboard: React.FC<BusinessDashboardProps> = ({
 
             <Text style={styles.settlementHeroExpl}>
               {displayNetOwed < 0
-                ? 'Recibiste pagos de pedidos que incluían el cobro de delivery en tu cuenta/efectivo (\'Pago Negocio\') y/o adeudas comisión sobre tus productos. Transfiere este monto a IGO para el pago a los repartidores.'
+                ? 'Recibiste pagos de pedidos que incluían el cobro de delivery en tu cuenta bancaria (Pago Negocio) y comisión sobre productos. Transfiere este monto a IGO para el pago a los repartidores y la plataforma.'
                 : displayNetOwed > 0
                 ? 'Tus clientes pagaron directamente a las cuentas de IGO (\'Pago IGO\'). La plataforma debe transferirte el monto correspondiente a tus productos vendidos.'
                 : 'Todas las entregas, comisiones y cobros con IGO están completamente liquidados y al día.'}
@@ -1642,21 +1649,21 @@ export const BusinessDashboard: React.FC<BusinessDashboardProps> = ({
             {/* Líneas de Cálculo */}
             <View style={styles.calcLine}>
               <View style={{ flex: 1 }}>
-                <Text style={styles.calcLineTitle}>Ventas Recaudadas por IGO</Text>
-                <Text style={styles.calcLineSub}>Clientes pagaron a IGO por tus productos (\'Pago IGO\')</Text>
+                <Text style={styles.calcLineTitle}>Total Recaudado en Tienda</Text>
+                <Text style={styles.calcLineSub}>Dinero total recibido de clientes (Productos + Delivery)</Text>
               </View>
               <Text style={[styles.calcLineValue, { color: '#16A34A' }]}>
-                +${displayIgoOwesBiz.toFixed(2)}
+                +${displayTotalCollected.toFixed(2)}
               </Text>
             </View>
 
             <View style={styles.calcLine}>
               <View style={{ flex: 1 }}>
-                <Text style={styles.calcLineTitle}>Delivery Cobrado en Tu Negocio</Text>
-                <Text style={styles.calcLineSub}>Dinero de envío recibido en tienda que debes a IGO (\'Pago Negocio\')</Text>
+                <Text style={styles.calcLineTitle}>Delivery a Transferir a IGO</Text>
+                <Text style={styles.calcLineSub}>Tarifa de envíos recibida que corresponde a los repartidores</Text>
               </View>
               <Text style={[styles.calcLineValue, { color: '#DC2626' }]}>
-                -${displayBizOwesIgoDelivery.toFixed(2)}
+                -${displayDeliverySubtotal.toFixed(2)}
               </Text>
             </View>
 
@@ -1685,22 +1692,12 @@ export const BusinessDashboard: React.FC<BusinessDashboardProps> = ({
             <View style={styles.breakdownDivider} />
 
             <View style={styles.calcNetLine}>
-              <Text style={styles.calcNetTitle}>Balance Neto Final:</Text>
-              <Text
-                style={[
-                  styles.calcNetValue,
-                  displayNetOwed < 0
-                    ? { color: '#DC2626' }
-                    : displayNetOwed > 0
-                    ? { color: '#16A34A' }
-                    : { color: '#1E293B' },
-                ]}
-              >
-                {displayNetOwed < 0
-                  ? `-$${Math.abs(displayNetOwed).toFixed(2)} USD`
-                  : displayNetOwed > 0
-                  ? `+$${displayNetOwed.toFixed(2)} USD`
-                  : '$0.00 USD'}
+              <View style={{ flex: 1 }}>
+                <Text style={styles.calcNetTitle}>Tu Ganancia Neta:</Text>
+                <Text style={styles.calcLineSub}>Venta de productos menos comisión IGO</Text>
+              </View>
+              <Text style={[styles.calcNetValue, { color: '#16A34A' }]}>
+                +${displayBizNetEarnings.toFixed(2)} USD
               </Text>
             </View>
           </View>
@@ -1813,7 +1810,11 @@ export const BusinessDashboard: React.FC<BusinessDashboardProps> = ({
               </View>
             ) : (
               (settlementData?.orders || paidOrders).map((ord: any) => {
-                const isPagoNegocio = ord.paymentRecipient === 'Pago Negocio';
+                const isPagoNegocio = ord.paymentRecipient !== 'Pago IGO';
+                const orderItemsVal = Number(ord.totalItems || 0);
+                const orderDeliveryVal = Number(ord.deliveryFee || 0);
+                const orderCommissionVal = Number((orderItemsVal * (commissionRate / 100)).toFixed(2));
+                const orderTotalDebtVal = Number((orderDeliveryVal + orderCommissionVal).toFixed(2));
                 const dateStr = new Date(ord.createdAt).toLocaleDateString();
                 const timeStr = new Date(ord.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
@@ -1841,7 +1842,7 @@ export const BusinessDashboard: React.FC<BusinessDashboardProps> = ({
                             isPagoNegocio ? styles.recipientBadgeTextBiz : styles.recipientBadgeTextIgo,
                           ]}
                         >
-                          {ord.paymentRecipient || 'Pago IGO'}
+                          {isPagoNegocio ? 'Recaudado en Tienda' : 'Pago IGO'}
                         </Text>
                       </View>
                     </View>
@@ -1849,21 +1850,27 @@ export const BusinessDashboard: React.FC<BusinessDashboardProps> = ({
                     <View style={styles.auditOrderDetailsRow}>
                       <View style={styles.auditOrderDetailItem}>
                         <Text style={styles.auditOrderLabel}>Productos</Text>
-                        <Text style={styles.auditOrderVal}>${Number(ord.totalItems || 0).toFixed(2)}</Text>
+                        <Text style={styles.auditOrderVal}>${orderItemsVal.toFixed(2)}</Text>
                       </View>
 
                       <View style={styles.auditOrderDetailItem}>
-                        <Text style={styles.auditOrderLabel}>Delivery</Text>
-                        <Text style={[styles.auditOrderVal, isPagoNegocio && { color: '#DC2626', fontWeight: 'bold' }]}>
-                          ${Number(ord.deliveryFee || 0).toFixed(2)}
-                          {isPagoNegocio ? ' (Debes)' : ''}
+                        <Text style={styles.auditOrderLabel}>Delivery (IGO)</Text>
+                        <Text style={[styles.auditOrderVal, { color: '#DC2626', fontWeight: 'bold' }]}>
+                          ${orderDeliveryVal.toFixed(2)}
                         </Text>
                       </View>
 
                       <View style={styles.auditOrderDetailItem}>
-                        <Text style={styles.auditOrderLabel}>Total</Text>
-                        <Text style={[styles.auditOrderVal, { fontWeight: 'bold' }]}>
-                          ${Number(ord.totalAmount || 0).toFixed(2)}
+                        <Text style={styles.auditOrderLabel}>Comisión</Text>
+                        <Text style={[styles.auditOrderVal, { color: '#DC2626', fontWeight: '600' }]}>
+                          ${orderCommissionVal.toFixed(2)}
+                        </Text>
+                      </View>
+
+                      <View style={styles.auditOrderDetailItem}>
+                        <Text style={styles.auditOrderLabel}>A Pagar IGO</Text>
+                        <Text style={[styles.auditOrderVal, { color: '#DC2626', fontWeight: 'bold' }]}>
+                          ${orderTotalDebtVal.toFixed(2)}
                         </Text>
                       </View>
                     </View>
