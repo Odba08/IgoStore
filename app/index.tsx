@@ -26,8 +26,11 @@ import { ActiveOrderFloatingWidget } from "@/presentation/components/ActiveOrder
 import { OrderChatModal } from "@/presentation/components/OrderChatModal";
 import { uploadImage } from "@/infrastructure/services/imageUpload.service";
 import { BusinessDashboard } from "@/presentation/components/business/BusinessDashboard";
+import { AdminDashboard } from "@/presentation/components/admin/AdminDashboard";
 import { OrderVerificationModal } from "@/presentation/components/driver/OrderVerificationModal";
 import { useThemeStore } from "@/presentation/store/useThemeStore";
+import SoundService from "@/infrastructure/services/sound.service";
+import { useNotificationAlertStore } from "@/presentation/store/useNotificationAlertStore";
 
 export default function Index() {
   const router = useRouter();
@@ -57,15 +60,30 @@ export default function Index() {
   // Ubicaciones del store global
   const { savedAddresses, removeSavedAddress, initStore, getLocation, lastKnowLocation } = useLocationStore();
 
-  // 1.5 LÓGICA DE MOTORIZADO / TRABAJADOR Y COMERCIO
-  const isEmployee = user?.roles.includes('empleado') || user?.roles.includes('worker');
-  const isBusiness = user?.roles.includes('business') || user?.roles.includes('bussiness');
+  // 1.5 LÓGICA DE ROLES: ADMIN, MOTORIZADO / TRABAJADOR Y COMERCIO
+  const isAdmin = user?.roles?.includes('admin');
+  const [adminModeActive, setAdminModeActive] = useState<boolean>(true);
+
+  const isEmployee = user?.roles?.includes('empleado') || user?.roles?.includes('worker');
+  const isBusiness = user?.roles?.includes('business') || user?.roles?.includes('bussiness');
   const [businessModeActive, setBusinessModeActive] = useState<boolean>(true);
 
   const [employeeStatus, setEmployeeStatus] = useState<string>('inactive');
   const [pendingOrders, setPendingOrders] = useState<any[]>([]);
   const [myAssignedOrders, setMyAssignedOrders] = useState<any[]>([]);
   const [loadingDriverData, setLoadingDriverData] = useState<boolean>(false);
+
+  // Estadísticas acumuladas del repartidor
+  const [driverStats, setDriverStats] = useState({
+    completedCount: 0,
+    accumulatedEarnings: 0,
+    todayCount: 0,
+    todayEarnings: 0,
+  });
+  const [driverBcvRate, setDriverBcvRate] = useState<number>(75.54);
+  const knownPendingIdsRef = useRef<Set<string>>(new Set());
+  const knownAssignedIdsRef = useRef<Set<string>>(new Set());
+  const isInitialDriverPollRef = useRef<boolean>(true);
 
   // Mapa y Tramos de Entrega
   const [selectedRouteOrder, setSelectedRouteOrder] = useState<any | null>(null);
@@ -147,18 +165,106 @@ export default function Index() {
       }
 
       // Obtener los pedidos pendientes sin motorizado
-
       const pendingRes = await getPendingDeliveriesApi();
-      setPendingOrders(pendingRes.data);
+      const currentPending = Array.isArray(pendingRes.data) ? pendingRes.data : [];
+      setPendingOrders(currentPending);
 
-      // Obtener todas las órdenes y filtrar las mías activas (no entregadas/canceladas)
+      // Obtener todas las órdenes de la plataforma
       const allRes = await igoApi.get('/orders');
-      const myAssigned = allRes.data.filter((ord: any) => 
+      const allOrders = Array.isArray(allRes.data) ? allRes.data : [];
+
+      // 1. Mis entregas activas en curso
+      const myAssigned = allOrders.filter((ord: any) => 
         ord.deliveryUser?.id === user.id && 
         ord.status !== 'DELIVERED' && 
         ord.status !== 'CANCELLED'
       );
       setMyAssignedOrders(myAssigned);
+
+      // 2. Mis entregas completadas históricas (cuántos pedidos lleva)
+      const myCompleted = allOrders.filter((ord: any) => 
+        ord.deliveryUser?.id === user.id && 
+        ord.status === 'DELIVERED'
+      );
+
+      // 3. Monto total en $ acumulado por envíos realizados
+      const totalAccumulated = myCompleted.reduce((sum: number, ord: any) => {
+        return sum + (Number(ord.deliveryFee) || 0);
+      }, 0);
+
+      // 4. Pedidos y ganancias de hoy
+      const todayStr = new Date().toDateString();
+      const todayCompleted = myCompleted.filter((ord: any) => 
+        ord.createdAt && new Date(ord.createdAt).toDateString() === todayStr
+      );
+      const todayAccumulated = todayCompleted.reduce((sum: number, ord: any) => {
+        return sum + (Number(ord.deliveryFee) || 0);
+      }, 0);
+
+      setDriverStats({
+        completedCount: myCompleted.length,
+        accumulatedEarnings: totalAccumulated,
+        todayCount: todayCompleted.length,
+        todayEarnings: todayAccumulated,
+      });
+
+      // 5. Obtener tasa BCV oficial
+      try {
+        const bcvRes = await igoApi.get('/settings/BCV_RATE');
+        if (bcvRes.data?.value) {
+          setDriverBcvRate(parseFloat(bcvRes.data.value) || 75.54);
+        }
+      } catch (e) {}
+
+      // 6. Alerta Sonora + Pantalla Amarilla si llega un pedido nuevo mientras está activo
+      if (!isInitialDriverPollRef.current && (st === 'active' || employeeStatus === 'active')) {
+        // ¿Hay pedidos asignados nuevos para este chofer?
+        const newlyAssigned = myAssigned.filter((o: any) => !knownAssignedIdsRef.current.has(o.id));
+        if (newlyAssigned.length > 0) {
+          const first = newlyAssigned[0];
+          console.log('🔔 [Driver Polling] ¡Nuevo pedido asignado detectado! Sonando...', first.orderNumber);
+          SoundService.playOrderAlertSound().catch(() => {});
+          useNotificationAlertStore.getState().showAlert({
+            title: '🛵 ¡Nuevo Pedido Asignado!',
+            message: `¡Te han asignado la orden #${String(first.orderNumber || '').padStart(4, '0')} para entrega!`,
+            orderNumber: first.orderNumber,
+            orderId: first.id,
+            totalAmount: Number(first.totalAmount || 0),
+            clientName: first.user?.fullName || first.userIdTemp || 'Cliente IGO',
+            deliveryAddress: first.deliveryAddress,
+            actionLabel: 'VER ENTREGA',
+            onAction: () => {
+              setActiveTab('home');
+            },
+          });
+        }
+
+        // ¿Hay pedidos nuevos disponibles en la plataforma?
+        const newlyPending = currentPending.filter((o: any) => !knownPendingIdsRef.current.has(o.id));
+        if (newlyPending.length > 0) {
+          const first = newlyPending[0];
+          console.log('🔔 [Driver Polling] ¡Nuevo pedido disponible detectado! Sonando...', first.orderNumber);
+          SoundService.playOrderAlertSound().catch(() => {});
+          useNotificationAlertStore.getState().showAlert({
+            title: '📦 ¡Nuevo Pedido Disponible!',
+            message: `Hay una nueva orden #${String(first.orderNumber || '').padStart(4, '0')} lista para tomar en tu zona.`,
+            orderNumber: first.orderNumber,
+            orderId: first.id,
+            totalAmount: Number(first.totalAmount || 0),
+            businessName: first.business?.name,
+            deliveryAddress: first.deliveryAddress,
+            actionLabel: 'TOMAR PEDIDO',
+            onAction: () => {
+              handleClaimOrder(first.id);
+            },
+          });
+        }
+      }
+
+      currentPending.forEach((o: any) => knownPendingIdsRef.current.add(o.id));
+      myAssigned.forEach((o: any) => knownAssignedIdsRef.current.add(o.id));
+      isInitialDriverPollRef.current = false;
+
     } catch (err: any) {
       if (err?.response?.status === 401) {
         console.warn("⚠️ Sesión de empleado expirada o no autorizada (401). Limpiando sesión...");
@@ -177,11 +283,71 @@ export default function Index() {
     if (isEmployee) {
       getLocation(); // Obtener ubicación actual al iniciar
       fetchDriverData();
-      // Polling cada 10 segundos
-      const interval = setInterval(fetchDriverData, 10000);
-      return () => clearInterval(interval);
+      // Polling cada 8 segundos
+      const interval = setInterval(fetchDriverData, 8000);
+
+      // Conexión WebSockets en tiempo real para repartidores
+      const socket = getSocket();
+      const handleDriverNewOrder = (ord: any) => {
+        if (!ord) return;
+        console.log('⚡ [Driver WS] Notificación de pedido para motorizado:', ord.orderNumber);
+        fetchDriverData();
+        SoundService.playOrderAlertSound().catch(() => {});
+        useNotificationAlertStore.getState().showAlert({
+          title: '🛵 ¡Nuevo Pedido en la Plataforma!',
+          message: `Orden #${String(ord.orderNumber || '').padStart(4, '0')} disponible para entrega. Costo de envío: $${Number(ord.deliveryFee || 0).toFixed(2)}.`,
+          orderNumber: ord.orderNumber,
+          orderId: ord.id,
+          totalAmount: Number(ord.totalAmount || 0),
+          businessName: ord.business?.name,
+          deliveryAddress: ord.deliveryAddress,
+          actionLabel: 'VER PEDIDOS',
+          onAction: () => {
+            setActiveTab('home');
+          },
+        });
+      };
+
+      const handleDriverAssigned = (data: any) => {
+        const orderData = data?.order || data;
+        const driverId = data?.driverId || orderData?.deliveryUser?.id;
+        if (driverId === user?.id) {
+          console.log('⚡ [Driver WS] ¡Te asignaron una orden!', orderData.orderNumber);
+          fetchDriverData();
+          SoundService.playOrderAlertSound().catch(() => {});
+          useNotificationAlertStore.getState().showAlert({
+            title: '🛵 ¡Te Han Asignado un Pedido!',
+            message: `Has sido seleccionado para entregar la orden #${String(orderData.orderNumber || '').padStart(4, '0')}.`,
+            orderNumber: orderData.orderNumber,
+            orderId: orderData.id,
+            totalAmount: Number(orderData.totalAmount || 0),
+            clientName: orderData.user?.fullName || 'Cliente IGO',
+            businessName: orderData.business?.name,
+            deliveryAddress: orderData.deliveryAddress,
+            actionLabel: 'VER ENTREGA',
+            onAction: () => {
+              setActiveTab('home');
+            },
+          });
+        }
+      };
+
+      socket.on('order:created', handleDriverNewOrder);
+      socket.on('order:driver_assigned', handleDriverAssigned);
+      if (user?.id) {
+        socket.on(`driver:${user.id}:new_assignment`, handleDriverAssigned);
+      }
+
+      return () => {
+        clearInterval(interval);
+        socket.off('order:created', handleDriverNewOrder);
+        socket.off('order:driver_assigned', handleDriverAssigned);
+        if (user?.id) {
+          socket.off(`driver:${user.id}:new_assignment`, handleDriverAssigned);
+        }
+      };
     }
-  }, [isEmployee]);
+  }, [isEmployee, user?.id]);
 
   // 1.6 PEDIDO ACTIVO PARA CLIENTES (Widget flotante estilo Quik)
   const [clientActiveOrder, setClientActiveOrder] = useState<any | null>(null);
@@ -490,7 +656,7 @@ export default function Index() {
     return businesses.filter(b => favorites.includes(b.id));
   }, [businesses, favorites]);
 
-  if (loadingBusiness && !isEmployee && !(isBusiness && businessModeActive)) {
+  if (loadingBusiness && !isEmployee && !(isBusiness && businessModeActive) && !(isAdmin && adminModeActive)) {
     return (
       <LoadingScreen 
         imageSource={require("../assets/images/adaptive-icon.png")} 
@@ -499,10 +665,23 @@ export default function Index() {
     );
   }
 
-  if (error && !isEmployee && !(isBusiness && businessModeActive)) {
+  if (error && !isEmployee && !(isBusiness && businessModeActive) && !(isAdmin && adminModeActive)) {
     return (
       <View style={styles.center}>
         <Text style={{ color: "red" }}>{error.message}</Text>
+      </View>
+    );
+  }
+
+  // Si el usuario es administrador y tiene activo el modo admin, renderizar AdminDashboard
+  if (isAdmin && adminModeActive) {
+    return (
+      <View style={styles.mainContainer}>
+        <StatusBar style='light' />
+        <AdminDashboard 
+          user={user} 
+          onSwitchToClientMode={() => setAdminModeActive(false)} 
+        />
       </View>
     );
   }
@@ -525,6 +704,19 @@ export default function Index() {
     <View style={[styles.mainContainer, { backgroundColor: colors.background }]}>
       <StatusBar style={isDark ? 'light' : 'dark'} />
       <PrincipalHeader />
+
+      {/* BARRA PARA VOLVER AL MODO ADMIN SI ESTÁ EN MODO CLIENTE */}
+      {isAdmin && !adminModeActive && (
+        <TouchableOpacity 
+          style={styles.switchBackToAdminBar}
+          onPress={() => setAdminModeActive(true)}
+        >
+          <Ionicons name="shield-checkmark" size={18} color="#000" />
+          <Text style={styles.switchBackToAdminText}>
+            Estás en Modo Cliente. Toca aquí para volver al Panel de Administrador 👑
+          </Text>
+        </TouchableOpacity>
+      )}
 
       {/* BARRA PARA VOLVER AL MODO COMERCIO SI ESTÁ EN MODO CLIENTE */}
       {isBusiness && !businessModeActive && (
@@ -698,6 +890,58 @@ export default function Index() {
                <Ionicons name="refresh-outline" size={16} color="#666" style={{ marginRight: 6 }} />
                <Text style={{ fontSize: 13, color: '#666', fontWeight: 'bold' }}>Actualizar Pedidos</Text>
              </TouchableOpacity>
+
+             {/* TARJETA DESTACADA DE GANANCIAS Y PEDIDOS LLEVADOS */}
+             <View style={styles.driverEarningCard}>
+               <View style={styles.driverEarningTop}>
+                 <View style={{ flex: 1 }}>
+                   <Text style={styles.driverEarningLabel}>GANANCIAS ACUMULADAS 💰</Text>
+                   <Text style={styles.driverEarningAmount}>
+                     ${driverStats.accumulatedEarnings.toFixed(2)} USD
+                   </Text>
+                   <Text style={styles.driverEarningBs}>
+                     ≈ Bs. {(driverStats.accumulatedEarnings * driverBcvRate).toFixed(2)} (Tasa {driverBcvRate} Bs/$)
+                   </Text>
+                 </View>
+                 <View style={styles.driverEarningIconBox}>
+                   <Ionicons name="wallet" size={26} color="#000" />
+                 </View>
+               </View>
+
+               {/* FILA DE CONTADORES DE PEDIDOS */}
+               <View style={styles.driverStatsRow}>
+                 <View style={styles.driverStatCol}>
+                   <Text style={styles.driverStatVal}>{driverStats.completedCount}</Text>
+                   <Text style={styles.driverStatLbl}>Pedidos Llevados</Text>
+                 </View>
+                 <View style={styles.driverStatDivider} />
+                 <View style={styles.driverStatCol}>
+                   <Text style={styles.driverStatVal}>{myAssignedOrders.length}</Text>
+                   <Text style={styles.driverStatLbl}>En Curso Activos</Text>
+                 </View>
+                 <View style={styles.driverStatDivider} />
+                 <View style={styles.driverStatCol}>
+                   <Text style={styles.driverStatVal}>{driverStats.todayCount}</Text>
+                   <Text style={styles.driverStatLbl}>Entregados Hoy</Text>
+                   <Text style={styles.driverStatSub}>(${driverStats.todayEarnings.toFixed(2)})</Text>
+                 </View>
+               </View>
+
+               {/* BOTÓN PROBAR ALERTA SONORA DE PEDIDO */}
+               <TouchableOpacity
+                 style={styles.driverTestSoundBtn}
+                 onPress={() => {
+                   SoundService.playOrderAlertSound().catch(() => {});
+                   Alert.alert(
+                     '🔔 Prueba de Alerta Sonora',
+                     'Si escuchaste el timbre y tu teléfono vibró, tu audio está listo para avisarte de nuevos pedidos.'
+                   );
+                 }}
+               >
+                 <Ionicons name="volume-high" size={16} color="#000" style={{ marginRight: 6 }} />
+                 <Text style={styles.driverTestSoundText}>Probar Timbre de Nuevo Pedido</Text>
+               </TouchableOpacity>
+             </View>
 
              {/* SECCIÓN 1: ENTREGAS ACTIVAS (ASIGNADAS) */}
              <Text style={styles.driverSectionTitle}>Mis Entregas Activas ({myAssignedOrders.length})</Text>
@@ -1897,5 +2141,123 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: 'bold',
     color: '#FFF',
+  },
+  switchBackToAdminBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#FFCC00',
+    paddingVertical: 10,
+    paddingHorizontal: 15,
+    marginHorizontal: 20,
+    borderRadius: 12,
+    marginBottom: 10,
+    borderWidth: 1.5,
+    borderColor: '#000',
+  },
+  switchBackToAdminText: {
+    fontSize: 13,
+    fontWeight: 'bold',
+    color: '#000',
+  },
+  driverEarningCard: {
+    backgroundColor: '#FFCC00',
+    borderRadius: 18,
+    padding: 16,
+    marginVertical: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 4,
+    borderWidth: 2,
+    borderColor: '#FFF',
+  },
+  driverEarningTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  driverEarningLabel: {
+    fontSize: 11,
+    fontWeight: '900',
+    color: '#000',
+    letterSpacing: 0.5,
+  },
+  driverEarningAmount: {
+    fontSize: 26,
+    fontWeight: '900',
+    color: '#000',
+    marginTop: 2,
+  },
+  driverEarningBs: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#1E1238',
+    marginTop: 2,
+  },
+  driverEarningIconBox: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: '#FFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  driverStatsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFF',
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    marginBottom: 10,
+  },
+  driverStatCol: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  driverStatVal: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: '#000',
+  },
+  driverStatLbl: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#64748B',
+    marginTop: 1,
+    textAlign: 'center',
+  },
+  driverStatSub: {
+    fontSize: 10,
+    fontWeight: 'bold',
+    color: '#10B981',
+  },
+  driverStatDivider: {
+    width: 1,
+    height: 28,
+    backgroundColor: '#E2E8F0',
+  },
+  driverTestSoundBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.08)',
+    borderRadius: 10,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: '#000',
+  },
+  driverTestSoundText: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#000',
   },
 });

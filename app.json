@@ -2,7 +2,7 @@
   "expo": {
     "name": "IgoStore",
     "slug": "IgoStore",
-    "version": "1.0.2",
+    "version": "1.0.3",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "igostore",
@@ -28,7 +28,7 @@
         "backgroundColor": "#FFC93C"
       },
       "package": "com.odba08.IgoStore",
-      "versionCode": 4,
+      "versionCode": 5,
       "newArchEnabled": false,
       "config": {
         "googleMaps": {
@@ -41,7 +41,8 @@
         "POST_NOTIFICATIONS",
         "CAMERA",
         "READ_EXTERNAL_STORAGE",
-        "WRITE_EXTERNAL_STORAGE"
+        "WRITE_EXTERNAL_STORAGE",
+        "VIBRATE"
       ]
     },
     "web": {

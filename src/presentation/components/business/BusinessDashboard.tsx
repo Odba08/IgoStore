@@ -23,6 +23,7 @@ import { igoApi } from '@/infrastructure/api/igo.api';
 import { pickImageFromGallery, takePhotoWithCamera, uploadImage } from '@/infrastructure/services/imageUpload.service';
 import { getSocket } from '@/infrastructure/services/socket.service';
 import { NotificationService } from '@/infrastructure/services/notification.service';
+import { useNotificationAlertStore } from '@/presentation/store/useNotificationAlertStore';
 import { OrderChatModal } from '@/presentation/components/OrderChatModal';
 import { SupportChatModal } from '@/presentation/components/SupportChatModal';
 import { OrderPickupQrModal } from './OrderPickupQrModal';
@@ -91,14 +92,17 @@ export const BusinessDashboard: React.FC<BusinessDashboardProps> = ({
       { orderId: newOrder.id }
     ).catch(() => {});
 
-    Alert.alert(
-      '🛍️ ¡Nuevo Pedido Recibido!',
-      `Has recibido la orden #${String(newOrder.orderNumber || '').padStart(4, '0')} por $${Number(newOrder.totalAmount || 0).toFixed(2)}.\n\nCliente: ${newOrder.user?.fullName || newOrder.userIdTemp || 'Cliente IGO'}\n\n¡Ve a la pestaña de Pedidos para aceptarlo y prepararlo!`,
-      [
-        { text: 'Ver Pedido', onPress: () => setActiveTab('orders') },
-        { text: 'Entendido', style: 'cancel' }
-      ]
-    );
+    // Alerta amarilla en pantalla completa + sonido IGO
+    useNotificationAlertStore.getState().showAlert({
+      title: '🛍️ ¡Nuevo Pedido Recibido!',
+      message: '¡Ve a la pestaña de Pedidos para aceptarlo y prepararlo!',
+      orderNumber: newOrder.orderNumber,
+      orderId: newOrder.id,
+      clientName: newOrder.user?.fullName || newOrder.userIdTemp || 'Cliente IGO',
+      totalAmount: Number(newOrder.totalAmount || 0),
+      actionLabel: 'VER PEDIDO',
+      onAction: () => setActiveTab('orders'),
+    });
   };
 
   const fetchOrdersOnly = async (bizId: string, showRefreshing = false) => {
@@ -278,6 +282,17 @@ export const BusinessDashboard: React.FC<BusinessDashboardProps> = ({
               `La orden #${String(orderData.orderNumber).padStart(4, '0')} por $${Number(orderData.totalAmount || 0).toFixed(2)} ya está pagada. ¡Toca para aceptarla y prepararla!`,
               { orderId: orderData.id }
             ).catch(() => {});
+
+            useNotificationAlertStore.getState().showAlert({
+              title: '🎉 ¡Pago Confirmado!',
+              message: `La orden #${String(orderData.orderNumber).padStart(4, '0')} por $${Number(orderData.totalAmount || 0).toFixed(2)} ya está confirmada y pagada.`,
+              orderNumber: orderData.orderNumber,
+              orderId: orderData.id,
+              clientName: orderData.user?.fullName || orderData.userIdTemp || 'Cliente IGO',
+              totalAmount: Number(orderData.totalAmount || 0),
+              actionLabel: 'VER PEDIDO',
+              onAction: () => setActiveTab('orders'),
+            });
           }
         };
 

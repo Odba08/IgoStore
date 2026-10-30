@@ -23,6 +23,7 @@
     "axios": "^1.11.0",
     "expo": "^58.0.0",
     "expo-auth-session": "~58.0.14",
+    "expo-av": "^16.0.8",
     "expo-blur": "~58.0.5",
     "expo-build-properties": "~58.0.11",
     "expo-camera": "~58.0.14",

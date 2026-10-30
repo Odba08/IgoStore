@@ -9,6 +9,7 @@ import { useAuthStore } from "@/presentation/store/useAuthStore";
 import { usePushNotifications } from "@/presentation/hooks/usePushNotifications";
 import { useGlobalChatListener } from "@/presentation/hooks/useGlobalChatListener";
 import { ChatToastNotification } from "@/presentation/components/shared/ChatToastNotification";
+import { YellowNotificationModal } from "@/presentation/components/shared/YellowNotificationModal";
 import { getSocket } from "@/infrastructure/services/socket.service";
 import { wakeUpBackend } from "@/infrastructure/api/igo.api";
 import { useThemeStore } from "@/presentation/store/useThemeStore";
@@ -108,6 +109,7 @@ export default function RootLayout() {
         <PermissionCheckerProvider>
           <RootLayoutNav />
           <ChatToastNotification />
+          <YellowNotificationModal />
         </PermissionCheckerProvider>
       </QueryClientProvider>
     </GestureHandlerRootView>
