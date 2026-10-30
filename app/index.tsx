@@ -26,6 +26,7 @@ import { ActiveOrderFloatingWidget } from "@/presentation/components/ActiveOrder
 import { OrderChatModal } from "@/presentation/components/OrderChatModal";
 import { uploadImage } from "@/infrastructure/services/imageUpload.service";
 import { BusinessDashboard } from "@/presentation/components/business/BusinessDashboard";
+import { OrderVerificationModal } from "@/presentation/components/driver/OrderVerificationModal";
 import { useThemeStore } from "@/presentation/store/useThemeStore";
 
 export default function Index() {
@@ -80,6 +81,21 @@ export default function Index() {
   const [isUploadingPhoto, setIsUploadingPhoto] = useState<boolean>(false);
   const [driverChatOrder, setDriverChatOrder] = useState<any | null>(null);
   const [showDriverChatModal, setShowDriverChatModal] = useState<boolean>(false);
+  const [verifyingOrder, setVerifyingOrder] = useState<any | null>(null);
+
+  const handleVerificationSuccess = async () => {
+    if (!verifyingOrder) return;
+    const target = verifyingOrder;
+    setVerifyingOrder(null);
+    await handleUpdateDriverStage(target.id, 'ON_THE_WAY', 'ON_WAY');
+  };
+
+  const handleVerificationSkip = async () => {
+    if (!verifyingOrder) return;
+    const target = verifyingOrder;
+    setVerifyingOrder(null);
+    await handleUpdateDriverStage(target.id, 'ON_THE_WAY', 'ON_WAY');
+  };
 
   const handleUpdateDriverStage = async (orderId: string, nextStage: string, nextStatus?: string) => {
     try {
@@ -759,10 +775,10 @@ export default function Index() {
                        {order.driverStage === 'ARRIVED_PICKUP' && (
                          <TouchableOpacity
                            style={[styles.actionBtn, { backgroundColor: '#2563EB', width: '100%', paddingVertical: 10 }]}
-                           onPress={() => handleUpdateDriverStage(order.id, 'ON_THE_WAY', 'ON_WAY')}
+                           onPress={() => setVerifyingOrder(order)}
                          >
-                           <Ionicons name="bicycle" size={16} color="white" style={{ marginRight: 6 }} />
-                           <Text style={[styles.actionBtnText, { color: 'white' }]}>🛵 2. ¡Ya recogí el pedido / En camino!</Text>
+                           <Ionicons name="qr-code-outline" size={16} color="white" style={{ marginRight: 6 }} />
+                           <Text style={[styles.actionBtnText, { color: 'white' }]}>🛵 2. ¡Validar y Recoger Pedido (QR/PIN)!</Text>
                          </TouchableOpacity>
                        )}
 
@@ -1129,10 +1145,10 @@ export default function Index() {
                         {selectedRouteOrder.driverStage === 'ARRIVED_PICKUP' && (
                           <TouchableOpacity
                             style={[styles.stageActionBtn, { backgroundColor: '#2563EB' }]}
-                            onPress={() => handleUpdateDriverStage(selectedRouteOrder.id, 'ON_THE_WAY', 'ON_WAY')}
+                            onPress={() => setVerifyingOrder(selectedRouteOrder)}
                           >
-                            <Ionicons name="bicycle" size={16} color="white" style={{ marginRight: 6 }} />
-                            <Text style={styles.stageActionBtnText}>2. ¡Ya recogí el pedido / En camino! 🛵</Text>
+                            <Ionicons name="qr-code-outline" size={16} color="white" style={{ marginRight: 6 }} />
+                            <Text style={styles.stageActionBtnText}>2. ¡Validar y Recoger Pedido (QR/PIN)! 🛵</Text>
                           </TouchableOpacity>
                         )}
 
@@ -1179,6 +1195,15 @@ export default function Index() {
           </TouchableOpacity>
         </View>
       </Modal>
+
+      {/* MODAL VALIDACIÓN QR / PIN PARA EL MOTORIZADO */}
+      <OrderVerificationModal
+        visible={!!verifyingOrder}
+        order={verifyingOrder}
+        onSuccess={handleVerificationSuccess}
+        onSkip={handleVerificationSkip}
+        onClose={() => setVerifyingOrder(null)}
+      />
 
       {/* MODAL DE CONFIRMACIÓN DE ENTREGA CON FOTO PARA EL MOTORIZADO */}
       <Modal

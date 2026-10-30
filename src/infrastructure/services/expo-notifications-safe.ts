@@ -16,6 +16,7 @@ try {
     if (NotificationsModule?.setNotificationHandler) {
       NotificationsModule.setNotificationHandler({
         handleNotification: async () => ({
+          shouldShowAlert: true,
           shouldPlaySound: true,
           shouldSetBadge: true,
           shouldShowBanner: true,

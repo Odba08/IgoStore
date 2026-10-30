@@ -26,6 +26,7 @@ interface AuthState {
   loginWithGoogle: (googleToken: string) => Promise<boolean>;
   changePassword: (password: string) => Promise<boolean>;
   logout: () => Promise<void>;
+  deleteAccount: () => Promise<boolean>;
   checkAuth: () => Promise<void>;
   updateUserLocal: (updatedUser: Partial<User>) => Promise<void>;
 }
@@ -104,6 +105,22 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     await SecureStorage.removeItem('token');
     await SecureStorage.removeItem('user');
     set({ isAuthenticated: false, user: null, token: null, isLoading: false });
+  },
+
+  deleteAccount: async () => {
+    try {
+      const userId = get().user?.id;
+      if (userId) {
+        await igoApi.delete(`/users/${userId}`);
+      }
+      await get().logout();
+      return true;
+    } catch (error) {
+      console.error('Error deleting account:', error);
+      // Cerrar sesión y limpiar almacenamiento local de todas formas
+      await get().logout();
+      return false;
+    }
   },
 
   checkAuth: async () => {

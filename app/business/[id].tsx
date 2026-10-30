@@ -80,6 +80,15 @@ export default function BusinessDetailScreen() {
           (p.description && p.description.toLowerCase().includes(query))
       );
     }
+
+    // Deduplicación preventiva por ID
+    const seen = new Set<string>();
+    result = result.filter((p) => {
+      if (!p?.id || seen.has(p.id)) return false;
+      seen.add(p.id);
+      return true;
+    });
+
     return result;
   }, [business, selectedCategoryId, searchQuery]);
 
