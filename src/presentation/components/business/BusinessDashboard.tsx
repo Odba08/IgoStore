@@ -209,8 +209,8 @@ export const BusinessDashboard: React.FC<BusinessDashboardProps> = ({
 
       setMyBusiness(biz);
 
-      // 2. Obtener productos de este comercio
-      const prodRes = await igoApi.get(`/business/${biz.id}/products`, { params: { limit: 500 } });
+      // 2. Obtener productos de este comercio (sin limitación)
+      const prodRes = await igoApi.get(`/business/${biz.id}/products`);
       const rawProducts = prodRes.data || [];
       const seenProdIds = new Set<string>();
       const uniqueProducts = rawProducts.filter((p: any) => {
