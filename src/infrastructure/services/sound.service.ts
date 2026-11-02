@@ -67,7 +67,7 @@ class SoundService {
       soundInstance = sound;
       this.isPlaying = true;
 
-      sound.setOnPlaybackStatusUpdate((status) => {
+      sound.setOnPlaybackStatusUpdate((status: any) => {
         if (!status.isLoaded || status.didJustFinish) {
           this.isPlaying = false;
         }

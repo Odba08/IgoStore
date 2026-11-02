@@ -19,7 +19,8 @@
         "NSPhotoLibraryAddUsageDescription": "IgoStore permite guardar recibos y comprobantes de tus pedidos en tu galería de fotos.",
         "UIBackgroundModes": [
           "remote-notification"
-        ]
+        ],
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
