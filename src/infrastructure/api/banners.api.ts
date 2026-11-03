@@ -71,3 +71,4 @@ export const seedBannersApi = async (): Promise<Banner[]> => {
   const { data } = await igoApi.post<Banner[]>('/banners/seed', {});
   return data;
 };
+

@@ -1,80 +1,32 @@
 import { Platform, Vibration } from 'react-native';
-import { Audio } from 'expo-av';
-
-let soundInstance: Audio.Sound | null = null;
-let isAudioConfigured = false;
+import * as Haptics from 'expo-haptics';
 
 /**
- * Servicio centralizado para reproducción de alertas sonoras y vibración
+ * Servicio centralizado para reproducción de alertas sonoras, hápticas y vibración
  * Funciona de forma 100% offline tanto en dispositivos móviles (iOS / Android) como en Web.
  */
 class SoundService {
   private static isPlaying = false;
 
-  private static async configureAudioMode(): Promise<void> {
-    if (isAudioConfigured || Platform.OS === 'web') return;
-    try {
-      await Audio.setAudioModeAsync({
-        playsInSilentModeIOS: true,
-        staysActiveInBackground: true,
-        shouldDuckAndroid: false,
-        playThroughEarpieceAndroid: false,
-      });
-      isAudioConfigured = true;
-    } catch (e) {
-      console.warn('⚠️ [SoundService] Error configurando modo de audio:', e);
-    }
-  }
-
   /**
-   * Reproduce el tono de alerta de nuevo pedido / notificación urgente
-   * Incluye vibración continua para no pasar desapercibido.
+   * Reproduce la alerta de nuevo pedido / notificación urgente
+   * Incluye feedback háptico y vibración continua para no pasar desapercibido.
    */
   static async playOrderAlertSound(): Promise<void> {
     try {
-      // 1. Vibración intensa (patrón: esperar 0, vibrar 600ms, esperar 200ms, vibrar 600ms)
-      if (Platform.OS !== 'web') {
-        Vibration.vibrate([0, 600, 200, 600, 200, 600]);
-      }
+      this.isPlaying = true;
 
-      // 2. Si está en Web, reproducir mediante Web Audio API sintetizado
+      // 1. Si está en Web, reproducir mediante Web Audio API sintetizado
       if (Platform.OS === 'web') {
         this.playWebChime();
         return;
       }
 
-      // 3. Configurar modo de audio nativo
-      await this.configureAudioMode();
-
-      // Si ya hay un sonido cargado, detenerlo antes de crear otro
-      if (soundInstance) {
-        try {
-          await soundInstance.stopAsync();
-          await soundInstance.unloadAsync();
-        } catch {}
-        soundInstance = null;
-      }
-
-      const { sound } = await Audio.Sound.createAsync(
-        require('../../../assets/sounds/order_alert.wav'),
-        {
-          shouldPlay: true,
-          volume: 1.0,
-          isLooping: false,
-        }
-      );
-
-      soundInstance = sound;
-      this.isPlaying = true;
-
-      sound.setOnPlaybackStatusUpdate((status: any) => {
-        if (!status.isLoaded || status.didJustFinish) {
-          this.isPlaying = false;
-        }
-      });
+      // 2. Feedback háptico nativo (iOS / Android) + patrón de vibración intensa
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      Vibration.vibrate([0, 600, 200, 600, 200, 600]);
     } catch (error) {
-      console.warn('⚠️ [SoundService] Error reproduciendo alerta sonora:', error);
-      // Fallback: al menos vibrar
+      console.warn('⚠️ [SoundService] Error reproduciendo alerta:', error);
       if (Platform.OS !== 'web') {
         Vibration.vibrate(1000);
       }
@@ -88,11 +40,6 @@ class SoundService {
     try {
       if (Platform.OS !== 'web') {
         Vibration.cancel();
-      }
-      if (soundInstance) {
-        await soundInstance.stopAsync();
-        await soundInstance.unloadAsync();
-        soundInstance = null;
       }
       this.isPlaying = false;
     } catch (e) {
