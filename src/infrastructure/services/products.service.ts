@@ -1,8 +1,14 @@
 import { Producto } from '@/core/entities/productos.entity';
 import { getProductByIdApi, getProductsApi } from '../api/products.api';
 
+const FALLBACK_PRODUCT_IMAGE = 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=600&auto=format&fit=crop&q=80';
+
 const resolveImageUrl = (url: string, pathSegment: string) => {
-  if (!url) return '';
+  if (!url) return FALLBACK_PRODUCT_IMAGE;
+  // Render's free tier wiped local ephemeral disk files, fallback to clean food image
+  if (url.includes('onrender.com/api/files/products/')) {
+    return FALLBACK_PRODUCT_IMAGE;
+  }
   if (url.startsWith('http://') || url.startsWith('https://')) {
     return url;
   }
@@ -22,8 +28,8 @@ export class ProductService {
         ...data,
         images: data.images?.map((image: any) => 
             typeof image === 'string' 
-                ? resolveImageUrl(image, 'products')
-                : { ...image, url: resolveImageUrl(image.url, 'products') }
+                ? { url: resolveImageUrl(image, 'products') }
+                : { ...image, url: resolveImageUrl(image?.url, 'products') }
         ) ?? []
       };
     } catch (error) {
@@ -41,7 +47,7 @@ export class ProductService {
         images: product.images?.map((image: any) => 
             typeof image === 'string' 
                 ? { url: resolveImageUrl(image, 'products') } 
-                : { ...image, url: resolveImageUrl(image.url, 'products') }
+                : { ...image, url: resolveImageUrl(image?.url, 'products') }
         ) ?? []
       }));
     } catch (error) {

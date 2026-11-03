@@ -97,19 +97,24 @@ export default function BusinessDetailScreen() {
   };
 
   const getProductImage = (image: any) => {
-    if (!image) return require('../../assets/images/adaptive-icon.png');
-    if (image.url.startsWith('http')) return { uri: image.url };
-    const API_URL = process.env.EXPO_PUBLIC_API_URL;
-    return { uri: `${API_URL}/api/files/product/${image.url}` };
+    if (!image) return { uri: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=600&auto=format&fit=crop&q=80' };
+    const raw = typeof image === 'string' ? image : image?.url;
+    if (!raw || raw.includes('onrender.com/api/files/products/')) {
+      return { uri: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=600&auto=format&fit=crop&q=80' };
+    }
+    if (raw.startsWith('http')) return { uri: raw };
+    const API_URL = process.env.EXPO_PUBLIC_API_URL || 'https://igoback-b84f.onrender.com';
+    return { uri: `${API_URL}/api/files/product/${raw}` };
   };
 
   // --- MEMORIZAMOS EL HEADER ---
   const headerComponent = useMemo(() => {
     if (!business) return null;
 
-    const businessImage = business.images?.[0]?.url
-      ? { uri: business.images[0].url }
-      : require('../../assets/images/adaptive-icon.png');
+    const rawBusinessImage = typeof business.images?.[0] === 'string' ? business.images[0] : business.images?.[0]?.url;
+    const businessImage = rawBusinessImage && !rawBusinessImage.includes('onrender.com/api/files/bussiness/')
+      ? { uri: rawBusinessImage }
+      : { uri: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=600&auto=format&fit=crop&q=80' };
 
     return (
       <View>
