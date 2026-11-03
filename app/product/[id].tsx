@@ -112,7 +112,7 @@ export default function ProductDetailScreen() {
         
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={[styles.imageContainer, { backgroundColor: isDark ? '#140833' : '#FAF9F6', borderBottomColor: colors.cardBorder }]}>
-          <Image source={{ uri: (typeof product.images?.[0] === 'string' ? product.images[0] : product.images?.[0]?.url) || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=600&auto=format&fit=crop&q=80' }} style={styles.productImage} resizeMode="contain" />
+          <Image source={{ uri: product.images?.[0]?.url }} style={styles.productImage} resizeMode="contain" />
         </View>
 
         <View style={styles.detailsContainer}>
@@ -307,7 +307,7 @@ export default function ProductDetailScreen() {
                 price: finalUnitTestPrice, 
                 quantity: quantity, 
                 businessId: product.business?.id || '',
-                image: (typeof product.images?.[0] === 'string' ? product.images[0] : product.images?.[0]?.url) || '',
+                image: product.images?.[0]?.url || '',
                 selectedOptionsText: optionText
               });
               router.back(); 

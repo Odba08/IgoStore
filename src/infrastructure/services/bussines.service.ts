@@ -1,20 +1,9 @@
+
 import { Business } from "@/core/entities/bussines.entity";
 import { getBusinesses, getBusinessByIdApi } from "../api/bussines.api"; 
 
-const FALLBACK_BUSINESS_IMAGE = 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=600&auto=format&fit=crop&q=80';
-const FALLBACK_PRODUCT_IMAGE = 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=600&auto=format&fit=crop&q=80';
-
-const resolveImageUrl = (url: string | undefined, pathSegment: string) => {
-  if (!url) {
-    return pathSegment === 'products' ? FALLBACK_PRODUCT_IMAGE : FALLBACK_BUSINESS_IMAGE;
-  }
-  // Render free tier wiped local ephemeral disk files, fallback gracefully
-  if (url.includes('onrender.com/api/files/products/')) {
-    return FALLBACK_PRODUCT_IMAGE;
-  }
-  if (url.includes('onrender.com/api/files/bussiness/')) {
-    return FALLBACK_BUSINESS_IMAGE;
-  }
+const resolveImageUrl = (url: string, pathSegment: string) => {
+  if (!url) return '';
   if (url.startsWith('http://') || url.startsWith('https://')) {
     return url;
   }
@@ -46,15 +35,15 @@ export class BusinessService {
         categoryId: data.category?.id || data.categoryId, 
         
         images: data.images?.map((image: any) => ({
-          ...(typeof image === 'object' ? image : {}),
-          url: resolveImageUrl(typeof image === 'string' ? image : image?.url, 'bussiness'),
+          ...image,
+          url: resolveImageUrl(image.url, 'bussiness'),
         })) ?? [],
         
         products: data.products?.map((product: any) => ({
             ...product,
             images: product.images?.map((image: any) => ({
-                ...(typeof image === 'object' ? image : {}),
-                url: resolveImageUrl(typeof image === 'string' ? image : image?.url, 'products'), 
+                ...image,
+                url: resolveImageUrl(image.url, 'products'), 
             })) ?? []
         })) ?? []
       };
@@ -72,8 +61,8 @@ export class BusinessService {
       categoryId: business.category?.id || business.categoryId, 
 
       images: business.images?.map((image: any) => ({
-        ...(typeof image === 'object' ? image : {}),
-        url: resolveImageUrl(typeof image === 'string' ? image : image?.url, 'bussiness'),
+        ...image,
+        url: resolveImageUrl(image.url, 'bussiness'),
       })) ?? [],
     }));
   }
