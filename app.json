@@ -28,7 +28,7 @@
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#FFC93C"
       },
-      "package": "com.odba08.IgoStore",
+      "package": "com.odba08.igostore",
       "versionCode": 5,
       "newArchEnabled": false,
       "config": {
