@@ -21,6 +21,7 @@ import { AdminService } from '@/infrastructure/services/admin.service';
 import { getSocket } from '@/infrastructure/services/socket.service';
 import SoundService from '@/infrastructure/services/sound.service';
 import { useNotificationAlertStore } from '@/presentation/store/useNotificationAlertStore';
+import { AdminBannersSection } from './AdminBannersSection';
 
 const { width } = Dimensions.get('window');
 
@@ -29,7 +30,7 @@ interface AdminDashboardProps {
   onSwitchToClientMode?: () => void;
 }
 
-type AdminTab = 'metrics' | 'orders' | 'businesses' | 'team' | 'settings' | 'debts';
+type AdminTab = 'metrics' | 'orders' | 'businesses' | 'team' | 'debts' | 'banners' | 'settings';
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   user,
@@ -678,6 +679,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         </TouchableOpacity>
 
         <TouchableOpacity
+          style={[styles.tabItem, activeTab === 'banners' && styles.tabItemActive]}
+          onPress={() => setActiveTab('banners')}
+        >
+          <Ionicons name="images" size={16} color={activeTab === 'banners' ? '#000' : '#94A3B8'} />
+          <Text style={[styles.tabItemText, activeTab === 'banners' && styles.tabItemTextActive]}>Banners</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
           style={[styles.tabItem, activeTab === 'settings' && styles.tabItemActive]}
           onPress={() => setActiveTab('settings')}
         >
@@ -1125,6 +1134,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               )}
             </View>
           )}
+
+          {/* ===================== TAB BANNERS: BANNERS PUBLICITARIOS ===================== */}
+          {activeTab === 'banners' && <AdminBannersSection />}
 
           {/* ===================== TAB 6: AJUSTES GLOBALES ===================== */}
           {activeTab === 'settings' && (
