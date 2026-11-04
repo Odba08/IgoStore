@@ -29,7 +29,7 @@
         "backgroundColor": "#FFC93C"
       },
       "package": "com.odba08.igostore",
-      "versionCode": 5,
+      "versionCode": 9,
       "newArchEnabled": false,
       "config": {
         "googleMaps": {
