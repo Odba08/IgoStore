@@ -11,7 +11,7 @@ interface LoadingScreenProps {
 const LoadingScreen: React.FC<LoadingScreenProps> = ({
   imageSource,
   spinnerColor = "#FFC93C",
-  useLottie = true,
+  useLottie = false,
 }) => {
   return (
     <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#0F0330" }}>

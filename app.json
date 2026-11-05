@@ -3,6 +3,7 @@
     "name": "IgoStore",
     "slug": "IgoStore",
     "version": "1.0.3",
+    "newArchEnabled": false,
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "igostore",
@@ -14,6 +15,7 @@
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "IgoStore utiliza tu ubicación para encontrar tiendas cercanas, calcular la tarifa de delivery y permitir la entrega de tus pedidos.",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "IgoStore utiliza tu ubicación para trazar rutas y mantener el seguimiento en tiempo real de tus envíos.",
+        "NSLocationAlwaysUsageDescription": "IgoStore utiliza tu ubicación para trazar rutas y mantener el seguimiento en tiempo real de tus envíos.",
         "NSCameraUsageDescription": "IgoStore requiere acceso a la cámara para tomar fotografías de comprobantes de pago y verificación de identidad.",
         "NSPhotoLibraryUsageDescription": "IgoStore requiere acceso a la galería de fotos para adjuntar comprobantes de pago móvil y transferencias.",
         "NSPhotoLibraryAddUsageDescription": "IgoStore permite guardar recibos y comprobantes de tus pedidos en tu galería de fotos.",
@@ -69,7 +71,9 @@
       [
         "expo-location",
         {
-          "locationAlwaysAndWhenInUsePermission": "Permite a IgoStore acceder a tu ubicación para calcular rutas y envíos."
+          "locationAlwaysAndWhenInUsePermission": "Permite a IgoStore acceder a tu ubicación para calcular rutas y envíos.",
+          "locationAlwaysPermission": "Permite a IgoStore acceder a tu ubicación para calcular rutas y envíos.",
+          "locationWhenInUsePermission": "Permite a IgoStore acceder a tu ubicación para encontrar tiendas y calcular entregas."
         }
       ],
       [

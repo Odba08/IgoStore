@@ -189,14 +189,16 @@ export default function LoginScreen() {
       )}
 
       {/* === FONDO DINÁMICO EN LOOP (MAPA + RUTA GPS) === */}
-      <LottieView
-        source={require('../assets/igo-login-bg.json')}
-        autoPlay
-        loop
-        renderMode={Platform.OS === 'android' ? 'HARDWARE' : 'AUTOMATIC'}
-        style={styles.bgLottie}
-        resizeMode="cover"
-      />
+      {!showSplash && (
+        <LottieView
+          source={require('../assets/igo-login-bg.json')}
+          autoPlay
+          loop
+          renderMode={Platform.OS === 'android' ? 'HARDWARE' : 'AUTOMATIC'}
+          style={styles.bgLottie}
+          resizeMode="cover"
+        />
+      )}
 
       <KeyboardAvoidingView 
         style={{ flex: 1 }} 

@@ -32,7 +32,7 @@ const queryClient = new QueryClient();
 function RootLayoutNav() {
   const router = useRouter();
   const segments = useSegments();
-  const { isAuthenticated, checkAuth } = useAuthStore();
+  const { isAuthenticated, isLoading, checkAuth } = useAuthStore();
   const navigationState = useRootNavigationState(); // <-- Obtenemos el estado de la navegación
   const { colors, isDark } = useThemeStore();
 
@@ -64,23 +64,18 @@ function RootLayoutNav() {
   }, []);
 
   useEffect(() => {
-    if (!navigationState?.key) return;
+    if (!navigationState?.key || isLoading) return;
 
-    // Engañamos a TypeScript convirtiendo el segmento a un string genérico
-    const inAuthGroup = (segments[0] as string) === 'login' || (segments[0] as string) === 'register';
+    // Segmentos de autenticación
+    const currentSegment = (segments[0] as string) || '';
+    const inAuthGroup = currentSegment === 'login' || currentSegment === 'register';
 
-    const timeoutId = setTimeout(() => {
-      if (!isAuthenticated && !inAuthGroup) {
-        // Forzamos la ruta saltando la validación estricta de tipos
-        router.replace('/login' as any);
-      } else if (isAuthenticated && inAuthGroup) {
-        router.replace('/' as any);
-      }
-    }, 1); 
-
-    return () => clearTimeout(timeoutId);
-
-  }, [isAuthenticated, segments, navigationState]);
+    if (!isAuthenticated && !inAuthGroup) {
+      router.replace('/login' as any);
+    } else if (isAuthenticated && inAuthGroup) {
+      router.replace('/' as any);
+    }
+  }, [isAuthenticated, isLoading, segments, navigationState]);
 
   return (
     <>
