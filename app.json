@@ -54,6 +54,7 @@
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
+      "./plugins/withDisableNewArch.js",
       "expo-router",
       [
         "react-native-maps",

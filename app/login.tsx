@@ -173,7 +173,7 @@ export default function LoginScreen() {
             speed={1.25}
             onAnimationFinish={handleFinishSplash}
             onAnimationFailure={() => handleFinishSplash()}
-            renderMode={Platform.OS === 'android' ? 'HARDWARE' : 'AUTOMATIC'}
+            renderMode="AUTOMATIC"
             style={StyleSheet.absoluteFill}
             resizeMode="cover"
           />
@@ -194,7 +194,7 @@ export default function LoginScreen() {
           source={require('../assets/igo-login-bg.json')}
           autoPlay
           loop
-          renderMode={Platform.OS === 'android' ? 'HARDWARE' : 'AUTOMATIC'}
+          renderMode="AUTOMATIC"
           style={styles.bgLottie}
           resizeMode="cover"
         />
@@ -215,14 +215,16 @@ export default function LoginScreen() {
           <View>
             {/* === ICONO ANIMADO CON GLOW (PARTE SUPERIOR) === */}
             <View style={styles.topIconSection}>
-              <LottieView
-                source={require('../assets/igo-login-icon.json')}
-                autoPlay
-                loop
-                renderMode={Platform.OS === 'android' ? 'HARDWARE' : 'AUTOMATIC'}
-                style={styles.iconLottie}
-                resizeMode="contain"
-              />
+              {!showSplash && (
+                <LottieView
+                  source={require('../assets/igo-login-icon.json')}
+                  autoPlay
+                  loop
+                  renderMode="AUTOMATIC"
+                  style={styles.iconLottie}
+                  resizeMode="contain"
+                />
+              )}
             </View>
 
             {/* === TEXTO PRINCIPAL / HEADLINE === */}
