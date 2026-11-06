@@ -3,7 +3,6 @@
     "name": "IgoStore",
     "slug": "IgoStore",
     "version": "1.0.3",
-    "newArchEnabled": false,
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "igostore",
@@ -32,7 +31,6 @@
       },
       "package": "com.odba08.igostore",
       "versionCode": 9,
-      "newArchEnabled": false,
       "config": {
         "googleMaps": {
           "apiKey": "AIzaSyByeMkbGjpm9bNaUs-eFoQXUwH2xq2DcyI"
