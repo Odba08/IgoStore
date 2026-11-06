@@ -13,7 +13,12 @@ import { useRouter } from 'expo-router';
 import { useChatStore } from '@/presentation/store/useChatStore';
 
 export const ChatToastNotification = () => {
-  const insets = useSafeAreaInsets();
+  let insets = { top: 0, bottom: 0, left: 0, right: 0 };
+  try {
+    insets = useSafeAreaInsets();
+  } catch (e) {
+    insets = { top: 0, bottom: 0, left: 0, right: 0 };
+  }
   const router = useRouter();
   const { activeNotification, hideNotification } = useChatStore();
   const translateY = useRef(new Animated.Value(-120)).current;

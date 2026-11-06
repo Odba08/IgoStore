@@ -1,3 +1,4 @@
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import PermissionCheckerProvider from "@/presentation/providers/PermissionCheckerProvider";
 import { StatusBar } from "expo-status-bar";
 import { AppState, LogBox } from "react-native";
@@ -100,13 +101,15 @@ function RootLayoutNav() {
 export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <QueryClientProvider client={queryClient}>
+      <SafeAreaProvider>
+        <QueryClientProvider client={queryClient}>
         <PermissionCheckerProvider>
           <RootLayoutNav />
           <ChatToastNotification />
           <YellowNotificationModal />
         </PermissionCheckerProvider>
       </QueryClientProvider>
+      </SafeAreaProvider>
     </GestureHandlerRootView>
   );
 }
