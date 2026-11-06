@@ -14,7 +14,8 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://igoback-b84f.onrender.com"
+        "EXPO_PUBLIC_API_URL": "https://igoback-b84f.onrender.com",
+        "EXPO_USE_PRECOMPILED_MODULES": "0"
       }
     },
     "production": {
@@ -26,7 +27,8 @@
         "buildType": "app-bundle"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://igoback-b84f.onrender.com"
+        "EXPO_PUBLIC_API_URL": "https://igoback-b84f.onrender.com",
+        "EXPO_USE_PRECOMPILED_MODULES": "0"
       }
     }
   },
