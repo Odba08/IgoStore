@@ -943,50 +943,59 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               {businesses.length === 0 ? (
                 <Text style={styles.emptyText}>No hay comercios registrados.</Text>
               ) : (
-                businesses.map((biz) => (
-                  <View key={biz.id} style={styles.bizCard}>
-                    <View style={styles.bizCardHeader}>
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.bizCardTitle}>{biz.name}</Text>
-                        <Text style={styles.bizCardCategory}>{biz.category || 'Restaurante'} • {biz.address}</Text>
-                        {biz.phoneNumber ? <Text style={styles.bizCardPhone}>Tel: {biz.phoneNumber}</Text> : null}
+                businesses.map((biz) => {
+                  const categoryName =
+                    typeof biz.category === 'object' && biz.category !== null
+                      ? (biz.category.name || 'Restaurante')
+                      : (typeof biz.category === 'string' && biz.category.trim() !== '' ? biz.category : 'Restaurante');
+                  const addressText = biz.address || biz.legalName || 'Sede Principal';
+                  const phoneText = biz.phoneNumber || biz.paymentPhone || null;
+
+                  return (
+                    <View key={biz.id} style={styles.bizCard}>
+                      <View style={styles.bizCardHeader}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.bizCardTitle}>{biz.name}</Text>
+                          <Text style={styles.bizCardCategory}>{categoryName} • {addressText}</Text>
+                          {phoneText ? <Text style={styles.bizCardPhone}>Tel: {phoneText}</Text> : null}
+                        </View>
+                        <TouchableOpacity
+                          style={styles.deleteMiniBtn}
+                          onPress={() => handleDeleteBusiness(biz)}
+                        >
+                          <Ionicons name="trash-outline" size={18} color="#EF4444" />
+                        </TouchableOpacity>
                       </View>
+
+                      {/* Comisión actual */}
+                      <View style={styles.bizCommissionRow}>
+                        <Text style={styles.bizCommLabel}>
+                          Comisión IGO: <Text style={{ fontWeight: 'bold' }}>{biz.commissionPercentage ?? 10}%</Text>
+                        </Text>
+                        <TouchableOpacity
+                          style={styles.editCommBtn}
+                          onPress={() => {
+                            setEditingBizCommission(biz);
+                            setTempCommissionVal(String(biz.commissionPercentage ?? 10));
+                            setShowCommissionModal(true);
+                          }}
+                        >
+                          <Ionicons name="pencil" size={12} color="#000" style={{ marginRight: 4 }} />
+                          <Text style={styles.editCommBtnText}>Editar %</Text>
+                        </TouchableOpacity>
+                      </View>
+
+                      {/* Botón Ver Productos */}
                       <TouchableOpacity
-                        style={styles.deleteMiniBtn}
-                        onPress={() => handleDeleteBusiness(biz)}
+                        style={styles.bizProductsBtn}
+                        onPress={() => handleOpenBizProducts(biz)}
                       >
-                        <Ionicons name="trash-outline" size={18} color="#EF4444" />
+                        <Ionicons name="cube-outline" size={16} color="#FFCC00" style={{ marginRight: 6 }} />
+                        <Text style={styles.bizProductsBtnText}>Ver y Gestionar Productos</Text>
                       </TouchableOpacity>
                     </View>
-
-                    {/* Comisión actual */}
-                    <View style={styles.bizCommissionRow}>
-                      <Text style={styles.bizCommLabel}>
-                        Comisión IGO: <Text style={{ fontWeight: 'bold' }}>{biz.commissionPercentage ?? 10}%</Text>
-                      </Text>
-                      <TouchableOpacity
-                        style={styles.editCommBtn}
-                        onPress={() => {
-                          setEditingBizCommission(biz);
-                          setTempCommissionVal(String(biz.commissionPercentage ?? 10));
-                          setShowCommissionModal(true);
-                        }}
-                      >
-                        <Ionicons name="pencil" size={12} color="#000" style={{ marginRight: 4 }} />
-                        <Text style={styles.editCommBtnText}>Editar %</Text>
-                      </TouchableOpacity>
-                    </View>
-
-                    {/* Botón Ver Productos */}
-                    <TouchableOpacity
-                      style={styles.bizProductsBtn}
-                      onPress={() => handleOpenBizProducts(biz)}
-                    >
-                      <Ionicons name="cube-outline" size={16} color="#FFCC00" style={{ marginRight: 6 }} />
-                      <Text style={styles.bizProductsBtnText}>Ver y Gestionar Productos</Text>
-                    </TouchableOpacity>
-                  </View>
-                ))
+                  );
+                })
               )}
             </View>
           )}

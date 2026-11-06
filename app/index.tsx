@@ -964,7 +964,9 @@ export default function Index() {
                             </View>
                           ) : order.category ? (
                             <View style={{ backgroundColor: "#F1F5F9", paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, marginTop: 4, alignSelf: 'flex-start' }}>
-                              <Text style={{ fontSize: 10, color: "#475569", fontWeight: "bold" }}>{order.category}</Text>
+                              <Text style={{ fontSize: 10, color: "#475569", fontWeight: "bold" }}>
+                                {typeof order.category === 'string' ? order.category : (order.category?.name || '')}
+                              </Text>
                             </View>
                           ) : null}
                         </View>
@@ -1072,7 +1074,9 @@ export default function Index() {
                             </View>
                           ) : order.category ? (
                             <View style={{ backgroundColor: "#F1F5F9", paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, marginTop: 4, alignSelf: 'flex-start' }}>
-                              <Text style={{ fontSize: 10, color: "#475569", fontWeight: "bold" }}>{order.category}</Text>
+                              <Text style={{ fontSize: 10, color: "#475569", fontWeight: "bold" }}>
+                                {typeof order.category === 'string' ? order.category : (order.category?.name || '')}
+                              </Text>
                             </View>
                           ) : null}
                         </View>
