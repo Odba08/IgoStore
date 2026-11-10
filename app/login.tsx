@@ -199,14 +199,16 @@ export default function LoginScreen() {
 
       {/* === FONDO DINÁMICO EN LOOP (MAPA + RUTA GPS) === */}
       {!showSplash && (
-        <LottieView
-          source={require('../assets/igo-login-bg.json')}
-          autoPlay
-          loop
-          renderMode="AUTOMATIC"
-          style={styles.bgLottie}
-          resizeMode="cover"
-        />
+        <View style={styles.bgLottie} pointerEvents="none">
+          <LottieView
+            source={require('../assets/igo-login-bg.json')}
+            autoPlay
+            loop
+            renderMode="AUTOMATIC"
+            style={StyleSheet.absoluteFill}
+            resizeMode="cover"
+          />
+        </View>
       )}
 
       <KeyboardAvoidingView 
@@ -354,11 +356,21 @@ export default function LoginScreen() {
             <View style={styles.legalFooter}>
               <Text style={styles.legalText}>Al iniciar sesión aceptas nuestros </Text>
               <View style={styles.legalLinksRow}>
-                <TouchableOpacity onPress={() => router.push('/legal/terms' as any)}>
+                <TouchableOpacity
+                  style={styles.legalLinkBtn}
+                  hitSlop={{ top: 12, bottom: 12, left: 8, right: 8 }}
+                  activeOpacity={0.7}
+                  onPress={() => router.push('/legal/terms' as any)}
+                >
                   <Text style={styles.legalLink}>Términos de Servicio</Text>
                 </TouchableOpacity>
                 <Text style={styles.legalText}> y </Text>
-                <TouchableOpacity onPress={() => router.push('/legal/privacy' as any)}>
+                <TouchableOpacity
+                  style={styles.legalLinkBtn}
+                  hitSlop={{ top: 12, bottom: 12, left: 8, right: 8 }}
+                  activeOpacity={0.7}
+                  onPress={() => router.push('/legal/privacy' as any)}
+                >
                   <Text style={styles.legalLink}>Política de Privacidad</Text>
                 </TouchableOpacity>
               </View>
@@ -666,6 +678,10 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#8E88A8',
     textAlign: 'center',
+  },
+  legalLinkBtn: {
+    paddingVertical: 6,
+    paddingHorizontal: 4,
   },
   legalLink: {
     fontSize: 12,

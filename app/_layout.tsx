@@ -76,6 +76,8 @@ function RootLayoutNav() {
         <Stack.Screen name="loading" options={{ animation: "slide_from_right", headerShown: false }} />
         <Stack.Screen name="permissions" options={{ headerShown: false }} />
         <Stack.Screen name="map" options={{ headerShown: false }} />
+        <Stack.Screen name="legal/terms" options={{ headerShown: false, animation: "slide_from_right" }} />
+        <Stack.Screen name="legal/privacy" options={{ headerShown: false, animation: "slide_from_right" }} />
       </Stack>
     </>
   );
