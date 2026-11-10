@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, StyleSheet, TouchableOpacity, TextInput, Text, Keyboard, ActivityIndicator, FlatList, Linking } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, TextInput, Text, Keyboard, ActivityIndicator, FlatList, Linking, Platform } from 'react-native';
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useNavigation, useLocalSearchParams } from 'expo-router';
@@ -295,7 +295,10 @@ const handleUserMarkerDragEnd = async (coords: LatLng) => {
           </View>
       )}
 
-      <MapView ref={mapRef} provider={PROVIDER_GOOGLE} style={styles.map} onTouchStart={() => setFollowingUser(false)} initialRegion={{ latitude: startingLocation.latitude, longitude: startingLocation.longitude, latitudeDelta: 0.015, longitudeDelta: 0.012 }}>
+      <MapView
+        ref={mapRef}
+        provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
+        style={styles.map} onTouchStart={() => setFollowingUser(false)} initialRegion={{ latitude: startingLocation.latitude, longitude: startingLocation.longitude, latitudeDelta: 0.015, longitudeDelta: 0.012 }}>
         {!isFavorMode && (
             <View>
                 <Marker 

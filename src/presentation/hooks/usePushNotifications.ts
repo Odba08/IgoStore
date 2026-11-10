@@ -4,6 +4,8 @@ import { NotificationService } from '@/infrastructure/services/notification.serv
 import { SafeNotifications } from '@/infrastructure/services/expo-notifications-safe';
 import { useAuthStore } from '../store/useAuthStore';
 
+import { useNotificationAlertStore } from '../store/useNotificationAlertStore';
+
 export function usePushNotifications() {
   const [expoPushToken, setExpoPushToken] = useState<string | null>(null);
   const [notification, setNotification] = useState<any>(null);
@@ -31,8 +33,29 @@ export function usePushNotifications() {
     // 2. Listener cuando llega una notificación (app en primer plano)
     try {
       notificationListener.current = SafeNotifications.addNotificationReceivedListener?.((incomingNotification: any) => {
-        console.log('📬 [PushNotification] Notificación recibida:', incomingNotification?.request?.content);
+        const content = incomingNotification?.request?.content;
+        console.log('📬 [PushNotification] Notificación recibida:', content);
         setNotification(incomingNotification);
+
+        if (content) {
+          const data = content.data || {};
+          useNotificationAlertStore.getState().showAlert({
+            title: content.title || '🔔 ¡Nueva Notificación!',
+            message: content.body || '',
+            orderId: data.orderId,
+            orderNumber: data.orderNumber,
+            totalAmount: data.totalAmount ? Number(data.totalAmount) : undefined,
+            clientName: data.clientName,
+            actionLabel: 'VER PEDIDO',
+            onAction: () => {
+              if (data.orderId) {
+                try {
+                  router.push('/orders' as any);
+                } catch (e) {}
+              }
+            },
+          });
+        }
       });
     } catch (e) {
       console.warn('No se pudo registrar listener de notificación recibida:', e);

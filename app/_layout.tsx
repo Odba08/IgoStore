@@ -1,3 +1,4 @@
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import PermissionCheckerProvider from "@/presentation/providers/PermissionCheckerProvider";
 import { StatusBar } from "expo-status-bar";
 import { AppState, LogBox } from "react-native";
@@ -9,6 +10,7 @@ import { useAuthStore } from "@/presentation/store/useAuthStore";
 import { usePushNotifications } from "@/presentation/hooks/usePushNotifications";
 import { useGlobalChatListener } from "@/presentation/hooks/useGlobalChatListener";
 import { ChatToastNotification } from "@/presentation/components/shared/ChatToastNotification";
+import { YellowNotificationModal } from "@/presentation/components/shared/YellowNotificationModal";
 import { getSocket } from "@/infrastructure/services/socket.service";
 import { wakeUpBackend } from "@/infrastructure/api/igo.api";
 import { useThemeStore } from "@/presentation/store/useThemeStore";
@@ -31,7 +33,7 @@ const queryClient = new QueryClient();
 function RootLayoutNav() {
   const router = useRouter();
   const segments = useSegments();
-  const { isAuthenticated, checkAuth } = useAuthStore();
+  const { isAuthenticated, isLoading, checkAuth } = useAuthStore();
   const navigationState = useRootNavigationState(); // <-- Obtenemos el estado de la navegación
   const { colors, isDark } = useThemeStore();
 
@@ -63,23 +65,18 @@ function RootLayoutNav() {
   }, []);
 
   useEffect(() => {
-    if (!navigationState?.key) return;
+    if (!navigationState?.key || isLoading) return;
 
-    // Engañamos a TypeScript convirtiendo el segmento a un string genérico
-    const inAuthGroup = (segments[0] as string) === 'login' || (segments[0] as string) === 'register';
+    // Segmentos de autenticación
+    const currentSegment = (segments[0] as string) || '';
+    const inAuthGroup = currentSegment === 'login' || currentSegment === 'register';
 
-    const timeoutId = setTimeout(() => {
-      if (!isAuthenticated && !inAuthGroup) {
-        // Forzamos la ruta saltando la validación estricta de tipos
-        router.replace('/login' as any);
-      } else if (isAuthenticated && inAuthGroup) {
-        router.replace('/' as any);
-      }
-    }, 1); 
-
-    return () => clearTimeout(timeoutId);
-
-  }, [isAuthenticated, segments, navigationState]);
+    if (!isAuthenticated && !inAuthGroup) {
+      router.replace('/login' as any);
+    } else if (isAuthenticated && inAuthGroup) {
+      router.replace('/' as any);
+    }
+  }, [isAuthenticated, isLoading, segments, navigationState]);
 
   return (
     <>
@@ -104,12 +101,15 @@ function RootLayoutNav() {
 export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <QueryClientProvider client={queryClient}>
+      <SafeAreaProvider>
+        <QueryClientProvider client={queryClient}>
         <PermissionCheckerProvider>
           <RootLayoutNav />
           <ChatToastNotification />
+          <YellowNotificationModal />
         </PermissionCheckerProvider>
       </QueryClientProvider>
+      </SafeAreaProvider>
     </GestureHandlerRootView>
   );
 }

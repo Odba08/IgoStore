@@ -17,6 +17,7 @@ expo-env.d.ts
 *.p12
 *.key
 *.mobileprovision
+credentials.json
 
 # Metro
 .metro-health-check*
@@ -39,3 +40,5 @@ yarn-error.*
 app-example
 *.apk
 *.aab
+/android/
+/ios/
