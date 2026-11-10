@@ -9,12 +9,14 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useCartStore } from '@/presentation/store/useCartStore';
 import { useLocationStore } from '@/presentation/store/useLocationStore';
+import { useAuthStore } from '@/presentation/store/useAuthStore';
 import { igoApi } from '@/infrastructure/api/igo.api';
 import { useThemeStore } from '@/presentation/store/useThemeStore';
 
 const CartScreen = () => {
   const router = useRouter();
   const { colors, isDark } = useThemeStore();
+  const { user, isAuthenticated } = useAuthStore();
 
   const [bcvRate, setBcvRate] = useState<number>(75.54);
 
@@ -39,7 +41,6 @@ const CartScreen = () => {
   // ✅ Leemos dinámicamente las direcciones desde el store de Zustand
   const savedAddresses = useLocationStore((state: any) => state.savedAddresses) || [];
 
-  const [currentUser] = useState({ name: 'Oscar', phone: '+584141234567' });
   const [addressNotes, setAddressNotes] = useState('');
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
 
@@ -73,7 +74,7 @@ const CartScreen = () => {
       params: {
         serviceType: 'store', 
         mode: 'route', 
-        personalData: currentUser.name,
+        personalData: user?.fullname || 'Cliente Igo',
         addressNotes: addressNotes
       }
     });
@@ -171,17 +172,35 @@ const CartScreen = () => {
             <View style={[styles.contactCard, { backgroundColor: colors.card, borderColor: colors.cardBorder, borderWidth: isDark ? 1 : 0 }]}>
               <Text style={[styles.cardSectionTitle, { color: colors.text }]}>Datos de Despacho</Text>
               
-              <View style={[styles.readonlyProfileRow, { backgroundColor: isDark ? '#231254' : '#F8FAFC', borderColor: colors.cardBorder }]}>
-                <Ionicons name="person-circle" size={36} color={isDark ? '#FFC93C' : '#6200EE'} />
-                <View style={{ marginLeft: 12 }}>
-                  <Text style={{ fontSize: 15, fontWeight: 'bold', color: colors.text }}>{currentUser.name}</Text>
-                  <Text style={{ fontSize: 13, color: colors.textMuted }}>{currentUser.phone}</Text>
+              {isAuthenticated && user ? (
+                <View style={[styles.readonlyProfileRow, { backgroundColor: isDark ? '#231254' : '#F8FAFC', borderColor: colors.cardBorder }]}>
+                  <Ionicons name="person-circle" size={36} color={isDark ? '#FFC93C' : '#6200EE'} />
+                  <View style={{ marginLeft: 12, flex: 1, paddingRight: 80 }}>
+                    <Text style={{ fontSize: 15, fontWeight: 'bold', color: colors.text }} numberOfLines={1}>{user.fullname}</Text>
+                    <Text style={{ fontSize: 13, color: colors.textMuted }} numberOfLines={1}>{user.phoneNumber || user.email}</Text>
+                  </View>
+                  <View style={[styles.verifiedBadge, isDark && { backgroundColor: '#064E3B' }]}>
+                    <Ionicons name="checkmark-circle" size={14} color="#10B981" />
+                    <Text style={{ fontSize: 11, color: '#10B981', marginLeft: 4, fontWeight: 'bold' }}>Conectado</Text>
+                  </View>
                 </View>
-                <View style={[styles.verifiedBadge, isDark && { backgroundColor: '#064E3B' }]}>
-                  <Ionicons name="checkmark-circle" size={14} color="#10B981" />
-                  <Text style={{ fontSize: 11, color: '#10B981', marginLeft: 4, fontWeight: 'bold' }}>Verificado</Text>
-                </View>
-              </View>
+              ) : (
+                <TouchableOpacity
+                  style={[styles.readonlyProfileRow, { backgroundColor: isDark ? '#231254' : '#FFFBEB', borderColor: '#FDE68A' }]}
+                  onPress={() => router.push({ pathname: '/login', params: { skipSplash: '1', redirect: 'back' } } as any)}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="person-circle-outline" size={36} color="#D97706" />
+                  <View style={{ marginLeft: 12, flex: 1, paddingRight: 75 }}>
+                    <Text style={{ fontSize: 14, fontWeight: 'bold', color: colors.text }}>Modo Invitado</Text>
+                    <Text style={{ fontSize: 12, color: colors.textMuted }}>Inicia sesión para confirmar tu pedido</Text>
+                  </View>
+                  <View style={[styles.verifiedBadge, { backgroundColor: '#FFDB58' }]}>
+                    <Ionicons name="log-in-outline" size={14} color="#000" />
+                    <Text style={{ fontSize: 11, color: '#000', marginLeft: 4, fontWeight: 'bold' }}>Entrar</Text>
+                  </View>
+                </TouchableOpacity>
+              )}
               
               <TextInput
                 style={[styles.textInput, { minHeight: 60, marginTop: 15, backgroundColor: colors.inputBg, borderColor: colors.inputBorder, color: colors.text }]}

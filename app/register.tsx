@@ -11,7 +11,7 @@ import {
   ScrollView,
   ActivityIndicator,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -22,6 +22,7 @@ import { wakeUpBackend } from '@/infrastructure/api/igo.api';
 
 export default function RegisterScreen() {
   const router = useRouter();
+  const { redirect, authDepth } = useLocalSearchParams<{ redirect?: string; authDepth?: string }>();
   const insets = useSafeAreaInsets();
   const { register } = useAuthStore();
 
@@ -69,7 +70,22 @@ export default function RegisterScreen() {
 
       if (success) {
         Alert.alert('¡Bienvenido a IGO!', 'Tu cuenta ha sido creada exitosamente.', [
-          { text: 'Comenzar', onPress: () => router.replace('/') },
+          {
+            text: 'Comenzar',
+            onPress: () => {
+              if (redirect === 'back') {
+                if (authDepth === '2' && router.canDismiss()) {
+                  router.dismiss(2);
+                } else if (router.canGoBack()) {
+                  router.back();
+                } else {
+                  router.replace('/');
+                }
+              } else {
+                router.replace('/');
+              }
+            },
+          },
         ]);
       } else {
         Alert.alert(
@@ -248,7 +264,16 @@ export default function RegisterScreen() {
             {/* Footer: Ya tengo cuenta */}
             <TouchableOpacity
               style={styles.loginContainer}
-              onPress={() => router.replace('/login')}
+              onPress={() => {
+                if (authDepth === '2' && router.canGoBack()) {
+                  router.back();
+                } else {
+                  router.replace({
+                    pathname: '/login',
+                    params: { skipSplash: '1', redirect: redirect || '' },
+                  } as any);
+                }
+              }}
               activeOpacity={0.7}
             >
               <Text style={styles.loginText}>

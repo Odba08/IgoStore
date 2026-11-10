@@ -15,7 +15,7 @@ const PrincipalHeader = () => {
   const { locationStatus } = usePermissionsStore();
   const { user } = useAuthStore();
   const { colors, isDark } = useThemeStore();
-  const isEmployee = user?.roles.includes('empleado') || user?.roles.includes('worker');
+  const isEmployee = user?.roles?.includes('empleado') || user?.roles?.includes('worker');
 
   const totalItems = useCartStore(state => state.items.reduce((total, item) => total + item.quantity, 0));
   const deliveryLocation = useLocationStore(state => state.deliveryLocation);
@@ -45,7 +45,7 @@ const PrincipalHeader = () => {
             borderColor: colors.cardBorder,
           },
         ]}
-        onPress={() => router.push('./profile/profile')}
+        onPress={() => router.push('/profile/profile')}
         activeOpacity={0.8}
       >
         <Ionicons name="person-outline" size={20} color={colors.text} />
@@ -88,7 +88,7 @@ const PrincipalHeader = () => {
               borderColor: colors.cardBorder,
             },
           ]}
-          onPress={() => router.push('./cart/cart')}
+          onPress={() => router.push('/cart/cart')}
           activeOpacity={0.8}
         >
           <Ionicons name="cart-outline" size={22} color={colors.text} />

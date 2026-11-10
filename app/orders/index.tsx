@@ -15,7 +15,7 @@ import { useThemeStore } from '@/presentation/store/useThemeStore';
 
 export default function MyOrdersScreen() {
   const router = useRouter();
-  const { user } = useAuthStore();
+  const { user, isAuthenticated } = useAuthStore();
   const { colors, isDark } = useThemeStore();
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -41,12 +41,19 @@ export default function MyOrdersScreen() {
   };
 
   useEffect(() => {
+    if (!isAuthenticated) {
+      return;
+    }
     fetchOrders();
     const interval = setInterval(fetchOrders, 8000); // Actualiza estado de mis pedidos cada 8s
     return () => clearInterval(interval);
-  }, []);
+  }, [isAuthenticated, user?.id]);
 
   const onRefresh = () => {
+    if (!isAuthenticated) {
+      setRefreshing(false);
+      return;
+    }
     setRefreshing(true);
     fetchOrders();
   };
@@ -118,7 +125,27 @@ export default function MyOrdersScreen() {
         </TouchableOpacity>
       </View>
 
-      {loading ? (
+      {!isAuthenticated ? (
+        <View style={styles.guestContainer}>
+          <View style={[styles.guestIconCircle, { backgroundColor: isDark ? '#231254' : '#FFF8E1' }]}>
+            <Ionicons name="receipt-outline" size={44} color="#EDB422" />
+          </View>
+          <Text style={[styles.emptyTitle, { color: colors.text, textAlign: 'center' }]}>
+            Inicia sesión para ver tus pedidos
+          </Text>
+          <Text style={[styles.emptySub, { color: colors.textMuted, textAlign: 'center', paddingHorizontal: 16 }]}>
+            Consulta el estado de tus entregas en tiempo real, chatea con tu repartidor y revisa tu historial.
+          </Text>
+          <TouchableOpacity
+            style={styles.guestLoginBtn}
+            onPress={() => router.push({ pathname: '/login', params: { skipSplash: '1', redirect: 'back' } } as any)}
+            activeOpacity={0.85}
+          >
+            <Ionicons name="log-in-outline" size={18} color="#0F0330" style={{ marginRight: 8 }} />
+            <Text style={styles.guestLoginBtnText}>Iniciar Sesión / Registrarse</Text>
+          </TouchableOpacity>
+        </View>
+      ) : loading ? (
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color="#FFDB58" />
           <Text style={[styles.loadingText, { color: colors.textMuted }]}>Cargando tus pedidos...</Text>
@@ -358,5 +385,37 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFBEB', paddingVertical: 5, paddingHorizontal: 10, borderRadius: 20,
     borderWidth: 1, borderColor: '#FDE68A'
   },
-  ratedBadgeText: { fontSize: 12, fontWeight: '700', color: '#B45309' }
+  ratedBadgeText: { fontSize: 12, fontWeight: '700', color: '#B45309' },
+  guestContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 28,
+  },
+  guestIconCircle: {
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  guestLoginBtn: {
+    marginTop: 24,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFDB58',
+    paddingHorizontal: 22,
+    paddingVertical: 14,
+    borderRadius: 14,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 3,
+  },
+  guestLoginBtnText: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#0F0330',
+  },
 });

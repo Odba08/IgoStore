@@ -5,7 +5,7 @@ import {
   Animated, Modal
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import LottieView from 'lottie-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -14,6 +14,7 @@ import { igoApi, wakeUpBackend, subscribeServerStatus } from '@/infrastructure/a
 
 export default function LoginScreen() {
   const router = useRouter();
+  const { skipSplash, redirect } = useLocalSearchParams<{ skipSplash?: string; redirect?: string }>();
   const insets = useSafeAreaInsets();
   const { login } = useAuthStore();
   
@@ -34,7 +35,7 @@ export default function LoginScreen() {
   const [forgotLoading, setForgotLoading] = useState(false);
 
   // Animación de entrada (Intro Splash)
-  const [showSplash, setShowSplash] = useState(true);
+  const [showSplash, setShowSplash] = useState(skipSplash !== '1');
   const splashOpacity = useRef(new Animated.Value(1)).current;
   const splashDismissedRef = useRef(false);
 
@@ -142,7 +143,15 @@ export default function LoginScreen() {
     try {
       const success = await login(email.trim().toLowerCase(), password);
       if (success) {
-        router.replace('/'); 
+        const loggedUser = useAuthStore.getState().user;
+        const isSpecialRole = loggedUser?.roles?.some((r) =>
+          ['admin', 'business', 'bussiness', 'empleado', 'worker'].includes(r)
+        );
+        if (redirect === 'back' && !isSpecialRole && router.canGoBack()) {
+          router.back();
+        } else {
+          router.replace('/');
+        }
       } else {
         Alert.alert('Error', 'Credenciales incorrectas o el servidor está tardando en responder. Intenta de nuevo.');
       }
@@ -213,6 +222,18 @@ export default function LoginScreen() {
           keyboardShouldPersistTaps="handled"
         >
           <View>
+            {/* Botón para explorar como invitado sin registrarse */}
+            <View style={styles.topActionRow}>
+              <TouchableOpacity
+                style={styles.guestSkipBtn}
+                onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))}
+                activeOpacity={0.75}
+              >
+                <Ionicons name="arrow-back" size={16} color="#FFFFFF" />
+                <Text style={styles.guestSkipText}>Explorar sin cuenta</Text>
+              </TouchableOpacity>
+            </View>
+
             {/* === ICONO ANIMADO CON GLOW (PARTE SUPERIOR) === */}
             <View style={styles.topIconSection}>
               {!showSplash && (
@@ -316,7 +337,12 @@ export default function LoginScreen() {
             {/* Footer: Registro */}
             <TouchableOpacity 
               style={styles.registerContainer} 
-              onPress={() => router.push('/register' as any)}
+              onPress={() =>
+                router.push({
+                  pathname: '/register',
+                  params: { redirect: redirect || '', authDepth: '2' },
+                } as any)
+              }
               activeOpacity={0.7}
             >
               <Text style={styles.registerText}>
@@ -479,9 +505,32 @@ const styles = StyleSheet.create({
     bottom: 0,
     zIndex: 0,
   },
-  scrollContent: { 
+  scrollContent: {
     flexGrow: 1,
     justifyContent: 'space-between',
+  },
+  topActionRow: {
+    paddingHorizontal: 24,
+    paddingTop: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    zIndex: 2,
+  },
+  guestSkipBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.18)',
+  },
+  guestSkipText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '600',
   },
   topIconSection: {
     alignItems: 'center',

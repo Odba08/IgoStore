@@ -8,6 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router'; 
 import { useLocationStore } from '@/presentation/store/useLocationStore';
 import { useCartStore } from '@/presentation/store/useCartStore';
+import { useAuthStore } from '@/presentation/store/useAuthStore';
 // ✅ Importación con alias seguro
 import * as ExpoLocation from 'expo-location';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -43,6 +44,7 @@ const FALLBACK_COORDS = { latitude: 10.6427, longitude: -71.6125 };
 
 const MapScreen = () => {
   const router = useRouter();
+  const { user, isAuthenticated } = useAuthStore();
   
   // ⚡ CONTROL DE MULTIMODALIDAD INYECTADO
   const { mode, personalData, addressNotes, serviceType = 'store' } = useLocalSearchParams(); 
@@ -500,7 +502,7 @@ const MapScreen = () => {
 
       const orderPayload = {
         businessId: businessId, 
-        userIdTemp: personalData || 'Cliente Igo',
+        userIdTemp: personalData || user?.fullname || 'Cliente Igo',
         pickupLat: routeQuote.businessLat || pickupLocation?.latitude,
         pickupLong: routeQuote.businessLong || pickupLocation?.longitude,
         pickupAddress: pickupLocation?.address || 'Dirección de Recogida (Punto A)',
@@ -626,7 +628,7 @@ const MapScreen = () => {
 
     const orderPayload = {
       businessId: '00000000-0000-0000-0000-000000000000', 
-      userIdTemp: personalData || (isMotoTaxi ? 'Pasajero IGO Moto Taxi' : 'Pasajero IGO Taxi'),
+      userIdTemp: personalData || user?.fullname || (isMotoTaxi ? 'Pasajero IGO Moto Taxi' : 'Pasajero IGO Taxi'),
       pickupLat: routeQuote.businessLat || pickupLocation?.latitude,
       pickupLong: routeQuote.businessLong || pickupLocation?.longitude,
       pickupAddress: pickupLocation?.address || 'Punto de Partida (Punto A)',
@@ -683,7 +685,7 @@ const MapScreen = () => {
 
     const orderPayload = {
       businessId: businessId, 
-      userIdTemp: personalData || 'Cliente Igo',
+      userIdTemp: personalData || user?.fullname || 'Cliente Igo',
       pickupLat: routeQuote.businessLat || pickupLocation?.latitude,
       pickupLong: routeQuote.businessLong || pickupLocation?.longitude,
       pickupAddress: pickupLocation?.address || 'Dirección de Recogida (Punto A)',
@@ -1027,6 +1029,24 @@ const MapScreen = () => {
                   onPress={() => {
                     if (!routeQuote) {
                       Alert.alert("Cotización faltante", "No se pudo obtener el precio del servicio.");
+                      return;
+                    }
+                    if (!isAuthenticated || !user) {
+                      Alert.alert(
+                        "Inicia sesión para continuar",
+                        "Para realizar un pedido o solicitar un servicio necesitas iniciar sesión o crear una cuenta.",
+                        [
+                          { text: "Seguir explorando", style: "cancel" },
+                          {
+                            text: "Iniciar Sesión",
+                            onPress: () =>
+                              router.push({
+                                pathname: '/login',
+                                params: { skipSplash: '1', redirect: 'back' },
+                              } as any),
+                          },
+                        ]
+                      );
                       return;
                     }
                     if (isTaxiService) {

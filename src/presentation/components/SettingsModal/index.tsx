@@ -28,7 +28,7 @@ export const SettingsModal = ({
 }: SettingsModalProps) => {
   const router = useRouter();
   const { isDark, toggleTheme } = useThemeStore();
-  const { deleteAccount } = useAuthStore();
+  const { deleteAccount, isAuthenticated, user } = useAuthStore();
 
   const [pushEnabled, setPushEnabled] = useState(true);
   const [soundEnabled, setSoundEnabled] = useState(true);
@@ -88,7 +88,7 @@ export const SettingsModal = ({
           onPress: async () => {
             onClose();
             await deleteAccount();
-            router.replace('/login');
+            router.replace('/');
           },
         },
       ]
@@ -251,30 +251,33 @@ export const SettingsModal = ({
                 <Ionicons name="open-outline" size={18} color="#16A34A" />
               </TouchableOpacity>
 
-              <View style={[styles.divider, { backgroundColor: isDark ? '#2C1B58' : '#F1F5F9' }]} />
-
-              {/* Chat interno con admin */}
-              <TouchableOpacity
-                style={styles.settingRowAction}
-                onPress={() => {
-                  onClose();
-                  if (onOpenSupport) onOpenSupport();
-                }}
-                activeOpacity={0.75}
-              >
-                <View style={[styles.settingIconBox, { backgroundColor: isDark ? '#2C1B58' : '#F1F5F9' }]}>
-                  <Ionicons name="chatbubbles-outline" size={20} color={isDark ? '#FFC93C' : '#0F0330'} />
-                </View>
-                <View style={styles.settingTextCol}>
-                  <Text style={[styles.settingTitle, { color: isDark ? '#FFF' : '#1E293B' }]}>
-                    Chat con Soporte en Vivo
-                  </Text>
-                  <Text style={[styles.settingSub, { color: isDark ? '#94A3B8' : '#64748B' }]}>
-                    Hablar con un administrador en la app
-                  </Text>
-                </View>
-                <Ionicons name="chevron-forward" size={18} color={isDark ? '#8E88A8' : '#94A3B8'} />
-              </TouchableOpacity>
+              {/* Chat interno con admin (Solo usuarios autenticados) */}
+              {isAuthenticated && user && (
+                <>
+                  <View style={[styles.divider, { backgroundColor: isDark ? '#2C1B58' : '#F1F5F9' }]} />
+                  <TouchableOpacity
+                    style={styles.settingRowAction}
+                    onPress={() => {
+                      onClose();
+                      if (onOpenSupport) onOpenSupport();
+                    }}
+                    activeOpacity={0.75}
+                  >
+                    <View style={[styles.settingIconBox, { backgroundColor: isDark ? '#2C1B58' : '#F1F5F9' }]}>
+                      <Ionicons name="chatbubbles-outline" size={20} color={isDark ? '#FFC93C' : '#0F0330'} />
+                    </View>
+                    <View style={styles.settingTextCol}>
+                      <Text style={[styles.settingTitle, { color: isDark ? '#FFF' : '#1E293B' }]}>
+                        Chat con Soporte en Vivo
+                      </Text>
+                      <Text style={[styles.settingSub, { color: isDark ? '#94A3B8' : '#64748B' }]}>
+                        Hablar con un administrador en la app
+                      </Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={18} color={isDark ? '#8E88A8' : '#94A3B8'} />
+                  </TouchableOpacity>
+                </>
+              )}
             </View>
 
             {/* Sección Legal (Requisito Apple & Google) */}
@@ -340,27 +343,31 @@ export const SettingsModal = ({
                 <Ionicons name="chevron-forward" size={18} color={isDark ? '#8E88A8' : '#94A3B8'} />
               </TouchableOpacity>
 
-              <View style={[styles.divider, { backgroundColor: isDark ? '#2C1B58' : '#F1F5F9' }]} />
+              {isAuthenticated && user && (
+                <>
+                  <View style={[styles.divider, { backgroundColor: isDark ? '#2C1B58' : '#F1F5F9' }]} />
 
-              {/* Botón de eliminación de cuenta requerido por Apple y Google */}
-              <TouchableOpacity
-                style={styles.settingRowAction}
-                onPress={handleDeleteAccount}
-                activeOpacity={0.75}
-              >
-                <View style={[styles.settingIconBox, { backgroundColor: isDark ? '#3E1020' : '#FFE4E6' }]}>
-                  <Ionicons name="trash-bin-outline" size={20} color="#E11D48" />
-                </View>
-                <View style={styles.settingTextCol}>
-                  <Text style={[styles.settingTitle, { color: '#E11D48' }]}>
-                    Eliminar mi cuenta
-                  </Text>
-                  <Text style={[styles.settingSub, { color: isDark ? '#94A3B8' : '#64748B' }]}>
-                    Elimina de forma permanente tus datos personales y cuenta
-                  </Text>
-                </View>
-                <Ionicons name="chevron-forward" size={18} color="#E11D48" />
-              </TouchableOpacity>
+                  {/* Botón de eliminación de cuenta requerido por Apple y Google */}
+                  <TouchableOpacity
+                    style={styles.settingRowAction}
+                    onPress={handleDeleteAccount}
+                    activeOpacity={0.75}
+                  >
+                    <View style={[styles.settingIconBox, { backgroundColor: isDark ? '#3E1020' : '#FFE4E6' }]}>
+                      <Ionicons name="trash-bin-outline" size={20} color="#E11D48" />
+                    </View>
+                    <View style={styles.settingTextCol}>
+                      <Text style={[styles.settingTitle, { color: '#E11D48' }]}>
+                        Eliminar mi cuenta
+                      </Text>
+                      <Text style={[styles.settingSub, { color: isDark ? '#94A3B8' : '#64748B' }]}>
+                        Elimina de forma permanente tus datos personales y cuenta
+                      </Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={18} color="#E11D48" />
+                  </TouchableOpacity>
+                </>
+              )}
             </View>
 
             {/* Versión y Legal */}

@@ -34,7 +34,7 @@ import { useNotificationAlertStore } from "@/presentation/store/useNotificationA
 
 export default function Index() {
   const router = useRouter();
-  const { user, logout } = useAuthStore();
+  const { user, isAuthenticated, isLoading: isAuthLoading, logout } = useAuthStore();
   const { colors, isDark } = useThemeStore();
 
   // 1. CARGA DE DATOS CLIENTE
@@ -393,6 +393,10 @@ export default function Index() {
   };
 
   useEffect(() => {
+    if (!isAuthenticated) {
+      return;
+    }
+
     fetchClientOrders();
     const interval = setInterval(fetchClientOrders, 8000);
 
@@ -411,7 +415,7 @@ export default function Index() {
       socket.off('order:payment_verified', handleLiveOrderUpdate);
       socket.off('order:driver_assigned', handleLiveOrderUpdate);
     };
-  }, []);
+  }, [isAuthenticated, user?.id]);
 
   const handleClaimOrder = async (orderId: string) => {
     try {
@@ -656,7 +660,7 @@ export default function Index() {
     return businesses.filter(b => favorites.includes(b.id));
   }, [businesses, favorites]);
 
-  if (loadingBusiness && !isEmployee && !(isBusiness && businessModeActive) && !(isAdmin && adminModeActive)) {
+  if (isAuthLoading || (loadingBusiness && !isEmployee && !(isBusiness && businessModeActive) && !(isAdmin && adminModeActive))) {
     return (
       <LoadingScreen 
         imageSource={require("../assets/images/adaptive-icon.png")} 
@@ -732,7 +736,7 @@ export default function Index() {
       )}
 
       {/* WIDGET FLOTANTE DE PEDIDO EN VIVO (ESTILO QUIK) */}
-      {clientActiveOrder && (
+      {isAuthenticated && clientActiveOrder && (
         <ActiveOrderFloatingWidget
           order={clientActiveOrder}
           currentUser={user}

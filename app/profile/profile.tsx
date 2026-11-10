@@ -36,7 +36,7 @@ const PROFILE_OPTIONS = [
 const ProfileScreen = () => {
   const router = useRouter();
   const { expand } = useLocalSearchParams();
-  const { user, logout, deleteAccount, updateUserLocal, changePassword } = useAuthStore();
+  const { user, isAuthenticated, logout, deleteAccount, updateUserLocal, changePassword } = useAuthStore();
   const { colors, isDark } = useThemeStore();
 
   const { savedAddresses, removeSavedAddress } = useLocationStore();
@@ -74,7 +74,7 @@ const ProfileScreen = () => {
           style: 'destructive',
           onPress: async () => {
             await deleteAccount();
-            router.replace('/login');
+            router.replace('/');
           },
         },
       ]
@@ -87,7 +87,14 @@ const ProfileScreen = () => {
       '¿Estás seguro de que deseas salir de tu cuenta?',
       [
         { text: 'Cancelar', style: 'cancel' },
-        { text: 'Cerrar Sesión', style: 'destructive', onPress: logout },
+        {
+          text: 'Cerrar Sesión',
+          style: 'destructive',
+          onPress: async () => {
+            await logout();
+            router.replace('/');
+          },
+        },
       ]
     );
   };
@@ -230,69 +237,98 @@ const ProfileScreen = () => {
       <ScrollView contentContainerStyle={[styles.scrollContent, { backgroundColor: colors.background }]}>
         {/* ENCABEZADO DEL PERFIL */}
         <View style={[styles.headerSection, { backgroundColor: isDark ? '#190E38' : '#FFC93C' }]}>
-          <View style={styles.avatarContainer}>
-            {user?.avatarUrl ? (
-              <Image source={{ uri: user.avatarUrl }} style={[styles.avatar, { borderColor: isDark ? '#2C1D54' : '#FFF' }]} />
-            ) : (
-              <View style={[styles.avatar, styles.avatarPlaceholder, { backgroundColor: isDark ? '#231254' : '#F1F5F9', borderColor: isDark ? '#2C1D54' : '#FFF' }]}>
-                <Ionicons name="person" size={50} color={isDark ? '#8E88A8' : '#94A3B8'} />
+          {isAuthenticated && user ? (
+            <>
+              <View style={styles.avatarContainer}>
+                {user?.avatarUrl ? (
+                  <Image source={{ uri: user.avatarUrl }} style={[styles.avatar, { borderColor: isDark ? '#2C1D54' : '#FFF' }]} />
+                ) : (
+                  <View style={[styles.avatar, styles.avatarPlaceholder, { backgroundColor: isDark ? '#231254' : '#F1F5F9', borderColor: isDark ? '#2C1D54' : '#FFF' }]}>
+                    <Ionicons name="person" size={50} color={isDark ? '#8E88A8' : '#94A3B8'} />
+                  </View>
+                )}
+                <TouchableOpacity
+                  style={styles.editAvatarBtn}
+                  onPress={handlePickImage}
+                  disabled={updating}
+                >
+                  {updating ? (
+                    <ActivityIndicator size="small" color="#FFF" />
+                  ) : (
+                    <Ionicons name="camera" size={16} color="#FFF" />
+                  )}
+                </TouchableOpacity>
               </View>
-            )}
-            <TouchableOpacity
-              style={styles.editAvatarBtn}
-              onPress={handlePickImage}
-              disabled={updating}
-            >
-              {updating ? (
-                <ActivityIndicator size="small" color="#FFF" />
-              ) : (
-                <Ionicons name="camera" size={16} color="#FFF" />
-              )}
-            </TouchableOpacity>
-          </View>
 
-          <Text style={[styles.userName, { color: isDark ? '#FFF' : '#0F0330' }]}>{user?.fullname || 'Usuario Igo'}</Text>
-          <Text style={[styles.userEmail, { color: isDark ? '#C5BFDB' : '#475569' }]}>{user?.email || ''}</Text>
+              <Text style={[styles.userName, { color: isDark ? '#FFF' : '#0F0330' }]}>{user?.fullname || 'Usuario Igo'}</Text>
+              <Text style={[styles.userEmail, { color: isDark ? '#C5BFDB' : '#475569' }]}>{user?.email || ''}</Text>
 
-          {/* Badge de Verificación */}
-          <TouchableOpacity
-            style={styles.kycBadge}
-            onPress={() => setIdentityModalVisible(true)}
-          >
-            {identityStatus === 'VERIFIED' ? (
-              <View style={[styles.badgePill, styles.badgeVerified]}>
-                <Ionicons name="checkmark-circle" size={14} color="#15803D" />
-                <Text style={styles.badgeTextVerified}>Identidad Verificada</Text>
-              </View>
-            ) : identityStatus === 'PENDING' ? (
-              <View style={[styles.badgePill, styles.badgePending]}>
-                <Ionicons name="time" size={14} color="#B45309" />
-                <Text style={styles.badgeTextPending}>En Revisión</Text>
-              </View>
-            ) : (
-              <View style={[styles.badgePill, styles.badgeUnverified, isDark && { backgroundColor: 'rgba(255,255,255,0.1)' }]}>
-                <Ionicons name="alert-circle-outline" size={14} color={isDark ? '#C5BFDB' : '#475569'} />
-                <Text style={[styles.badgeTextUnverified, isDark && { color: '#C5BFDB' }]}>Verificar Identidad</Text>
-              </View>
-            )}
-          </TouchableOpacity>
+              {/* Badge de Verificación */}
+              <TouchableOpacity
+                style={styles.kycBadge}
+                onPress={() => setIdentityModalVisible(true)}
+              >
+                {identityStatus === 'VERIFIED' ? (
+                  <View style={[styles.badgePill, styles.badgeVerified]}>
+                    <Ionicons name="checkmark-circle" size={14} color="#15803D" />
+                    <Text style={styles.badgeTextVerified}>Identidad Verificada</Text>
+                  </View>
+                ) : identityStatus === 'PENDING' ? (
+                  <View style={[styles.badgePill, styles.badgePending]}>
+                    <Ionicons name="time" size={14} color="#B45309" />
+                    <Text style={styles.badgeTextPending}>En Revisión</Text>
+                  </View>
+                ) : (
+                  <View style={[styles.badgePill, styles.badgeUnverified, isDark && { backgroundColor: 'rgba(255,255,255,0.1)' }]}>
+                    <Ionicons name="alert-circle-outline" size={14} color={isDark ? '#C5BFDB' : '#475569'} />
+                    <Text style={[styles.badgeTextUnverified, isDark && { color: '#C5BFDB' }]}>Verificar Identidad</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
 
-          <TouchableOpacity
-            style={[styles.editProfileBtn, { backgroundColor: isDark ? '#281754' : '#FFFFFF', borderColor: isDark ? '#3D2678' : 'transparent', borderWidth: isDark ? 1 : 0 }]}
-            onPress={() => {
-              setEditName(user?.fullname || '');
-              setEditPhone(user?.phoneNumber || '');
-              setModalVisible(true);
-            }}
-          >
-            <Ionicons name="create-outline" size={16} color={isDark ? '#FFC93C' : '#1A1A1A'} style={{ marginRight: 6 }} />
-            <Text style={[styles.editProfileText, { color: isDark ? '#FFC93C' : '#0F0330' }]}>Editar Perfil</Text>
-          </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.editProfileBtn, { backgroundColor: isDark ? '#281754' : '#FFFFFF', borderColor: isDark ? '#3D2678' : 'transparent', borderWidth: isDark ? 1 : 0 }]}
+                onPress={() => {
+                  setEditName(user?.fullname || '');
+                  setEditPhone(user?.phoneNumber || '');
+                  setModalVisible(true);
+                }}
+              >
+                <Ionicons name="create-outline" size={16} color={isDark ? '#FFC93C' : '#1A1A1A'} style={{ marginRight: 6 }} />
+                <Text style={[styles.editProfileText, { color: isDark ? '#FFC93C' : '#0F0330' }]}>Editar Perfil</Text>
+              </TouchableOpacity>
+            </>
+          ) : (
+            <>
+              <View style={styles.avatarContainer}>
+                <View style={[styles.avatar, styles.avatarPlaceholder, { backgroundColor: isDark ? '#231254' : '#F1F5F9', borderColor: isDark ? '#2C1D54' : '#FFF' }]}>
+                  <Ionicons name="person-outline" size={46} color={isDark ? '#8E88A8' : '#64748B'} />
+                </View>
+              </View>
+              <Text style={[styles.userName, { color: isDark ? '#FFF' : '#0F0330' }]}>Modo Invitado</Text>
+              <Text style={[styles.userEmail, { color: isDark ? '#C5BFDB' : '#334155', textAlign: 'center', paddingHorizontal: 24 }]}>
+                Inicia sesión o regístrate para hacer pedidos y guardar tu historial.
+              </Text>
+              <TouchableOpacity
+                style={[styles.editProfileBtn, { backgroundColor: isDark ? '#FFC93C' : '#0F0330', paddingHorizontal: 22, paddingVertical: 11, marginTop: 14 }]}
+                onPress={() => router.push({ pathname: '/login', params: { skipSplash: '1', redirect: 'back' } } as any)}
+                activeOpacity={0.85}
+              >
+                <Ionicons name="log-in-outline" size={18} color={isDark ? '#0F0330' : '#FFC93C'} style={{ marginRight: 8 }} />
+                <Text style={[styles.editProfileText, { color: isDark ? '#0F0330' : '#FFFFFF', fontSize: 14 }]}>
+                  Iniciar Sesión / Registrarse
+                </Text>
+              </TouchableOpacity>
+            </>
+          )}
         </View>
 
         {/* LISTA DE OPCIONES */}
         <View style={[styles.optionsContainer, { backgroundColor: colors.card, borderColor: colors.cardBorder, borderWidth: isDark ? 1 : 0 }]}>
-          {PROFILE_OPTIONS.map((option) => {
+          {(isAuthenticated && user
+            ? PROFILE_OPTIONS
+            : PROFILE_OPTIONS.filter((o) => o.title === 'Mis Direcciones' || o.title === 'Configuración')
+          ).map((option) => {
             const isAddressOption = option.title === 'Mis Direcciones';
             const isIdentityOption = option.title === 'Verificación de Identidad';
 
@@ -387,23 +423,27 @@ const ProfileScreen = () => {
           })}
         </View>
 
-        {/* CERRAR SESIÓN */}
-        <TouchableOpacity style={[styles.logoutBtn, { backgroundColor: colors.card, borderColor: colors.cardBorder, borderWidth: isDark ? 1 : 0 }]} onPress={handleLogout} activeOpacity={0.8}>
-          <Ionicons name="log-out-outline" size={22} color="#E74C3C" />
-          <Text style={styles.logoutText}>Cerrar Sesión</Text>
-        </TouchableOpacity>
+        {isAuthenticated && user && (
+          <>
+            {/* CERRAR SESIÓN */}
+            <TouchableOpacity style={[styles.logoutBtn, { backgroundColor: colors.card, borderColor: colors.cardBorder, borderWidth: isDark ? 1 : 0 }]} onPress={handleLogout} activeOpacity={0.8}>
+              <Ionicons name="log-out-outline" size={22} color="#E74C3C" />
+              <Text style={styles.logoutText}>Cerrar Sesión</Text>
+            </TouchableOpacity>
 
-        {/* ELIMINAR CUENTA (Requisito Apple Store & Google Play) */}
-        <TouchableOpacity
-          style={styles.deleteAccountBtn}
-          onPress={handleDeleteAccount}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="trash-bin-outline" size={17} color={isDark ? '#8E88A8' : '#94A3B8'} style={{ marginRight: 6 }} />
-          <Text style={[styles.deleteAccountText, { color: isDark ? '#8E88A8' : '#94A3B8' }]}>
-            Eliminar mi cuenta
-          </Text>
-        </TouchableOpacity>
+            {/* ELIMINAR CUENTA (Requisito Apple Store & Google Play) */}
+            <TouchableOpacity
+              style={styles.deleteAccountBtn}
+              onPress={handleDeleteAccount}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="trash-bin-outline" size={17} color={isDark ? '#8E88A8' : '#94A3B8'} style={{ marginRight: 6 }} />
+              <Text style={[styles.deleteAccountText, { color: isDark ? '#8E88A8' : '#94A3B8' }]}>
+                Eliminar mi cuenta
+              </Text>
+            </TouchableOpacity>
+          </>
+        )}
       </ScrollView>
 
       {/* MODAL DE EDICIÓN DE PERFIL */}

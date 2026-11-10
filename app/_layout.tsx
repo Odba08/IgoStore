@@ -2,7 +2,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import PermissionCheckerProvider from "@/presentation/providers/PermissionCheckerProvider";
 import { StatusBar } from "expo-status-bar";
 import { AppState, LogBox } from "react-native";
-import { Stack, useRouter, useSegments, useRootNavigationState } from "expo-router"; // <-- Importa useRootNavigationState
+import { Stack } from "expo-router";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useEffect } from "react";
@@ -31,10 +31,7 @@ LogBox.ignoreLogs([
 const queryClient = new QueryClient();
 
 function RootLayoutNav() {
-  const router = useRouter();
-  const segments = useSegments();
-  const { isAuthenticated, isLoading, checkAuth } = useAuthStore();
-  const navigationState = useRootNavigationState(); // <-- Obtenemos el estado de la navegación
+  const { checkAuth } = useAuthStore();
   const { colors, isDark } = useThemeStore();
 
   // Inicializar servicio y listeners de Notificaciones Push y Chat en Tiempo Real
@@ -64,20 +61,6 @@ function RootLayoutNav() {
     };
   }, []);
 
-  useEffect(() => {
-    if (!navigationState?.key || isLoading) return;
-
-    // Segmentos de autenticación
-    const currentSegment = (segments[0] as string) || '';
-    const inAuthGroup = currentSegment === 'login' || currentSegment === 'register';
-
-    if (!isAuthenticated && !inAuthGroup) {
-      router.replace('/login' as any);
-    } else if (isAuthenticated && inAuthGroup) {
-      router.replace('/' as any);
-    }
-  }, [isAuthenticated, isLoading, segments, navigationState]);
-
   return (
     <>
       <StatusBar style={isDark ? "light" : "dark"} />
@@ -103,12 +86,12 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <QueryClientProvider client={queryClient}>
-        <PermissionCheckerProvider>
-          <RootLayoutNav />
-          <ChatToastNotification />
-          <YellowNotificationModal />
-        </PermissionCheckerProvider>
-      </QueryClientProvider>
+          <PermissionCheckerProvider>
+            <RootLayoutNav />
+            <ChatToastNotification />
+            <YellowNotificationModal />
+          </PermissionCheckerProvider>
+        </QueryClientProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );
