@@ -25,13 +25,11 @@ const LoadingScreen: React.FC<LoadingScreenProps> = ({
         />
       ) : (
         <>
-          {imageSource && (
-            <Image
-              source={imageSource}
-              style={{ width: 120, height: 120, marginBottom: 20 }}
-              resizeMode="contain"
-            />
-          )}
+          <Image
+            source={imageSource || require("../../../../assets/images/splash-icon.png")}
+            style={{ width: 150, height: 150, marginBottom: 16 }}
+            resizeMode="contain"
+          />
           <ActivityIndicator size="large" color={spinnerColor} />
         </>
       )}

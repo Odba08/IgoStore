@@ -3,9 +3,16 @@ import { useEffect, useState } from "react";
 import { Category } from "@entities/category.entity";
 import { CategoryService } from "@/infrastructure/services/category.service";
 
+const DEFAULT_CATEGORIES: Category[] = [
+  { id: 'cat-restaurantes', name: 'Restaurantes' },
+  { id: 'cat-supermercado', name: 'Supermercado' },
+  { id: 'cat-farmacia', name: 'Farmacia' },
+  { id: 'cat-licoreria', name: 'Licorería' },
+];
+
 export const useCategories = () => {
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [categories, setCategories] = useState<Category[]>(DEFAULT_CATEGORIES);
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     loadCategories();
@@ -13,7 +20,9 @@ export const useCategories = () => {
 
   const loadCategories = async () => {
     const data = await CategoryService.getCategories();
-    setCategories(data);
+    if (Array.isArray(data) && data.length > 0) {
+      setCategories(data);
+    }
     setIsLoading(false);
   };
 

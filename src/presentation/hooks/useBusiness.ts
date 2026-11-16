@@ -8,8 +8,8 @@ export const useBusinesses = () => {
   return useQuery<Business[], Error>({
     queryKey: ["businesses"],
     queryFn: () => BusinessService.getBusinessesWithImages(),
-    staleTime: 0, // Real-time sync with admin panel
-    refetchInterval: 10000, // Refresco automático cada 10s en background
+    staleTime: 60000, // Cache por 60s para evitar saturar la cuota de transferencia de BD
+    refetchInterval: 120000, // Refresco cada 2 min en lugar de cada 10s
     retry: 1,
     refetchOnWindowFocus: false,
   });
@@ -23,7 +23,7 @@ export const useBusiness = (id: string) => {
       return Array.isArray(businesses) ? businesses[0] : businesses;
     },
     enabled: !!id,
-    staleTime: 0, // Real-time sync with admin panel
-    refetchInterval: 10000, // Refresco automático cada 10s en background
+    staleTime: 30000,
+    refetchInterval: 60000,
   });
 };

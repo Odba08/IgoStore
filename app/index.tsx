@@ -18,7 +18,7 @@ import { useFavoritesStore } from "@/presentation/store/useFavoriteStore";
 import { useCartStore } from "@/presentation/store/useCartStore";
 import { useLocationStore } from "@/presentation/store/useLocationStore";
 import { useAuthStore } from "@/presentation/store/useAuthStore";
-import { igoApi } from "@/infrastructure/api/igo.api";
+import { igoApi, wakeUpBackend } from "@/infrastructure/api/igo.api";
 import { getPendingDeliveriesApi, updateOrderApi, getOrderQuoteApi, getMyOrdersApi, getOrderByIdApi, getActiveOrderId } from "@/infrastructure/api/orders.api";
 import { getSocket } from "@/infrastructure/services/socket.service";
 import MapView, { Marker, Polyline, UrlTile } from 'react-native-maps';
@@ -38,7 +38,7 @@ export default function Index() {
   const { colors, isDark } = useThemeStore();
 
   // 1. CARGA DE DATOS CLIENTE
-  const { data: businesses, isLoading: loadingBusiness, error } = useBusinesses();
+  const { data: businesses, isLoading: loadingBusiness, error, refetch: refetchBusinesses } = useBusinesses();
   const { data: products, isLoading: productsLoading } = useAllProducts();
 
   const sortedBusinesses = useMemo(() => {
@@ -660,20 +660,12 @@ export default function Index() {
     return businesses.filter(b => favorites.includes(b.id));
   }, [businesses, favorites]);
 
-  if (isAuthLoading || (loadingBusiness && !isEmployee && !(isBusiness && businessModeActive) && !(isAdmin && adminModeActive))) {
+  if (isAuthLoading) {
     return (
       <LoadingScreen 
-        imageSource={require("../assets/images/adaptive-icon.png")} 
+        imageSource={require("../assets/images/splash-icon.png")} 
         spinnerColor="#FFDB58" 
       />
-    );
-  }
-
-  if (error && !isEmployee && !(isBusiness && businessModeActive) && !(isAdmin && adminModeActive)) {
-    return (
-      <View style={styles.center}>
-        <Text style={{ color: "red" }}>{error.message}</Text>
-      </View>
     );
   }
 
@@ -1210,6 +1202,44 @@ export default function Index() {
                     <View style={{ width: 260 }}>
                       <BusinessCardSkeleton />
                     </View>
+                  </View>
+                ) : sortedBusinesses.length === 0 ? (
+                  <View
+                    style={{
+                      marginHorizontal: 20,
+                      padding: 20,
+                      borderRadius: 16,
+                      backgroundColor: colors.card,
+                      borderWidth: 1,
+                      borderColor: colors.cardBorder,
+                      alignItems: 'center',
+                    }}
+                  >
+                    <Ionicons name="storefront-outline" size={32} color="#EDB422" style={{ marginBottom: 8 }} />
+                    <Text style={{ color: colors.text, fontWeight: '700', fontSize: 15, textAlign: 'center', marginBottom: 4 }}>
+                      {error ? 'Conectando con el catálogo de tiendas...' : 'Cargando tiendas disponibles...'}
+                    </Text>
+                    <Text style={{ color: colors.textMuted, fontSize: 13, textAlign: 'center', marginBottom: 12 }}>
+                      El servidor está sincronizando los comercios de tu zona.
+                    </Text>
+                    <TouchableOpacity
+                      style={{
+                        backgroundColor: '#FFDB58',
+                        paddingHorizontal: 18,
+                        paddingVertical: 10,
+                        borderRadius: 12,
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        gap: 6,
+                      }}
+                      onPress={() => {
+                        wakeUpBackend(true);
+                        refetchBusinesses();
+                      }}
+                    >
+                      <Ionicons name="refresh" size={16} color="#0F0330" />
+                      <Text style={{ color: '#0F0330', fontWeight: '700', fontSize: 13 }}>Actualizar Tiendas</Text>
+                    </TouchableOpacity>
                   </View>
                 ) : (
                   <FlatList

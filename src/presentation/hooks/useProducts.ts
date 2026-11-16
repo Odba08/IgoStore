@@ -7,8 +7,8 @@ export const useProduct = (id: string) => {
     queryKey: ["product", id],
     queryFn: () => ProductService.getProductById(id),
     enabled: !!id,
-    staleTime: 0, // CRÍTICO: En detalle de producto queremos datos frescos (stock) siempre
-    refetchInterval: 10000, // Refresco automático cada 10s en background
+    staleTime: 30000,
+    refetchInterval: 60000,
   });
 };
 
@@ -16,7 +16,7 @@ export const useAllProducts = () => {
   return useQuery({
     queryKey: ["products"],
     queryFn: () => ProductService.getProducts(),
-    staleTime: 0, // Real-time sync with admin panel status updates
-    refetchInterval: 10000, // Refresco automático cada 10s en background
+    staleTime: 60000,
+    refetchInterval: 120000,
   });
 };

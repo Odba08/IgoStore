@@ -9,8 +9,7 @@ const getApiBaseUrl = (): string => {
 
 export const igoApi = axios.create({
   baseURL: getApiBaseUrl(),
-  // Render Free Tier tarda ~35-55s en despertar de un cold start; 65s evita que corte antes
-  timeout: 65000,
+  timeout: 25000,
   adapter: 'fetch',
   headers: {
     Accept: 'application/json',

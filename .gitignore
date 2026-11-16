@@ -42,3 +42,4 @@ app-example
 *.aab
 /android/
 /ios/
+assets/store_listing/

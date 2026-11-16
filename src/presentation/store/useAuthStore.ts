@@ -125,8 +125,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   checkAuth: async () => {
     try {
-      const token = await SecureStorage.getItem('token');
-      const userJson = await SecureStorage.getItem('user');
+      const storagePromise = Promise.all([
+        SecureStorage.getItem('token'),
+        SecureStorage.getItem('user'),
+      ]);
+      const timeoutPromise = new Promise<[null, null]>((resolve) =>
+        setTimeout(() => resolve([null, null]), 1500),
+      );
+      const [token, userJson] = await Promise.race([storagePromise, timeoutPromise]);
       if (token && userJson) {
         const user = JSON.parse(userJson);
         set({ isAuthenticated: true, user, token, isLoading: false });
