@@ -6,7 +6,10 @@
   "build": {
     "development": {
       "developmentClient": true,
-      "distribution": "internal"
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://igoback-e6rg.onrender.com"
+      }
     },
     "preview": {
       "distribution": "internal",
@@ -14,7 +17,7 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://igoback-b84f.onrender.com",
+        "EXPO_PUBLIC_API_URL": "https://igoback-e6rg.onrender.com",
         "EXPO_USE_PRECOMPILED_MODULES": "0"
       }
     },
@@ -27,7 +30,7 @@
         "buildType": "app-bundle"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://igoback-b84f.onrender.com",
+        "EXPO_PUBLIC_API_URL": "https://igoback-e6rg.onrender.com",
         "EXPO_USE_PRECOMPILED_MODULES": "0"
       }
     }

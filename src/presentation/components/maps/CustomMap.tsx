@@ -64,7 +64,7 @@ const CustomMap = ({ initialLocation }: Props) => {
     if (!isFavorMode) {
         const fetchBusinesses = async () => {
             try {
-                const rawUrl = process.env.EXPO_PUBLIC_API_URL;
+                const rawUrl = process.env.EXPO_PUBLIC_API_URL || 'https://igoback-e6rg.onrender.com';
                 const baseUrl = rawUrl?.endsWith('/api') ? rawUrl : `${rawUrl}/api`;
                 let response = await fetch(`${baseUrl}/business`).catch(() => null);
                 if (!response || !response.ok) response = await fetch(`${baseUrl}/bussines`);

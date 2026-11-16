@@ -87,7 +87,7 @@ export default function StorePaymentModal({
   useEffect(() => {
     const fetchIgoSettings = async () => {
       try {
-        const envUrl = process.env.EXPO_PUBLIC_API_URL;
+        const envUrl = process.env.EXPO_PUBLIC_API_URL || 'https://igoback-e6rg.onrender.com';
         const apiUrl = envUrl?.endsWith('/api') ? envUrl : `${envUrl}/api`;
         const res = await fetch(`${apiUrl}/settings`);
         if (res.ok) {

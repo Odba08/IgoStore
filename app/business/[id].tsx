@@ -99,7 +99,7 @@ export default function BusinessDetailScreen() {
   const getProductImage = (image: any) => {
     if (!image) return require('../../assets/images/adaptive-icon.png');
     if (image.url.startsWith('http')) return { uri: image.url };
-    const API_URL = process.env.EXPO_PUBLIC_API_URL;
+    const API_URL = process.env.EXPO_PUBLIC_API_URL || 'https://igoback-e6rg.onrender.com';
     return { uri: `${API_URL}/api/files/product/${image.url}` };
   };
 
