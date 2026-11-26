@@ -78,6 +78,13 @@ export const BusinessDashboard: React.FC<BusinessDashboardProps> = ({
   const [productImageUri, setProductImageUri] = useState<string | null>(null);
   const [savingProduct, setSavingProduct] = useState(false);
   const isSavingProductRef = useRef(false);
+
+  // Modal de Configuración de Horarios y Estado de la Tienda
+  const [showScheduleModal, setShowScheduleModal] = useState(false);
+  const [storeOpenTime, setStoreOpenTime] = useState('08:00 AM');
+  const [storeCloseTime, setStoreCloseTime] = useState('10:00 PM');
+  const [storeIsOpen, setStoreIsOpen] = useState(false);
+  const [savingSchedule, setSavingSchedule] = useState(false);
   const knownOrderIdsRef = useRef<Set<string>>(new Set());
   const isInitialOrdersLoadRef = useRef(true);
 
@@ -781,6 +788,66 @@ export const BusinessDashboard: React.FC<BusinessDashboardProps> = ({
             </TouchableOpacity>
           )}
         </View>
+
+        {/* BARRA DE HORARIO Y ESTADO ABIERTO / CERRADO DE LA TIENDA */}
+        <TouchableOpacity
+          style={{
+            marginTop: 10,
+            marginBottom: 4,
+            backgroundColor: myBusiness.isOpen === true ? '#ECFDF5' : '#FEF3C7',
+            borderWidth: 1,
+            borderColor: myBusiness.isOpen === true ? '#10B981' : '#F59E0B',
+            borderRadius: 12,
+            paddingHorizontal: 14,
+            paddingVertical: 10,
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+          }}
+          onPress={() => {
+            setStoreOpenTime(myBusiness.openTime || '08:00 AM');
+            setStoreCloseTime(myBusiness.closeTime || '10:00 PM');
+            setStoreIsOpen(myBusiness.isOpen === true);
+            setShowScheduleModal(true);
+          }}
+          activeOpacity={0.85}
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
+            <Ionicons
+              name={myBusiness.isOpen === true ? 'time' : 'lock-closed'}
+              size={18}
+              color={myBusiness.isOpen === true ? '#059669' : '#D97706'}
+            />
+            <View style={{ flex: 1 }}>
+              <Text
+                style={{
+                  fontSize: 13,
+                  fontWeight: '800',
+                  color: myBusiness.isOpen === true ? '#065F46' : '#92400E',
+                }}
+              >
+                {myBusiness.isOpen === true ? '🟢 Tienda ABIERTA al público' : '🔒 Tienda CERRADA al público'}
+              </Text>
+              <Text style={{ fontSize: 11, color: '#475569', marginTop: 1 }}>
+                Horario configurado: {myBusiness.openTime || '08:00 AM'} - {myBusiness.closeTime || '10:00 PM'}
+              </Text>
+            </View>
+          </View>
+          <View
+            style={{
+              backgroundColor: '#0F0330',
+              paddingHorizontal: 10,
+              paddingVertical: 6,
+              borderRadius: 8,
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 4,
+            }}
+          >
+            <Ionicons name="settings-outline" size={13} color="#FFDB58" />
+            <Text style={{ fontSize: 11, fontWeight: '700', color: '#FFDB58' }}>Configurar Horario</Text>
+          </View>
+        </TouchableOpacity>
 
         {/* TARJETAS DE MÉTRICAS */}
         <View style={styles.metricsContainer}>
@@ -2048,6 +2115,162 @@ export const BusinessDashboard: React.FC<BusinessDashboardProps> = ({
         order={selectedQrOrder}
         onClose={() => setSelectedQrOrder(null)}
       />
+
+      {/* MODAL DE CONFIGURACIÓN DE HORARIOS Y ESTADO DE LA TIENDA */}
+      <Modal
+        visible={showScheduleModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          if (!savingSchedule) setShowScheduleModal(false);
+        }}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={[styles.modalSheet, { maxHeight: '75%' }]}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Configuración de Horarios y Estado</Text>
+              <TouchableOpacity
+                onPress={() => setShowScheduleModal(false)}
+                disabled={savingSchedule}
+              >
+                <Ionicons name="close-circle" size={26} color="#94A3B8" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={{ paddingVertical: 8 }}>
+              <Text style={{ fontSize: 13, color: '#64748B', marginBottom: 14 }}>
+                Define el horario de atención que verán los clientes en tu perfil de tienda y controla si tu tienda recibe pedidos en este momento.
+              </Text>
+
+              {/* Switch Abierto / Cerrado */}
+              <TouchableOpacity
+                style={{
+                  backgroundColor: storeIsOpen ? '#ECFDF5' : '#FEF3C7',
+                  borderWidth: 1.5,
+                  borderColor: storeIsOpen ? '#10B981' : '#F59E0B',
+                  borderRadius: 12,
+                  padding: 14,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  marginBottom: 16,
+                }}
+                onPress={() => setStoreIsOpen(!storeIsOpen)}
+                activeOpacity={0.8}
+              >
+                <View style={{ flex: 1, marginRight: 10 }}>
+                  <Text style={{ fontSize: 15, fontWeight: '800', color: storeIsOpen ? '#065F46' : '#92400E' }}>
+                    {storeIsOpen ? '🟢 Tienda ABIERTA (Recibiendo pedidos)' : '🔒 Tienda CERRADA (Pedidos pausados)'}
+                  </Text>
+                  <Text style={{ fontSize: 12, color: '#475569', marginTop: 2 }}>
+                    Toca para cambiar entre Abierto y Cerrado
+                  </Text>
+                </View>
+                <Ionicons
+                  name={storeIsOpen ? 'toggle' : 'toggle-outline'}
+                  size={34}
+                  color={storeIsOpen ? '#10B981' : '#D97706'}
+                />
+              </TouchableOpacity>
+
+              <Text style={{ fontSize: 12, fontWeight: '800', color: '#334155', marginBottom: 6 }}>
+                HORA DE APERTURA (Ej: 08:00 AM)
+              </Text>
+              <TextInput
+                style={{
+                  backgroundColor: '#F8FAFC',
+                  borderWidth: 1,
+                  borderColor: '#CBD5E1',
+                  borderRadius: 10,
+                  paddingHorizontal: 14,
+                  height: 46,
+                  fontSize: 15,
+                  color: '#0F172A',
+                  fontWeight: '600',
+                  marginBottom: 14,
+                }}
+                placeholder="Ej: 08:00 AM"
+                placeholderTextColor="#94A3B8"
+                value={storeOpenTime}
+                onChangeText={setStoreOpenTime}
+              />
+
+              <Text style={{ fontSize: 12, fontWeight: '800', color: '#334155', marginBottom: 6 }}>
+                HORA DE CIERRE (Ej: 10:00 PM)
+              </Text>
+              <TextInput
+                style={{
+                  backgroundColor: '#F8FAFC',
+                  borderWidth: 1,
+                  borderColor: '#CBD5E1',
+                  borderRadius: 10,
+                  paddingHorizontal: 14,
+                  height: 46,
+                  fontSize: 15,
+                  color: '#0F172A',
+                  fontWeight: '600',
+                  marginBottom: 20,
+                }}
+                placeholder="Ej: 10:00 PM"
+                placeholderTextColor="#94A3B8"
+                value={storeCloseTime}
+                onChangeText={setStoreCloseTime}
+              />
+
+              <TouchableOpacity
+                style={{
+                  backgroundColor: '#FFDB58',
+                  height: 48,
+                  borderRadius: 12,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexDirection: 'row',
+                  gap: 8,
+                }}
+                disabled={savingSchedule}
+                onPress={async () => {
+                  if (!myBusiness?.id) return;
+                  try {
+                    setSavingSchedule(true);
+                    await igoApi.patch(`/business/${myBusiness.id}`, {
+                      openTime: storeOpenTime.trim() || '08:00 AM',
+                      closeTime: storeCloseTime.trim() || '10:00 PM',
+                      isOpen: storeIsOpen,
+                    });
+                    setMyBusiness((prev: any) =>
+                      prev
+                        ? {
+                            ...prev,
+                            openTime: storeOpenTime.trim() || '08:00 AM',
+                            closeTime: storeCloseTime.trim() || '10:00 PM',
+                            isOpen: storeIsOpen,
+                          }
+                        : prev
+                    );
+                    setShowScheduleModal(false);
+                    Alert.alert('¡Guardado! ✅', 'El horario y estado de tu tienda se actualizaron correctamente.');
+                  } catch (err: any) {
+                    Alert.alert('Error', err.response?.data?.message || 'No se pudo actualizar el horario.');
+                  } finally {
+                    setSavingSchedule(false);
+                  }
+                }}
+              >
+                {savingSchedule ? (
+                  <ActivityIndicator size="small" color="#0F0330" />
+                ) : (
+                  <>
+                    <Ionicons name="checkmark-circle" size={18} color="#0F0330" />
+                    <Text style={{ fontSize: 15, fontWeight: '800', color: '#0F0330' }}>
+                      Guardar Horario y Estado
+                    </Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* MODAL CREAR / EDITAR PRODUCTO */}
       <Modal

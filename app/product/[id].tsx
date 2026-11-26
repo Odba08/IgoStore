@@ -298,7 +298,23 @@ export default function ProductDetailScreen() {
             </TouchableOpacity>
           </View>
 
-          <TouchableOpacity style={styles.addToCartButton} onPress={() => {
+          <TouchableOpacity
+            style={[
+              styles.addToCartButton,
+              product.business && product.business.isOpen !== true && { backgroundColor: '#CBD5E1' },
+            ]}
+            onPress={() => {
+              if (product.business && product.business.isOpen !== true) {
+                const sched =
+                  product.business.openTime && product.business.closeTime
+                    ? `${product.business.openTime} - ${product.business.closeTime}`
+                    : '08:00 AM - 10:00 PM';
+                Alert.alert(
+                  'Tienda Cerrada 🔒',
+                  `Esta tienda se encuentra cerrada en este momento (Horario: ${sched}).`
+                );
+                return;
+              }
               const optionText = getSelectedOptionsText();
               addItem({ 
                 id: `${product.id}-${optionText}`, 
@@ -312,7 +328,11 @@ export default function ProductDetailScreen() {
               });
               router.back(); 
           }}>
-              <Text style={styles.addToCartText}>Agregar • ${totalPrice.toFixed(2)}</Text>
+              <Text style={styles.addToCartText}>
+                {product.business && product.business.isOpen !== true
+                  ? 'Tienda Cerrada 🔒'
+                  : `Agregar • $${totalPrice.toFixed(2)}`}
+              </Text>
           </TouchableOpacity>
       </View>
     </View>

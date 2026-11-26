@@ -7,6 +7,9 @@ export interface BusinessShort {
   id: string;
   name: string;
   category?: { id: string; name: string };
+  isOpen?: boolean;
+  openTime?: string;
+  closeTime?: string;
 }
 
 // Interfaz auxiliar para no causar ciclos de importación complejos

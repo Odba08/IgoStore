@@ -24,6 +24,10 @@ export interface Business {
   reviewsCount?: number;
   freeDeliveryAbove?: number;
   isOfficialStore?: boolean;
+  isOpen?: boolean;
+  isActive?: boolean;
+  openTime?: string;
+  closeTime?: string;
   latitude?: number;
   longitude?: number;
 

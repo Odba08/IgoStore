@@ -49,6 +49,12 @@ export const BusinessCard = ({ business }: Props) => {
     });
   };
 
+  const isStoreOpen = business.isOpen === true;
+  const scheduleLabel =
+    business.openTime && business.closeTime
+      ? `${business.openTime} - ${business.closeTime}`
+      : '08:00 AM - 10:00 PM';
+
   return (
     <TouchableOpacity
       style={[
@@ -56,6 +62,7 @@ export const BusinessCard = ({ business }: Props) => {
         {
           backgroundColor: colors.card,
           borderColor: colors.cardBorder,
+          opacity: isStoreOpen ? 1 : 0.88,
         },
       ]}
       activeOpacity={0.9}
@@ -64,6 +71,40 @@ export const BusinessCard = ({ business }: Props) => {
       {/* 1. CONTENEDOR DE IMAGEN */}
       <View style={styles.imageContainer}>
         <Image source={mainImage} style={styles.image} resizeMode="cover" />
+
+        {!isStoreOpen && (
+          <View
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: 'rgba(15, 3, 48, 0.58)',
+              justifyContent: 'center',
+              alignItems: 'center',
+            }}
+          >
+            <View
+              style={{
+                backgroundColor: '#0F0330',
+                borderWidth: 1.5,
+                borderColor: '#FFDB58',
+                paddingHorizontal: 12,
+                paddingVertical: 5,
+                borderRadius: 20,
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 5,
+              }}
+            >
+              <Ionicons name="lock-closed" size={13} color="#FFDB58" />
+              <Text style={{ color: '#FFDB58', fontWeight: '800', fontSize: 11, letterSpacing: 0.8 }}>
+                CERRADO
+              </Text>
+            </View>
+          </View>
+        )}
 
         {/* Botón de Favorito */}
         <TouchableOpacity
@@ -128,6 +169,25 @@ export const BusinessCard = ({ business }: Props) => {
           <Ionicons name="location-outline" size={12} color={colors.textSecondary} style={{ marginRight: 2 }} />
           <Text style={[styles.subtitle, { color: colors.textSecondary, marginTop: 0 }]}>
             {formattedDistance}
+          </Text>
+        </View>
+
+        {/* Horario y Estado de Apertura */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4, gap: 4 }}>
+          <Ionicons
+            name="time-outline"
+            size={12}
+            color={isStoreOpen ? '#10B981' : '#F59E0B'}
+          />
+          <Text
+            style={{
+              fontSize: 11,
+              fontWeight: '700',
+              color: isStoreOpen ? '#10B981' : '#F59E0B',
+            }}
+            numberOfLines={1}
+          >
+            {isStoreOpen ? `Abierto • ${scheduleLabel}` : `Cerrado • Horario: ${scheduleLabel}`}
           </Text>
         </View>
 

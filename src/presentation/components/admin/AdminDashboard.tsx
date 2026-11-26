@@ -18,6 +18,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { AdminService } from '@/infrastructure/services/admin.service';
+import { igoApi } from '@/infrastructure/api/igo.api';
 import { getSocket } from '@/infrastructure/services/socket.service';
 import SoundService from '@/infrastructure/services/sound.service';
 import { useNotificationAlertStore } from '@/presentation/store/useNotificationAlertStore';
@@ -93,9 +94,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [newProdDesc, setNewProdDesc] = useState<string>('');
   const [savingProd, setSavingProd] = useState<boolean>(false);
 
-  // Modal Editar Comisión de Comercio
+  // Modal Editar Comisión y Horario de Comercio
   const [editingBizCommission, setEditingBizCommission] = useState<any | null>(null);
   const [tempCommissionVal, setTempCommissionVal] = useState<string>('');
+  const [tempOpenTimeVal, setTempOpenTimeVal] = useState<string>('08:00 AM');
+  const [tempCloseTimeVal, setTempCloseTimeVal] = useState<string>('10:00 PM');
   const [showCommissionModal, setShowCommissionModal] = useState<boolean>(false);
 
   // Modal Registrar Repartidor / Empleado
@@ -940,6 +943,69 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 </TouchableOpacity>
               </View>
 
+              {/* Controles Globales: Cerrar / Abrir todas las tiendas */}
+              <View style={{ flexDirection: 'row', gap: 8, marginBottom: 14 }}>
+                <TouchableOpacity
+                  style={{
+                    flex: 1,
+                    backgroundColor: '#FEF3C7',
+                    borderWidth: 1,
+                    borderColor: '#F59E0B',
+                    paddingVertical: 10,
+                    paddingHorizontal: 10,
+                    borderRadius: 10,
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 6,
+                  }}
+                  onPress={async () => {
+                    try {
+                      await igoApi.patch('/business/status/all', { isOpen: false });
+                      setBusinesses((prev) => prev.map((b) => ({ ...b, isOpen: false })));
+                      Alert.alert('Tiendas Cerradas 🔒', 'Todas las tiendas ahora aparecen como CERRADAS al público.');
+                    } catch (err: any) {
+                      Alert.alert('Error', 'No se pudo cambiar el estado masivo.');
+                    }
+                  }}
+                >
+                  <Ionicons name="lock-closed" size={15} color="#B45309" />
+                  <Text style={{ fontSize: 12, fontWeight: '800', color: '#B45309' }}>
+                    Cerrar Todas las Tiendas
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={{
+                    flex: 1,
+                    backgroundColor: '#ECFDF5',
+                    borderWidth: 1,
+                    borderColor: '#10B981',
+                    paddingVertical: 10,
+                    paddingHorizontal: 10,
+                    borderRadius: 10,
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 6,
+                  }}
+                  onPress={async () => {
+                    try {
+                      await igoApi.patch('/business/status/all', { isOpen: true });
+                      setBusinesses((prev) => prev.map((b) => ({ ...b, isOpen: true })));
+                      Alert.alert('Tiendas Abiertas 🟢', 'Todas las tiendas ahora aparecen como ABIERTAS al público.');
+                    } catch (err: any) {
+                      Alert.alert('Error', 'No se pudo cambiar el estado masivo.');
+                    }
+                  }}
+                >
+                  <Ionicons name="lock-open" size={15} color="#047857" />
+                  <Text style={{ fontSize: 12, fontWeight: '800', color: '#047857' }}>
+                    Abrir Todas las Tiendas
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
               {businesses.length === 0 ? (
                 <Text style={styles.emptyText}>No hay comercios registrados.</Text>
               ) : (
@@ -977,12 +1043,52 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           onPress={() => {
                             setEditingBizCommission(biz);
                             setTempCommissionVal(String(biz.commissionPercentage ?? 10));
+                            setTempOpenTimeVal(biz.openTime || '08:00 AM');
+                            setTempCloseTimeVal(biz.closeTime || '10:00 PM');
                             setShowCommissionModal(true);
                           }}
                         >
                           <Ionicons name="pencil" size={12} color="#000" style={{ marginRight: 4 }} />
-                          <Text style={styles.editCommBtnText}>Editar %</Text>
+                          <Text style={styles.editCommBtnText}>Editar % / Horario</Text>
                         </TouchableOpacity>
+                      </View>
+
+                      {/* Horario y Switch de Estado (Abierto / Cerrado) */}
+                      <View
+                        style={{
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          backgroundColor: 'rgba(255,255,255,0.04)',
+                          borderRadius: 10,
+                          paddingHorizontal: 10,
+                          paddingVertical: 8,
+                          marginBottom: 10,
+                        }}
+                      >
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ fontSize: 12, fontWeight: '700', color: biz.isOpen === true ? '#10B981' : '#F59E0B' }}>
+                            {biz.isOpen === true ? '🟢 Abierta al público' : '🔒 Cerrada al público'}
+                          </Text>
+                          <Text style={{ fontSize: 11, color: '#94A3B8', marginTop: 2 }}>
+                            Horario: {biz.openTime || '08:00 AM'} - {biz.closeTime || '10:00 PM'}
+                          </Text>
+                        </View>
+                        <Switch
+                          value={biz.isOpen === true}
+                          onValueChange={async (val) => {
+                            try {
+                              await igoApi.patch(`/business/${biz.id}`, { isOpen: val });
+                              setBusinesses((prev) =>
+                                prev.map((item) => (item.id === biz.id ? { ...item, isOpen: val } : item))
+                              );
+                            } catch {
+                              Alert.alert('Error', 'No se pudo cambiar el estado de la tienda.');
+                            }
+                          }}
+                          trackColor={{ false: '#4B5563', true: '#10B981' }}
+                          thumbColor="#FFF"
+                        />
                       </View>
 
                       {/* Botón Ver Productos */}
@@ -1641,13 +1747,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         </View>
       </Modal>
 
-      {/* ===================== MODAL 7: EDITAR COMISIÓN ===================== */}
+      {/* ===================== MODAL 7: EDITAR COMISIÓN Y HORARIOS ===================== */}
       <Modal visible={showCommissionModal} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.modalBox}>
-            <Text style={styles.modalTitle}>Editar Comisión (%)</Text>
+            <Text style={styles.modalTitle}>Comisión y Horarios</Text>
             <Text style={styles.modalSub}>{editingBizCommission?.name}</Text>
 
+            <Text style={{ color: '#94A3B8', fontSize: 11, fontWeight: '700', marginBottom: 4 }}>
+              COMISIÓN IGO (%)
+            </Text>
             <TextInput
               style={styles.modalInput}
               keyboardType="numeric"
@@ -1655,6 +1764,28 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               placeholderTextColor="#64748B"
               value={tempCommissionVal}
               onChangeText={setTempCommissionVal}
+            />
+
+            <Text style={{ color: '#94A3B8', fontSize: 11, fontWeight: '700', marginBottom: 4 }}>
+              HORA DE APERTURA (Ej: 08:00 AM)
+            </Text>
+            <TextInput
+              style={styles.modalInput}
+              placeholder="Ej: 08:00 AM"
+              placeholderTextColor="#64748B"
+              value={tempOpenTimeVal}
+              onChangeText={setTempOpenTimeVal}
+            />
+
+            <Text style={{ color: '#94A3B8', fontSize: 11, fontWeight: '700', marginBottom: 4 }}>
+              HORA DE CIERRE (Ej: 10:00 PM)
+            </Text>
+            <TextInput
+              style={styles.modalInput}
+              placeholder="Ej: 10:00 PM"
+              placeholderTextColor="#64748B"
+              value={tempCloseTimeVal}
+              onChangeText={setTempCloseTimeVal}
             />
 
             <View style={styles.modalButtonsRow}>
@@ -1666,7 +1797,35 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.modalConfirmBtn}
-                onPress={handleSaveCommission}
+                onPress={async () => {
+                  if (!editingBizCommission) return;
+                  try {
+                    const comm = parseFloat(tempCommissionVal);
+                    const openT = tempOpenTimeVal.trim() || '08:00 AM';
+                    const closeT = tempCloseTimeVal.trim() || '10:00 PM';
+                    await igoApi.patch(`/business/${editingBizCommission.id}`, {
+                      ...(isNaN(comm) ? {} : { commissionPercentage: comm }),
+                      openTime: openT,
+                      closeTime: closeT,
+                    });
+                    setBusinesses((prev) =>
+                      prev.map((b) =>
+                        b.id === editingBizCommission.id
+                          ? {
+                              ...b,
+                              ...(isNaN(comm) ? {} : { commissionPercentage: comm }),
+                              openTime: openT,
+                              closeTime: closeT,
+                            }
+                          : b
+                      )
+                    );
+                    setShowCommissionModal(false);
+                    Alert.alert('Actualizado ✅', 'Se guardaron la comisión y los horarios de la tienda.');
+                  } catch {
+                    Alert.alert('Error', 'No se pudieron guardar los cambios.');
+                  }
+                }}
               >
                 <Text style={styles.modalConfirmText}>Actualizar</Text>
               </TouchableOpacity>

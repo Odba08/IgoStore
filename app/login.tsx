@@ -16,7 +16,7 @@ export default function LoginScreen() {
   const router = useRouter();
   const { skipSplash, redirect } = useLocalSearchParams<{ skipSplash?: string; redirect?: string }>();
   const insets = useSafeAreaInsets();
-  const { login } = useAuthStore();
+  const { login, enterAsGuest } = useAuthStore();
   
   const [email, setEmail] = useState(''); 
   const [password, setPassword] = useState('');
@@ -228,11 +228,18 @@ export default function LoginScreen() {
             <View style={styles.topActionRow}>
               <TouchableOpacity
                 style={styles.guestSkipBtn}
-                onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))}
+                onPress={() => {
+                  enterAsGuest();
+                  if (redirect === 'back' && router.canGoBack()) {
+                    router.back();
+                  } else {
+                    router.replace('/');
+                  }
+                }}
                 activeOpacity={0.75}
               >
-                <Ionicons name="arrow-back" size={16} color="#FFFFFF" />
-                <Text style={styles.guestSkipText}>Explorar sin cuenta</Text>
+                <Ionicons name="person-outline" size={15} color="#FFFFFF" />
+                <Text style={styles.guestSkipText}>Entrar como invitado</Text>
               </TouchableOpacity>
             </View>
 
@@ -334,6 +341,36 @@ export default function LoginScreen() {
               ) : (
                 <Text style={styles.mainButtonText}>Iniciar sesión</Text>
               )}
+            </TouchableOpacity>
+
+            {/* Botón Secundario: Continuar como Invitado */}
+            <TouchableOpacity
+              style={{
+                marginTop: 12,
+                height: 50,
+                borderRadius: 14,
+                borderWidth: 1.5,
+                borderColor: 'rgba(255, 201, 60, 0.55)',
+                backgroundColor: 'rgba(255, 255, 255, 0.06)',
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8,
+              }}
+              onPress={() => {
+                enterAsGuest();
+                if (redirect === 'back' && router.canGoBack()) {
+                  router.back();
+                } else {
+                  router.replace('/');
+                }
+              }}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="compass-outline" size={18} color="#FFC93C" />
+              <Text style={{ color: '#FFC93C', fontSize: 15, fontWeight: '700' }}>
+                Continuar como Invitado
+              </Text>
             </TouchableOpacity>
 
             {/* Footer: Registro */}

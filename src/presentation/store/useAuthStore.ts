@@ -18,9 +18,11 @@ export interface User {
 
 interface AuthState {
   isAuthenticated: boolean;
+  isGuestMode: boolean;
   user: User | null;
   token: string | null;
   isLoading: boolean;
+  enterAsGuest: () => void;
   login: (email: string, password: string) => Promise<boolean>;
   register: (email: string, password: string, fullName: string, phoneNumber?: string) => Promise<boolean>;
   loginWithGoogle: (googleToken: string) => Promise<boolean>;
@@ -33,9 +35,14 @@ interface AuthState {
 
 export const useAuthStore = create<AuthState>((set, get) => ({
   isAuthenticated: false,
+  isGuestMode: false,
   user: null,
   token: null,
   isLoading: true,
+
+  enterAsGuest: () => {
+    set({ isGuestMode: true, isLoading: false });
+  },
 
   login: async (email, password) => {
     try {
@@ -47,6 +54,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       set({
         isAuthenticated: true,
+        isGuestMode: false,
         user,
         token,
         isLoading: false,
@@ -104,7 +112,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   logout: async () => {
     await SecureStorage.removeItem('token');
     await SecureStorage.removeItem('user');
-    set({ isAuthenticated: false, user: null, token: null, isLoading: false });
+    set({ isAuthenticated: false, isGuestMode: false, user: null, token: null, isLoading: false });
   },
 
   deleteAccount: async () => {

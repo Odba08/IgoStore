@@ -103,6 +103,12 @@ export default function BusinessDetailScreen() {
     return { uri: `${API_URL}/api/files/product/${image.url}` };
   };
 
+  const isStoreOpen = business?.isOpen === true;
+  const scheduleLabel =
+    business?.openTime && business?.closeTime
+      ? `${business.openTime} - ${business.closeTime}`
+      : '08:00 AM - 10:00 PM';
+
   // --- MEMORIZAMOS EL HEADER ---
   const headerComponent = useMemo(() => {
     if (!business) return null;
@@ -150,6 +156,40 @@ export default function BusinessDetailScreen() {
             <Ionicons name="pricetag-outline" size={13} color={colors.textMuted} style={{ marginRight: 4 }} />
             <Text style={[styles.businessCategory, { color: colors.textMuted }]}>
               {business.category?.name || 'General'}
+            </Text>
+          </View>
+
+          {/* Banner de Horario y Estado Abierto / Cerrado */}
+          <View
+            style={{
+              marginTop: 10,
+              paddingHorizontal: 12,
+              paddingVertical: 8,
+              borderRadius: 10,
+              backgroundColor: isStoreOpen ? 'rgba(16, 185, 129, 0.14)' : 'rgba(245, 158, 11, 0.16)',
+              borderWidth: 1,
+              borderColor: isStoreOpen ? '#10B981' : '#F59E0B',
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 6,
+            }}
+          >
+            <Ionicons
+              name={isStoreOpen ? 'checkmark-circle' : 'lock-closed'}
+              size={16}
+              color={isStoreOpen ? '#10B981' : '#F59E0B'}
+            />
+            <Text
+              style={{
+                flex: 1,
+                fontSize: 12,
+                fontWeight: '700',
+                color: isStoreOpen ? '#10B981' : '#D97706',
+              }}
+            >
+              {isStoreOpen
+                ? `Abierto ahora • Horario: ${scheduleLabel}`
+                : `Tienda Cerrada • Horario de atención: ${scheduleLabel}`}
             </Text>
           </View>
         </View>
@@ -308,8 +348,15 @@ export default function BusinessDetailScreen() {
               </View>
 
               <TouchableOpacity
-                style={styles.addButton}
+                style={[styles.addButton, !isStoreOpen && { backgroundColor: '#CBD5E1' }]}
                 onPress={() => {
+                  if (!isStoreOpen) {
+                    Alert.alert(
+                      'Tienda Cerrada 🔒',
+                      `Esta tienda se encuentra cerrada en este momento (Horario: ${scheduleLabel}). Por ahora puedes explorar su catálogo.`
+                    );
+                    return;
+                  }
                   const currentCart = useCartStore.getState().items;
                   const firstItem = currentCart[0] as any;
                   const cartBusinessId =

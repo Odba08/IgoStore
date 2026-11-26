@@ -2,7 +2,7 @@ import { StatusBar } from "expo-status-bar";
 import { ScrollView, Text, View, FlatList, TouchableOpacity, TextInput, StyleSheet, Image, ActivityIndicator, Alert, Clipboard, Modal, Platform, Linking } from "react-native";
 import { Image as ExpoImage } from "expo-image";
 import { useRef } from 'react';
-import { useRouter } from "expo-router";
+import { useRouter, Redirect } from "expo-router";
 import * as ImagePicker from 'expo-image-picker';
 import { useAllProducts } from "@/presentation/hooks/useProducts";
 import { Ionicons } from "@expo/vector-icons";
@@ -34,7 +34,7 @@ import { useNotificationAlertStore } from "@/presentation/store/useNotificationA
 
 export default function Index() {
   const router = useRouter();
-  const { user, isAuthenticated, isLoading: isAuthLoading, logout } = useAuthStore();
+  const { user, isAuthenticated, isGuestMode, isLoading: isAuthLoading, logout } = useAuthStore();
   const { colors, isDark } = useThemeStore();
 
   // 1. CARGA DE DATOS CLIENTE
@@ -667,6 +667,11 @@ export default function Index() {
         spinnerColor="#FFDB58" 
       />
     );
+  }
+
+  // Si no ha iniciado sesión ni ha entrado como invitado, mostrar animación + Login
+  if (!isAuthenticated && !isGuestMode) {
+    return <Redirect href="/login" />;
   }
 
   // Si el usuario es administrador y tiene activo el modo admin, renderizar AdminDashboard
@@ -1321,8 +1326,23 @@ export default function Index() {
                         }}
                         title={startName}
                         description="Punto de Recogida"
-                        pinColor="green"
+                        pinColor="#6200EE"
                       />
+
+                      {/* Marcadores de Paradas Intermedias */}
+                      {Array.isArray(selectedRouteOrder.stops) &&
+                        selectedRouteOrder.stops.map((stop: any, idx: number) => (
+                          <Marker
+                            key={`driver-stop-${idx}`}
+                            coordinate={{
+                              latitude: Number(stop.latitude),
+                              longitude: Number(stop.longitude),
+                            }}
+                            title={`Parada ${idx + 1}`}
+                            description={stop.address || `Parada intermedia ${idx + 1}`}
+                            pinColor="#EDB422"
+                          />
+                        ))}
 
                       {/* Marcador del Cliente */}
                       <Marker
@@ -1332,7 +1352,7 @@ export default function Index() {
                         }}
                         title="Cliente"
                         description={selectedRouteOrder.deliveryAddress}
-                        pinColor="red"
+                        pinColor="#EDB422"
                       />
 
                       {/* Línea de Ruta */}
@@ -1391,6 +1411,12 @@ export default function Index() {
                       <Text style={{ fontSize: 12, color: '#64748B', marginTop: 2 }}>
                         <Text style={{ fontWeight: 'bold' }}>Punto A:</Text> {startName}
                       </Text>
+                      {Array.isArray(selectedRouteOrder.stops) &&
+                        selectedRouteOrder.stops.map((stop: any, idx: number) => (
+                          <Text key={`stop-txt-${idx}`} style={{ fontSize: 12, color: '#6200EE', marginTop: 1 }} numberOfLines={1}>
+                            <Text style={{ fontWeight: 'bold' }}>Parada {idx + 1}:</Text> {stop.address}
+                          </Text>
+                        ))}
                       <Text style={{ fontSize: 12, color: '#64748B', marginTop: 1 }} numberOfLines={1}>
                         <Text style={{ fontWeight: 'bold' }}>Punto B:</Text> {selectedRouteOrder.deliveryAddress}
                       </Text>
@@ -1552,7 +1578,7 @@ export default function Index() {
             </TouchableOpacity>
 
             <TouchableOpacity 
-              style={[styles.actionBtn, { width: '100%', backgroundColor: '#EF4444', height: 44, borderRadius: 10, justifyContent: 'center', alignItems: 'center' }]} 
+              style={[styles.actionBtn, { width: '100%', backgroundColor: '#6200EE', height: 44, borderRadius: 10, justifyContent: 'center', alignItems: 'center' }]} 
               onPress={() => {
                 setShowConfirmModal(false);
                 setDeliveryPhotoUri(null);

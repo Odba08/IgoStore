@@ -81,7 +81,9 @@ const MapScreen = () => {
   const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
   const [showStorePaymentModal, setShowStorePaymentModal] = useState(false);
   
-  const [activeExplorerField, setActiveExplorerField] = useState<'pickup' | 'delivery'>('delivery');
+  const [activeExplorerField, setActiveExplorerField] = useState<'pickup' | 'delivery' | 'stop'>('delivery');
+  const [stops, setStops] = useState<Array<{ latitude: number; longitude: number; address: string }>>([]);
+  const [activeStopIndex, setActiveStopIndex] = useState<number>(0);
 
   const [address, setAddress] = useState('Mueve el mapa para seleccionar...');
   const [loadingAddress, setLoadingAddress] = useState(false);
@@ -254,7 +256,7 @@ const MapScreen = () => {
     }
   }, [currentBusinessId, businesses]);
 
-  // Recalcular ruta y tarifas cuando cambian opciones de envío, tamaño o valor de paquete o si está asegurado, u origen/destino
+  // Recalcular ruta y tarifas cuando cambian opciones de envío, tamaño o valor de paquete o si está asegurado, u origen/destino/paradas
   useEffect(() => {
     if (activeMode === 'route') {
       const currentOrigin = pickupLocation;
@@ -263,9 +265,9 @@ const MapScreen = () => {
         executeRouteCalculation(currentOrigin, currentDestination, routeQuote?.businessId);
       }
     }
-  }, [selectedShippingType, packageSize, debouncedPackageValue, isInsured, pickupLocation, deliveryLocation, activeMode]);
+  }, [selectedShippingType, packageSize, debouncedPackageValue, isInsured, pickupLocation, deliveryLocation, stops, activeMode]);
 
-  const executeRouteCalculation = async (originPoint: any, destinationPoint: any, alternativeBusinessId?: string) => {
+  const executeRouteCalculation = async (originPoint: any, destinationPoint: any, alternativeBusinessId?: string, customStops?: any[]) => {
     // Si estamos en proceso de enviar o ya no hay items en carrito de tienda, no recalcular
     if (isSubmittingOrder) return;
     if (!isFavorService && items.length === 0) return;
@@ -302,12 +304,15 @@ const MapScreen = () => {
       
       const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
 
+      const activeStopsList = customStops !== undefined ? customStops : stops;
+
       const quotePayload = {
         businessId: businessId,
         pickupLat: currentOrigin?.latitude,
         pickupLong: currentOrigin?.longitude,
         deliveryLat: currentDestination.latitude,
         deliveryLong: currentDestination.longitude,
+        stops: isFavorService ? activeStopsList : [],
         shippingType: selectedShippingType,
         category: isTaxiService ? 'IgoTaxi' : (isFavorService ? 'IgoFavor' : selectedCategory),
         packageValue: parseFloat(debouncedPackageValue) || 0,
@@ -418,8 +423,17 @@ const MapScreen = () => {
     setAddress(place.display_name);
 
     if (mode !== 'route') {
-      if (activeExplorerField === 'pickup' && canEditOrigin) setPickupLocation({ ...coordsPayload, address: place.display_name });
-      else setDeliveryLocation({ ...coordsPayload, address: place.display_name });
+      if (activeExplorerField === 'pickup' && canEditOrigin) {
+        setPickupLocation({ ...coordsPayload, address: place.display_name });
+      } else if (activeExplorerField === 'stop' && canEditOrigin) {
+        setStops((prev) => {
+          const next = [...prev];
+          next[activeStopIndex] = { ...coordsPayload, address: place.display_name };
+          return next;
+        });
+      } else {
+        setDeliveryLocation({ ...coordsPayload, address: place.display_name });
+      }
     }
     mapRef.current?.animateToRegion({ ...coordsPayload, latitudeDelta: 0.006, longitudeDelta: 0.006 }, 1000);
   };
@@ -635,6 +649,7 @@ const MapScreen = () => {
       deliveryLat: routeQuote.userLat,
       deliveryLong: routeQuote.userLong,
       deliveryAddress: `${deliveryLocation?.address || 'Destino en Mapa'} | Ref: ${addressNotes || ''}`.trim(),
+      stops: stops,
       category: isMotoTaxi ? 'IgoMoto' : 'IgoTaxi',
       shippingType: isMotoTaxi ? 'Moto' : selectedShippingType,
       paymentRecipient: 'Pago Conductor',
@@ -692,6 +707,7 @@ const MapScreen = () => {
       deliveryLat: routeQuote.userLat,
       deliveryLong: routeQuote.userLong,
       deliveryAddress: `${deliveryLocation?.address || 'Ubicación en Mapa'} | Ref: ${addressNotes || ''}`.trim(),
+      stops: isFavor ? stops : [],
       category: isFavor ? 'IgoFavor' : selectedCategory,
       shippingType: selectedShippingType,
       paymentRecipient: isFavor ? 'Pago IGO' : 'Pago Negocio',
@@ -806,9 +822,22 @@ const MapScreen = () => {
         {pickupLocation && (activeMode === 'route' || activeExplorerField !== 'pickup') ? (
           <Marker coordinate={pickupLocation} title="Origen (Punto A)" pinColor="#6200EE" />
         ) : null}
+
+        {isFavorService &&
+          stops.map((stop, idx) =>
+            stop && typeof stop.latitude === 'number' ? (
+              <Marker
+                key={`stop-marker-${idx}`}
+                coordinate={{ latitude: stop.latitude, longitude: stop.longitude }}
+                title={`Parada ${idx + 1}`}
+                description={stop.address}
+                pinColor="#6528FF"
+              />
+            ) : null
+          )}
         
         {deliveryLocation && (activeMode === 'route' || activeExplorerField !== 'delivery') ? (
-          <Marker coordinate={deliveryLocation} title="Destino (Punto B)" pinColor="#FF3B30" />
+          <Marker coordinate={deliveryLocation} title="Destino (Punto B)" pinColor="#EDB422" />
         ) : null}
 
         {activeMode === 'route' && polylineCoords.length >= 2 ? (
@@ -891,7 +920,18 @@ const MapScreen = () => {
       {(activeMode !== 'route' || activeEditing) ? (
         <View style={styles.markerFixed} pointerEvents="none">
           <View style={styles.pinWrapper}>
-            <Ionicons name="location" size={44} color={activeExplorerField === 'pickup' || activeEditing === 'pickup' ? "#6200EE" : "#FF3B30"} style={styles.pinIcon} />
+            <Ionicons
+              name="location"
+              size={44}
+              color={
+                activeExplorerField === 'pickup' || activeEditing === 'pickup'
+                  ? '#6200EE'
+                  : activeExplorerField === 'stop'
+                  ? '#6528FF'
+                  : '#EDB422'
+              }
+              style={styles.pinIcon}
+            />
             <View style={styles.baseDot} />
           </View>
         </View>
@@ -1082,13 +1122,13 @@ const MapScreen = () => {
                 {!isFavorService ? (
                   <View style={styles.editButtonsContainer}>
                     <TouchableOpacity style={[styles.editBtnMini, { flex: 1, marginTop: 10 }]} onPress={() => { setActiveEditing('delivery'); setActiveExplorerField('delivery'); setSearchQuery(''); }}>
-                      <Ionicons name="location" size={16} color="#FF3B30" style={{ marginRight: 5 }} />
+                      <Ionicons name="location" size={16} color="#6200EE" style={{ marginRight: 5 }} />
                       <Text style={styles.editBtnText}>Cambiar Destino de Entrega</Text>
                     </TouchableOpacity>
                   </View>
                 ) : (
                   <TouchableOpacity style={{ marginTop: 12, alignItems: 'center', paddingVertical: 5 }} onPress={() => { setPolylineCoords([]); setRouteQuote(null); setActiveMode('delivery'); }}>
-                    <Text style={{ color: '#666', fontWeight: 'bold', fontSize: 13 }}>X  Ajustar Origen / Destino en Mapa</Text>
+                    <Text style={{ color: '#6200EE', fontWeight: 'bold', fontSize: 13 }}>X  Ajustar Origen / Paradas / Destino en Mapa</Text>
                   </TouchableOpacity>
                 )}
               </>
@@ -1137,13 +1177,136 @@ const MapScreen = () => {
                     }
                   }}
                 >
-                  <Text style={[styles.tabText, activeExplorerField === 'delivery' ? styles.tabTextActive : null]}>📍 Destino (B)</Text>
+                  <Text style={[styles.tabText, activeExplorerField === 'delivery' ? styles.tabTextActiveDelivery : null]}>📍 Destino (B)</Text>
                 </TouchableOpacity>
               </View>
+
+              {/* SECCIÓN DE PARADAS INTERMEDIAS PARA IGO MOTO, IGO TAXI E IGO FAVOR */}
+              <View style={{ marginBottom: 10 }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                  <Text style={{ fontSize: 12, fontWeight: '800', color: '#475569' }}>
+                    🛑 Paradas intermedias ({stops.length}/3)
+                  </Text>
+                  {stops.length < 3 && (
+                    <TouchableOpacity
+                      style={{
+                        backgroundColor: '#F3E8FF',
+                        borderWidth: 1,
+                        borderColor: '#6200EE',
+                        paddingHorizontal: 10,
+                        paddingVertical: 5,
+                        borderRadius: 8,
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        gap: 4,
+                      }}
+                      onPress={() => {
+                        const baseCoord = targetCoords || initialCoords;
+                        const newStop = {
+                          latitude: baseCoord.latitude,
+                          longitude: baseCoord.longitude,
+                          address: address || `Parada ${stops.length + 1}`,
+                        };
+                        const newIndex = stops.length;
+                        setStops((prev) => [...prev, newStop]);
+                        setActiveStopIndex(newIndex);
+                        setActiveExplorerField('stop');
+                      }}
+                    >
+                      <Ionicons name="add-circle" size={15} color="#6200EE" />
+                      <Text style={{ fontSize: 12, fontWeight: '800', color: '#6200EE' }}>
+                        + Agregar parada
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+
+                {stops.length > 0 && (
+                  <View style={{ gap: 6 }}>
+                    {stops.map((st, idx) => {
+                      const isEditingThisStop = activeExplorerField === 'stop' && activeStopIndex === idx;
+                      return (
+                        <View
+                          key={`stop-row-${idx}`}
+                          style={{
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            backgroundColor: isEditingThisStop ? '#F3E8FF' : '#F8FAFC',
+                            borderWidth: 1,
+                            borderColor: isEditingThisStop ? '#6200EE' : '#E2E8F0',
+                            borderRadius: 10,
+                            paddingHorizontal: 10,
+                            paddingVertical: 7,
+                          }}
+                        >
+                          <TouchableOpacity
+                            style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6 }}
+                            onPress={() => {
+                              setActiveStopIndex(idx);
+                              setActiveExplorerField('stop');
+                              setAddress(st.address || `Parada ${idx + 1}`);
+                              mapRef.current?.animateToRegion(
+                                {
+                                  latitude: st.latitude,
+                                  longitude: st.longitude,
+                                  latitudeDelta: 0.008,
+                                  longitudeDelta: 0.008,
+                                },
+                                800
+                              );
+                            }}
+                          >
+                            <View
+                              style={{
+                                backgroundColor: '#6200EE',
+                                borderRadius: 10,
+                                paddingHorizontal: 7,
+                                paddingVertical: 2,
+                              }}
+                            >
+                              <Text style={{ color: '#FFF', fontSize: 10, fontWeight: '800' }}>
+                                P{idx + 1}
+                              </Text>
+                            </View>
+                            <Text
+                              style={{ flex: 1, fontSize: 12, color: '#1E293B', fontWeight: '600' }}
+                              numberOfLines={1}
+                            >
+                              {st.address || `Ubicación Parada ${idx + 1}`}
+                            </Text>
+                          </TouchableOpacity>
+
+                          <TouchableOpacity
+                            onPress={() => {
+                              setStops((prev) => prev.filter((_, i) => i !== idx));
+                              if (activeExplorerField === 'stop') {
+                                setActiveExplorerField('delivery');
+                              }
+                            }}
+                            style={{ paddingLeft: 8, paddingVertical: 2 }}
+                          >
+                            <Ionicons name="close-circle" size={18} color="#64748B" />
+                          </TouchableOpacity>
+                        </View>
+                      );
+                    })}
+                  </View>
+                )}
+              </View>
+
               <Text style={styles.addressLabel} numberOfLines={1}>{address}</Text>
 
               <TouchableOpacity 
-                style={[styles.actionBtn, { backgroundColor: activeExplorerField === 'pickup' ? '#6200EE' : '#FF3B30', marginBottom: 10 }]} 
+                style={[
+                  styles.actionBtn,
+                  {
+                    backgroundColor:
+                      activeExplorerField === 'pickup' || activeExplorerField === 'stop'
+                        ? '#6200EE'
+                        : '#EDB422',
+                    marginBottom: 10,
+                  },
+                ]} 
                 onPress={() => {
                   if (!targetCoords) return;
                   const payload = { latitude: targetCoords.latitude, longitude: targetCoords.longitude, address };
@@ -1159,20 +1322,46 @@ const MapScreen = () => {
                         longitudeDelta: 0.008
                       }, 1000);
                     }
+                  } else if (activeExplorerField === 'stop') {
+                    setStops((prev) => {
+                      const next = [...prev];
+                      next[activeStopIndex] = payload;
+                      return next;
+                    });
+                    Alert.alert(
+                      `Parada ${activeStopIndex + 1} Establecida`,
+                      `Se guardó la ubicación de la Parada ${activeStopIndex + 1}.`
+                    );
+                    setActiveExplorerField('delivery');
                   } else {
                     setDeliveryLocation(payload);
                     Alert.alert("Destino Establecido", "Se guardó el punto de entrega (Punto B).");
                   }
                 }}
               >
-                <Text style={[styles.actionBtnText, { color: '#FFF' }]}>
-                  {activeExplorerField === 'pickup' ? "📍 Fijar Origen (A)" : "📍 Fijar Destino (B)"}
+                <Text
+                  style={[
+                    styles.actionBtnText,
+                    {
+                      color:
+                        activeExplorerField === 'pickup' || activeExplorerField === 'stop'
+                          ? '#FFF'
+                          : '#0F0330',
+                    },
+                  ]}
+                >
+                  {activeExplorerField === 'pickup'
+                    ? '📍 Fijar Origen (A)'
+                    : activeExplorerField === 'stop'
+                    ? `🛑 Fijar Parada ${activeStopIndex + 1}`
+                    : '📍 Fijar Destino (B)'}
                 </Text>
               </TouchableOpacity>
 
               <TouchableOpacity 
-                style={[styles.actionBtn, { backgroundColor: '#1A1A1A', marginTop: 5 }]} 
+                style={[styles.actionBtn, { backgroundColor: '#6200EE', marginTop: 5 }]} 
                 onPress={() => {
+                  let nextStops = [...stops];
                   if (targetCoords) {
                     const payload = { latitude: targetCoords.latitude, longitude: targetCoords.longitude, address };
                     if (activeExplorerField === 'pickup') {
@@ -1180,18 +1369,24 @@ const MapScreen = () => {
                       const currentDest = deliveryLocation;
                       if (!payload) return Alert.alert("Falta el Origen", "Selecciona desde dónde sale el envío.");
                       if (!currentDest) return Alert.alert("Falta el Destino", "Selecciona a dónde llega el envío.");
-                      executeRouteCalculation(payload, currentDest);
+                      executeRouteCalculation(payload, currentDest, undefined, nextStops);
+                    } else if (activeExplorerField === 'stop') {
+                      nextStops[activeStopIndex] = payload;
+                      setStops(nextStops);
+                      if (!pickupLocation) return Alert.alert("Falta el Origen", "Selecciona desde dónde sale el envío.");
+                      if (!deliveryLocation) return Alert.alert("Falta el Destino", "Selecciona a dónde llega el envío.");
+                      executeRouteCalculation(pickupLocation, deliveryLocation, undefined, nextStops);
                     } else {
                       setDeliveryLocation(payload);
                       const currentOrig = pickupLocation;
                       if (!currentOrig) return Alert.alert("Falta el Origen", "Selecciona desde dónde sale el envío.");
                       if (!payload) return Alert.alert("Falta el Destino", "Selecciona a dónde llega el envío.");
-                      executeRouteCalculation(currentOrig, payload);
+                      executeRouteCalculation(currentOrig, payload, undefined, nextStops);
                     }
                   } else {
                     if (!pickupLocation) return Alert.alert("Falta el Origen", "Selecciona desde dónde sale el envío.");
                     if (!deliveryLocation) return Alert.alert("Falta el Destino", "Selecciona a dónde llega el envío.");
-                    executeRouteCalculation(pickupLocation, deliveryLocation);
+                    executeRouteCalculation(pickupLocation, deliveryLocation, undefined, nextStops);
                   }
                   setActiveMode('route'); 
                   setActiveEditing(null);
@@ -1323,6 +1518,11 @@ const MapScreen = () => {
                   <Text style={{ fontSize: 12, color: '#64748B', marginBottom: 4 }}>
                     📍 <Text style={{ fontWeight: 'bold' }}>Origen:</Text> {pickupLocation?.address || 'Punto A'}
                   </Text>
+                  {stops.map((st, idx) => (
+                    <Text key={`taxi-stop-${idx}`} style={{ fontSize: 12, color: '#6200EE', marginBottom: 4 }}>
+                      🛑 <Text style={{ fontWeight: 'bold' }}>Parada {idx + 1}:</Text> {st.address}
+                    </Text>
+                  ))}
                   <Text style={{ fontSize: 12, color: '#64748B', marginBottom: 8 }}>
                     🏁 <Text style={{ fontWeight: 'bold' }}>Destino:</Text> {deliveryLocation?.address || 'Punto B'}
                   </Text>
@@ -1403,9 +1603,10 @@ const styles = StyleSheet.create({
   tabsContainer: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 14, backgroundColor: '#F1F5F9', padding: 4, borderRadius: 12 },
   tabButton: { flex: 0.49, paddingVertical: 10, alignItems: 'center', borderRadius: 10 },
   tabActivePickup: { backgroundColor: '#6200EE' },
-  tabActiveDelivery: { backgroundColor: '#FF3B30' },
+  tabActiveDelivery: { backgroundColor: '#EDB422' },
   tabText: { fontSize: 13, fontWeight: '700', color: '#64748B' },
   tabTextActive: { color: '#FFF' },
+  tabTextActiveDelivery: { color: '#0F0330', fontWeight: '800' },
   saveAddressContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 10, paddingHorizontal: 12, height: 44, marginBottom: 15 },
   saveAddressInput: { flex: 1, fontSize: 14, color: '#1A1A1A' },
   actionButtonsRow: { flexDirection: 'row', justifyContent: 'space-between' },
